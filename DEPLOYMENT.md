@@ -55,6 +55,8 @@ Los nombres PM2 creados por `ecosystem.config.cjs` son `restaurant-pos-backend` 
 
 Sube el proyecto a un repositorio GitHub y establece `main` como rama de producción. En **Settings → Secrets and variables → Actions**, configura estas variables:
 
+Para obtener y cargar secretos, generar y verificar las claves SSH, y preparar la VM paso a paso, consulta [CONFIGURAR-SECRETS-GITHUB.md](./CONFIGURAR-SECRETS-GITHUB.md).
+
 | Variable | Valor |
 |---|---|
 | `DEPLOY_HOST` | IP o nombre Tailscale de la VM de aplicación |
@@ -68,12 +70,11 @@ Configura estos secretos de Actions:
 | Secreto | Uso |
 |---|---|
 | `DATABASE_URL` | Conexión PostgreSQL de Supabase para el job de migraciones. Usa el pooler en modo **Session** si la conexión directa no es accesible; no uses Transaction mode porque el migrador toma un advisory lock de sesión. |
-| `TS_OAUTH_CLIENT_ID` | Cliente OAuth de Tailscale con permisos mínimos para conectar el runner |
-| `TS_OAUTH_CLIENT_SECRET` | Secreto del cliente OAuth de Tailscale |
+| `TS_AUTHKEY` | Auth key dedicada de Tailscale con el tag `tag:ci`; no es un API access token |
 | `DEPLOY_SSH_KEY` | Clave privada de despliegue dedicada; no reutilices una clave personal |
 | `DEPLOY_KNOWN_HOSTS` | Entrada de `known_hosts` verificada para la VM de destino |
 
-Etiqueta el cliente OAuth de Tailscale como `tag:ci` y autoriza en la ACL de Tailscale que `tag:ci` alcance únicamente SSH de la VM de aplicación. Instala la clave pública correspondiente a `DEPLOY_SSH_KEY` en `~ubuntu/.ssh/authorized_keys` (o en el usuario elegido). Obtén la huella SSH de la VM por un canal confiable para construir `DEPLOY_KNOWN_HOSTS`; no confíes sin verificar en la salida de `ssh-keyscan`.
+Genera `TS_AUTHKEY` desde **Tailscale → Settings → Keys** como Auth key, con `tag:ci` y expiración configurada; una key ephemeral es adecuada para runners temporales. No uses un API access token. Autoriza en la ACL de Tailscale que `tag:ci` alcance únicamente SSH de la VM de aplicación. Instala la clave pública correspondiente a `DEPLOY_SSH_KEY` en `~ubuntu/.ssh/authorized_keys` (o en el usuario elegido). Obtén la huella SSH de la VM por un canal confiable para construir `DEPLOY_KNOWN_HOSTS`; no confíes sin verificar en la salida de `ssh-keyscan`.
 
 En **Settings → Environments**, crea el entorno `production`; opcionalmente exige aprobación antes del despliegue. Cada push a `main` que pase checks construirá y desplegará automáticamente.
 
