@@ -85,6 +85,6 @@ El secreto `DATABASE_URL` debe apuntar al mismo proyecto Supabase que utiliza la
 
 ## Despliegue y rollback
 
-Cada artefacto se instala en una carpeta versionada dentro de `releases/`; `current` apunta a la versión activa. El script valida el backend y frontend después de activar PM2 y revierte al release anterior si no responden. Revisa la salida de la acción y los logs PM2 si falla.
+El workflow `.github/workflows/deploy.yml` contiene los pasos del despliegue: instala cada artefacto en una carpeta versionada dentro de `releases/`, actualiza `current`, reinicia PM2 y valida el backend y frontend. Si la activación o las comprobaciones de salud fallan, restaura el release anterior. Revisa la salida de la acción y los logs PM2 si falla.
 
 Las migraciones se ejecutan automáticamente antes del despliegue. El migrador registra cada archivo aplicado en `public.schema_migrations`, toma un advisory lock y ejecuta cada archivo pendiente dentro de una transacción. Revisa y prueba los archivos SQL antes de fusionarlos a `main`; para cambios destructivos, usa un backup y migraciones compatibles con el release actual.
