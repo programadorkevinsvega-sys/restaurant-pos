@@ -73,7 +73,7 @@ start_release() {
   done
 
   pm2 start "$release/ecosystem.config.cjs" --env production --update-env
-  EXPECTED_RELEASE="$release" pm2 jlist | node -e '
+  pm2 jlist | EXPECTED_RELEASE="$release" node -e '
     let output = ""
     process.stdin.setEncoding("utf8")
     process.stdin.on("data", (chunk) => { output += chunk })
