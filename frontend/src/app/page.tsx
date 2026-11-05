@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Cart } from "@/components/cart"
 import { CategoryFilter } from "@/components/category-filter"
 import { FoodGrid } from "@/components/food-grid"
@@ -13,6 +15,7 @@ import { SidebarNav, type AppSection } from "@/components/sidebar-nav"
 import { TableManagement } from "@/components/tables/table-management"
 import { toast } from "@/hooks/use-toast"
 import { posApplication } from "@/modules/pos/infrastructure/container"
+import { HttpError, type AuthenticatedUser } from "@/shared/infrastructure/http-client"
 import type { Category, NewProduct, Product } from "@/modules/catalog/domain/models"
 import type { CartItem, OrderType } from "@/modules/orders/domain/models"
 import type {
@@ -24,7 +27,7 @@ import type {
   SalesReport,
 } from "@/modules/operations/domain/models"
 
-export default function POSPage() {
+function POSWorkspace({ onLogout }: { onLogout: () => void }) {
   const [activeSection, setActiveSection] = useState<AppSection>("menu")
   const [categories, setCategories] = useState<Category[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -301,7 +304,7 @@ export default function POSPage() {
         }}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Header query={query} onQueryChange={setQuery} />
+        <Header query={query} onQueryChange={setQuery} onLogout={onLogout} />
         {operationError && activeSection !== "menu" && activeSection !== "add-product" && (
           <div role="alert" className="mx-4 mt-3 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             <span>{operationError}</span>
@@ -324,4 +327,134 @@ export default function POSPage() {
       </div>
     </div>
   )
+}
+
+export default function POSPage() {
+  const [user, setUser] = useState<AuthenticatedUser | null>(null)
+  const [authStatus, setAuthStatus] = useState<"checking" | "signed-out" | "signed-in" | "error">("checking")
+  const [authError, setAuthError] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const checkSession = useCallback(async () => {
+    setAuthStatus("checking")
+    setAuthError("")
+    try {
+      setUser(await posApplication.auth.currentUser())
+      setAuthStatus("signed-in")
+    } catch (error) {
+      setUser(null)
+      if (error instanceof HttpError && error.status === 401) {
+        setAuthStatus("signed-out")
+      } else {
+        setAuthError(error instanceof Error ? error.message : "No se pudo verificar la sesión.")
+        setAuthStatus("error")
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    posApplication.auth.currentUser()
+      .then((authenticatedUser) => {
+        if (!active) return
+        setUser(authenticatedUser)
+        setAuthStatus("signed-in")
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        setUser(null)
+        if (error instanceof HttpError && error.status === 401) {
+          setAuthStatus("signed-out")
+        } else {
+          setAuthError(error instanceof Error ? error.message : "No se pudo verificar la sesión.")
+          setAuthStatus("error")
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setIsSubmitting(true)
+    setAuthError("")
+    try {
+      const result = await posApplication.auth.login(email, password)
+      setUser(result.user)
+      setPassword("")
+      setAuthStatus("signed-in")
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "No se pudo iniciar sesión.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await posApplication.auth.logout()
+      setUser(null)
+      setAuthStatus("signed-out")
+      setPassword("")
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "No se pudo cerrar sesión.")
+    }
+  }
+
+  if (authStatus === "checking") {
+    return <main className="flex min-h-screen items-center justify-center bg-gray-100 text-muted-foreground">Verificando sesión…</main>
+  }
+
+  if (authStatus === "error") {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-100 p-6">
+        <p role="alert" className="text-center text-sm text-destructive">{authError}</p>
+        <Button onClick={() => void checkSession()}>Reintentar</Button>
+      </main>
+    )
+  }
+
+  if (authStatus === "signed-out" || !user) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
+        <form onSubmit={handleLogin} className="w-full max-w-sm space-y-5 rounded-lg border bg-white p-6 shadow-sm">
+          <div className="space-y-1 text-center">
+            <h1 className="text-2xl font-semibold">Chili POS</h1>
+            <p className="text-sm text-muted-foreground">Inicia sesión para continuar</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="login-email">Correo electrónico</Label>
+            <Input
+              id="login-email"
+              type="email"
+              autoComplete="username"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="login-password">Contraseña</Label>
+            <Input
+              id="login-password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </div>
+          {authError && <p role="alert" className="text-sm text-destructive">{authError}</p>}
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? "Iniciando sesión…" : "Iniciar sesión"}
+          </Button>
+        </form>
+      </main>
+    )
+  }
+
+  return <POSWorkspace onLogout={() => void handleLogout()} />
 }

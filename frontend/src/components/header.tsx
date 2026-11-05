@@ -1,13 +1,14 @@
-import { Search, Share2 } from "lucide-react"
+import { LogOut, Search, Share2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 
 interface HeaderProps {
   query: string
   onQueryChange: (query: string) => void
+  onLogout: () => void
 }
 
-export function Header({ query, onQueryChange }: HeaderProps) {
+export function Header({ query, onQueryChange, onLogout }: HeaderProps) {
   return (
     <div className="bg-white p-4 flex items-center gap-4 border-b">
       <div className="flex-1 relative">
@@ -23,6 +24,10 @@ export function Header({ query, onQueryChange }: HeaderProps) {
       </div>
       <Button variant="ghost" size="icon" aria-label="Compartir">
         <Share2 className="h-5 w-5" />
+      </Button>
+      <Button variant="outline" onClick={onLogout}>
+        <LogOut className="h-4 w-4" />
+        Cerrar sesión
       </Button>
     </div>
   )

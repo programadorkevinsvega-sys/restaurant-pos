@@ -9,6 +9,7 @@ El workflow `.github/workflows/deploy.yml` solo se ejecuta en `push` a `main`: i
 - El backend no debe exponerse directamente a Internet. En el firewall de la VM de aplicación permite los puertos de aplicación únicamente desde la VM Nginx y SSH desde Tailscale.
 - En el entorno de backend de producción, `CORS_ORIGINS` debe contener el origen exacto del frontend (`https://sistemapost.jnmtortas.com`). Mantén `AUTH_COOKIE_SAME_SITE=Lax`.
 - CORS controla qué páginas pueden leer respuestas desde un navegador; no autentica clientes ni sustituye el firewall. La restricción de red de los puertos de aplicación es la que mantiene privado el backend.
+- La ruta principal muestra el formulario de inicio de sesión cuando no existe una sesión válida. No hay registro público: las cuentas deben aprovisionarse en Supabase Auth y tener `app_metadata.role` con valor `staff` o `admin` para acceder.
 
 En el `server` HTTPS existente de Nginx, configura los locations con el IP privado real de la VM de aplicación:
 

@@ -75,7 +75,7 @@ export class HttpClient {
     }
 
     let response = await this.fetch(path, requestInit)
-    if (response.status === 401 && !path.startsWith("/auth/")) {
+    if (response.status === 401 && (!path.startsWith("/auth/") || path === "/auth/me")) {
       if (await this.refreshSession()) response = await this.fetch(path, requestInit)
     }
 
