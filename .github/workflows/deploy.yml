@@ -1,0 +1,191 @@
+name: Build and deploy production
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restaurant-pos-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Verify and build
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - name: Install backend dependencies
+        run: pnpm --dir backend install --frozen-lockfile
+
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Test backend
+        run: pnpm --dir backend check
+
+      - name: Check frontend types and lint
+        run: |
+          pnpm --dir frontend typecheck
+          pnpm --dir frontend lint
+
+      - name: Validate frontend API URL
+        run: |
+          if [ -z "$NEXT_PUBLIC_API_URL" ]; then
+            echo "Configure the NEXT_PUBLIC_API_URL repository variable."
+            exit 1
+          fi
+          case "$NEXT_PUBLIC_API_URL" in
+            https://*/api) ;;
+            *)
+              echo "NEXT_PUBLIC_API_URL must be an HTTPS URL ending in /api."
+              exit 1
+              ;;
+          esac
+
+      - name: Build frontend
+        run: pnpm --dir frontend build
+
+      - name: Package release
+        run: |
+          tar \
+            --exclude='backend/node_modules' \
+            --exclude='frontend/node_modules' \
+            --exclude='frontend/.next/cache' \
+            --exclude='backend/.env*' \
+            --exclude='frontend/.env*' \
+            -czf "$RUNNER_TEMP/restaurant-pos-${GITHUB_SHA}.tar.gz" \
+            backend frontend ecosystem.config.cjs
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: restaurant-pos-${{ github.sha }}
+          path: ${{ runner.temp }}/restaurant-pos-${{ github.sha }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  migrate:
+    name: Apply database migrations
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.15.0
+
+      - name: Install migration dependencies
+        run: pnpm --dir backend install --frozen-lockfile
+
+      - name: Validate database connection configuration
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Configure DATABASE_URL in the production environment secrets."
+            exit 1
+          fi
+
+      - name: Apply versioned database migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: pnpm --dir backend migrate
+
+  deploy:
+    name: Deploy to application VM
+    needs: [build, migrate]
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
+    steps:
+      - name: Check out deployment script
+        uses: actions/checkout@v4
+
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: restaurant-pos-${{ github.sha }}
+          path: ${{ runner.temp }}/release
+
+      - name: Connect runner to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Verify deployment configuration
+        env:
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_PATH FRONTEND_ORIGIN; do
+            if [ -z "${!name}" ]; then
+              echo "Configure the $name repository variable."
+              exit 1
+            fi
+          done
+          if [ -z "$DEPLOY_KNOWN_HOSTS" ]; then
+            echo "Configure the DEPLOY_KNOWN_HOSTS repository secret."
+            exit 1
+          fi
+
+      - name: Configure pinned host key
+        env:
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Copy and activate release
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          artifact="$RUNNER_TEMP/release/restaurant-pos-${RELEASE_SHA}.tar.gz"
+          remote_artifact="/tmp/restaurant-pos-${RELEASE_SHA}.tar.gz"
+          target="${DEPLOY_USER}@${DEPLOY_HOST}"
+          test -s "$artifact"
+          scp "$artifact" "${target}:${remote_artifact}"
+
+          printf -v remote_args '%q ' \
+            "$DEPLOY_PATH" \
+            "$RELEASE_SHA" \
+            "$remote_artifact" \
+            "$FRONTEND_ORIGIN"
+          ssh "$target" "bash -s -- ${remote_args}" < scripts/deploy-release.sh
