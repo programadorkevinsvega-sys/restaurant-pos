@@ -63,11 +63,44 @@ activate_release() {
   mv -Tf "$temporary_link" "$current_link"
 }
 
+start_release() {
+  local release=$1
+
+  for app_name in restaurant-pos-backend restaurant-pos-frontend; do
+    if pm2 describe "$app_name" >/dev/null 2>&1; then
+      pm2 delete "$app_name"
+    fi
+  done
+
+  pm2 start "$release/ecosystem.config.cjs" --env production --update-env
+  EXPECTED_RELEASE="$release" pm2 jlist | node -e '
+    let output = ""
+    process.stdin.setEncoding("utf8")
+    process.stdin.on("data", (chunk) => { output += chunk })
+    process.stdin.on("end", () => {
+      const apps = JSON.parse(output)
+      const expected = process.env.EXPECTED_RELEASE
+      const expectedApps = new Map([
+        ["restaurant-pos-backend", `${expected}/backend`],
+        ["restaurant-pos-frontend", `${expected}/frontend`],
+      ])
+      for (const [name, cwd] of expectedApps) {
+        const app = apps.find((entry) => entry.name === name)
+        if (!app || app.pm2_env.status !== "online" || app.pm2_env.pm_cwd !== cwd) {
+          console.error(`PM2 did not start ${name} from the new release.`)
+          process.exitCode = 1
+          return
+        }
+      }
+    })
+  '
+}
+
 rollback() {
   if [[ -n "$previous_release" ]]; then
     echo "Rolling back to the previous release." >&2
     activate_release "$previous_release"
-    if ! pm2 startOrReload "$previous_release/ecosystem.config.cjs" --env production --update-env; then
+    if ! start_release "$previous_release"; then
       echo "Could not restart the previous release automatically." >&2
     fi
   else
@@ -76,7 +109,7 @@ rollback() {
 }
 
 activate_release "$release_directory"
-if ! pm2 startOrReload "$current_link/ecosystem.config.cjs" --env production --update-env; then
+if ! start_release "$release_directory"; then
   rollback
   exit 1
 fi
