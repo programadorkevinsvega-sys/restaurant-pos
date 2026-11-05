@@ -46,8 +46,10 @@ Usa un usuario dedicado de despliegue (la configuración indicada es `ubuntu`) y
 
 - Node.js 22 o superior, pnpm 12.15.0, PM2, `curl` y `tar`.
 - El directorio `/opt/apps/restaurant-pos`, escribible por el usuario de despliegue.
-- `/opt/apps/restaurant-pos/shared/backend.env`, con los valores de producción requeridos por el backend. Este archivo queda fuera de las versiones desplegadas y nunca se copia desde GitHub Actions.
+- `/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env`, con los valores de producción requeridos por el backend. El archivo queda fuera de las versiones desplegadas y nunca se copia desde GitHub Actions; el script crea un enlace simbólico desde cada release.
 - Los servicios PM2 deben poder persistir tras reiniciar la VM: ejecuta una vez `pm2 startup` y luego `pm2 save` con el usuario de despliegue.
+
+El archivo de entorno de la VM requiere `NODE_ENV=production`, `PORT=3001`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CORS_ORIGINS` con el origen exacto del frontend, `AUTH_COOKIE_SAME_SITE=Lax` y `REDIS_URL`. `DATABASE_URL` va únicamente como secreto del entorno `production` en GitHub Actions para las migraciones; no es necesaria para arrancar la API. Protege el archivo como `root:ubuntu` con modo `640` y el directorio como `root:ubuntu` con modo `750`, para que solo root lo modifique y el usuario de despliegue pueda leerlo.
 
 Los nombres PM2 creados por `ecosystem.config.cjs` son `restaurant-pos-backend` (puerto 3001) y `restaurant-pos-frontend` (puerto 3002, porque el 3000 ya está ocupado en tu VM). El BFF existente en `8080` no se modifica. PM2 escucha en la VM; controla el acceso a esos puertos mediante firewall.
 

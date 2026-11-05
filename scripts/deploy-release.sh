@@ -21,7 +21,7 @@ if [[ ! "$frontend_origin" =~ ^https://[^/]+$ ]]; then
   exit 1
 fi
 
-shared_directory="$deploy_path/shared"
+backend_env_file="/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env"
 release_directory="$deploy_path/releases/$release_sha"
 current_link="$deploy_path/current"
 
@@ -37,15 +37,15 @@ if [[ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]]; then
   exit 1
 fi
 
-if [[ ! -s "$shared_directory/backend.env" ]]; then
-  echo "Create $shared_directory/backend.env with the production backend environment before deployment." >&2
+if [[ ! -s "$backend_env_file" || ! -r "$backend_env_file" ]]; then
+  echo "Create $backend_env_file and ensure the deployment user can read it before deployment." >&2
   exit 1
 fi
 
 mkdir -p "$deploy_path/releases"
 mkdir -p "$release_directory"
 tar -xzf "$artifact_path" -C "$release_directory"
-ln -sfn -- "$shared_directory/backend.env" "$release_directory/backend/.env"
+ln -sfn -- "$backend_env_file" "$release_directory/backend/.env"
 
 pnpm --dir "$release_directory/backend" install --prod --frozen-lockfile
 pnpm --dir "$release_directory/frontend" install --prod --frozen-lockfile
