@@ -124,7 +124,7 @@ Estas son configuraciones, no contraseñas. `NEXT_PUBLIC_API_URL` es pública po
 
 ## 7. Preparar la VM antes del primer despliegue
 
-En la VM de aplicación, el usuario `ubuntu` debe tener instalados Node.js 22 o superior, pnpm 12.15.0, PM2, `curl` y `tar`.
+En la VM de aplicación, el usuario `ubuntu` debe tener instalados Node.js 24 o superior, pnpm 12.15.0, PM2, `curl` y `tar`.
 
 Crea la ruta privada de configuración. El directorio queda accesible solo para `root` y el grupo `ubuntu`; el archivo solo puede modificarse por `root`, y `ubuntu` puede leerlo para ejecutar el backend:
 

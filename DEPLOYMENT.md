@@ -44,7 +44,7 @@ Valida la configuración y recarga Nginx después de instalar los locations. No 
 
 Usa un usuario dedicado de despliegue (la configuración indicada es `ubuntu`) y prepara:
 
-- Node.js 22 o superior, pnpm 12.15.0, PM2, `curl` y `tar`.
+- Node.js 24 o superior, pnpm 12.15.0, PM2, `curl` y `tar`.
 - El directorio `/opt/apps/restaurant-pos`, escribible por el usuario de despliegue.
 - `/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env`, con los valores de producción requeridos por el backend. El archivo queda fuera de las versiones desplegadas y nunca se copia desde GitHub Actions; el script crea un enlace simbólico desde cada release.
 - Los servicios PM2 deben poder persistir tras reiniciar la VM: ejecuta una vez `pm2 startup` y luego `pm2 save` con el usuario de despliegue.

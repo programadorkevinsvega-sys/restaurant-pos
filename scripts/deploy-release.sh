@@ -32,8 +32,8 @@ for command_name in node pnpm pm2 curl tar; do
   fi
 done
 
-if [[ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]]; then
-  echo "Node.js 22 or newer is required on the VM." >&2
+if [[ "$(node -p 'process.versions.node.split(".")[0]')" -lt 24 ]]; then
+  echo "Node.js 24 or newer is required on the VM." >&2
   exit 1
 fi
 
