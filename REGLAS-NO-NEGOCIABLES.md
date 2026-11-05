@@ -24,7 +24,8 @@ porque una función todavía no esté disponible para clientes.
   actual no esté terminada al 100 % según sus criterios de salida.
 - Una fase se considera cerrada únicamente cuando todo su alcance acordado está
   implementado o resuelto, las validaciones requeridas pasan y la documentación
-  y evidencias correspondientes están actualizadas.
+  y evidencias correspondientes están actualizadas, incluyendo el ADR y el
+  documento Markdown de aceptación de esa fase o subfase.
 - No se cuentan como terminados los elementos pendientes, parcialmente
   implementados, sin probar, simulados como si fueran reales o anotados para
   resolver después.
@@ -96,3 +97,27 @@ porque una función todavía no esté disponible para clientes.
   comportamientos existentes que no se hayan acordado modificar.
 - Toda desviación de alcance o requisito se resuelve explícitamente antes de
   fusionar; no se oculta en comentarios, fallos tolerados ni tareas futuras.
+
+## 8. Documentación, ADR y aceptación por fase
+
+- Cada fase y cada subfase debe tener siempre su propio ADR y su propio
+  documento Markdown de aceptación. Son entregables obligatorios, sin
+  excepciones por tratarse de una tarea pequeña o aparentemente sencilla.
+- Antes de iniciar el trabajo de una fase o subfase, se crean y revisan esos
+  documentos; no se empieza la implementación sin ellos.
+- El ADR registra el contexto, el problema, las opciones consideradas, la
+  decisión tomada y sus consecuencias. Si no hay una decisión técnica que
+  cambiar, el ADR lo declara explícitamente y justifica por qué se mantiene la
+  decisión vigente; no se omite el ADR.
+- El documento de aceptación define el alcance, criterios verificables,
+  validaciones requeridas, evidencias esperadas y condiciones explícitas de
+  cierre. Los criterios deben ser observables y comprobables, no expresiones
+  ambiguas como “funciona bien”.
+- La documentación se actualiza durante el trabajo, en el mismo cambio que
+  modifica comportamiento, arquitectura, contratos, operación, seguridad o
+  alcance. No se deja para “documentar después”.
+- Al cerrar la fase o subfase, el ADR, los criterios de aceptación y sus
+  resultados/evidencias deben coincidir con lo que realmente se implementó y
+  verificó. Si el alcance o una decisión cambia, se actualizan antes de seguir.
+- Los documentos usan nombres y ubicación consistentes por fase/subfase en el
+  repositorio, y se enlazan desde el roadmap para que sean fáciles de encontrar.
