@@ -5,7 +5,7 @@ El workflow `.github/workflows/deploy.yml` solo se ejecuta en `push` a `main`: i
 ## Arquitectura de red
 
 - El dominio público sirve el frontend en `https://sistemapost.jnmtortas.com`.
-- El frontend solicita la API en `https://sistemapost.jnmtortas.com/api`; Nginx en la VM de proxy reenvía `/api` a `http://IP_PRIVADA_VM_APP:3001` y el resto a `http://IP_PRIVADA_VM_APP:3000`.
+- El frontend solicita la API en `https://sistemapost.jnmtortas.com/api`; Nginx en la VM de proxy reenvía `/api` a `http://IP_PRIVADA_VM_APP:3001` y el resto a `http://IP_PRIVADA_VM_APP:3002`.
 - El backend no debe exponerse directamente a Internet. En el firewall de la VM de aplicación permite los puertos de aplicación únicamente desde la VM Nginx y SSH desde Tailscale.
 - En el entorno de backend de producción, `CORS_ORIGINS` debe contener el origen exacto del frontend (`https://sistemapost.jnmtortas.com`). Mantén `AUTH_COOKIE_SAME_SITE=Lax`.
 - CORS controla qué páginas pueden leer respuestas desde un navegador; no autentica clientes ni sustituye el firewall. La restricción de red de los puertos de aplicación es la que mantiene privado el backend.
@@ -28,7 +28,7 @@ location ^~ /api/ {
 }
 
 location / {
-    proxy_pass http://IP_PRIVADA_VM_APP:3000;
+    proxy_pass http://IP_PRIVADA_VM_APP:3002;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -49,7 +49,7 @@ Usa un usuario dedicado de despliegue (la configuración indicada es `ubuntu`) y
 - `/opt/apps/restaurant-pos/shared/backend.env`, con los valores de producción requeridos por el backend. Este archivo queda fuera de las versiones desplegadas y nunca se copia desde GitHub Actions.
 - Los servicios PM2 deben poder persistir tras reiniciar la VM: ejecuta una vez `pm2 startup` y luego `pm2 save` con el usuario de despliegue.
 
-Los nombres PM2 creados por `ecosystem.config.cjs` son `restaurant-pos-backend` (puerto 3001) y `restaurant-pos-frontend` (puerto 3000). PM2 escucha en la VM; controla el acceso a esos puertos mediante firewall.
+Los nombres PM2 creados por `ecosystem.config.cjs` son `restaurant-pos-backend` (puerto 3001) y `restaurant-pos-frontend` (puerto 3002, porque el 3000 ya está ocupado en tu VM). El BFF existente en `8080` no se modifica. PM2 escucha en la VM; controla el acceso a esos puertos mediante firewall.
 
 ## Preparar GitHub
 

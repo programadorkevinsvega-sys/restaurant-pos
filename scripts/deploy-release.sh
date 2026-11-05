@@ -90,7 +90,7 @@ for attempt in $(seq 1 30); do
     backend_ready=true
   fi
 
-  if curl --fail --silent http://127.0.0.1:3000/ >/dev/null 2>&1; then
+  if curl --fail --silent http://127.0.0.1:3002/ >/dev/null 2>&1; then
     frontend_ready=true
   fi
 
