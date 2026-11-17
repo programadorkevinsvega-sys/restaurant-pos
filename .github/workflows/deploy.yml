@@ -82,45 +82,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  migrate:
-    name: Apply database migrations
-    needs: build
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Check out main
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 24
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 12.15.0
-
-      - name: Install migration dependencies
-        run: pnpm --dir backend install --frozen-lockfile
-
-      - name: Validate database connection configuration
-        env:
-          MIGRATIONS_DATABASE_URL: ${{ secrets.MIGRATIONS_DATABASE_URL }}
-        run: |
-          if [ -z "$MIGRATIONS_DATABASE_URL" ]; then
-            echo "Configure MIGRATIONS_DATABASE_URL in the production environment secrets."
-            exit 1
-          fi
-
-      - name: Apply versioned database migrations
-        env:
-          MIGRATIONS_DATABASE_URL: ${{ secrets.MIGRATIONS_DATABASE_URL }}
-        run: pnpm --dir backend migrate
-
   deploy:
     name: Deploy to application VM
-    needs: [build, migrate]
+    needs: build
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -207,7 +171,7 @@ jobs:
             exit 1
           fi
 
-          backend_env_file="/etc/apps/restaurant-pos/restaurant-pos.env"
+          backend_env_file="/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env"
           release_directory="$deploy_path/releases/$release_sha"
           current_link="$deploy_path/current"
 
@@ -235,6 +199,8 @@ jobs:
 
           pnpm --dir "$release_directory/backend" install --prod --frozen-lockfile
           pnpm --dir "$release_directory/frontend" install --prod --frozen-lockfile
+
+          pnpm --dir "$release_directory/backend" migrate
 
           previous_release=""
           if [[ -L "$current_link" ]]; then

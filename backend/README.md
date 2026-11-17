@@ -34,7 +34,7 @@ src/
 
 Para producción, configura `NODE_ENV=production`, `CORS_ORIGINS` con orígenes explícitos y `REDIS_URL`. Redis comparte el rate limit entre instancias y guarda en caché lecturas públicas de categorías/productos con TTL de 60 segundos. Las escrituras del catálogo avanzan una versión de caché para invalidar las entradas anteriores. Si la caché no está disponible, se registra el fallo y se consulta PostgreSQL; PostgreSQL sigue siendo la fuente de verdad.
 
-La configuración separa `DATABASE_URL` (rol de runtime) de `MIGRATIONS_DATABASE_URL` (rol de migraciones). El runner exige la segunda; nunca usa las credenciales de runtime para aplicar DDL. Las URLs usan usuarios PostgreSQL distintos y no se deben intercambiar.
+La configuración separa `DATABASE_URL` (rol de runtime) de `MIGRATIONS_DATABASE_URL` (rol de migraciones). En desarrollo, configura ambas en `.env`; en producción, ambas están en `/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env` en la VM de aplicación. La API elimina `MIGRATIONS_DATABASE_URL` de su entorno al iniciar. Nunca uses las credenciales de runtime para aplicar DDL ni intercambies los roles.
 
 ## Observabilidad con Sentry
 
@@ -67,6 +67,6 @@ Los pedidos `A domicilio` también deben enviar `delivery_address` y `delivery_p
 
 ## Migraciones
 
-`pnpm migrate` aplica archivos SQL en orden, dentro de una transacción por archivo, guarda versiones en `schema_migrations`, toma un advisory lock y termina con error si una migración falla. Requiere `MIGRATIONS_DATABASE_URL`; no usa un RPC SQL no estándar ni afirma éxito si no se aplicó.
+`pnpm migrate` aplica archivos SQL en orden, dentro de una transacción por archivo, guarda versiones en `schema_migrations`, toma un advisory lock y termina con error si una migración falla. Requiere `MIGRATIONS_DATABASE_URL`; no usa un RPC SQL no estándar ni afirma éxito si no se aplicó. En producción, el workflow lo ejecuta desde la VM de aplicación antes de activar el nuevo release, usando la credencial privada del archivo de entorno de producción.
 
 La migración `004_secure_access_and_use_cases.sql` deshabilita RLS porque solo el backend accede a las tablas, otorga permisos DML al rol `restaurant_pos_app` y concede explícitamente las funciones transaccionales de pedidos, entregas e informes. La migración `005_create_auth_tables.sql` crea usuarios y sesiones. Las migraciones no insertan usuarios, catálogo ni datos de demostración; `backend/scripts/02_insert_sample_data.sql` queda como seed manual opcional.

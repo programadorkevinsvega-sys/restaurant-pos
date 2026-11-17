@@ -2,6 +2,8 @@ import "dotenv/config"
 import * as Sentry from "@sentry/node"
 import { nodeProfilingIntegration } from "@sentry/profiling-node"
 
+delete process.env.MIGRATIONS_DATABASE_URL
+
 const dsn = process.env.SENTRY_DSN
 const tracesSampleRate = Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? 0.1)
 const profilesSampleRate = Number(process.env.SENTRY_PROFILES_SAMPLE_RATE ?? 0.1)

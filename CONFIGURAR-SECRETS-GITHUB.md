@@ -1,8 +1,8 @@
 # Configurar secretos de GitHub Actions
 
-Esta guía configura el acceso del workflow de producción a PostgreSQL y a la VM. El workflow solo corre al hacer `push` a `main`; primero valida y compila, después aplica migraciones y, si estas terminan bien, despliega por Tailscale/SSH.
+Esta guía configura el acceso del workflow de producción a la VM. El workflow solo corre al hacer `push` a `main`; valida y compila, luego despliega por Tailscale/SSH. El script de despliegue aplica las migraciones desde la VM de aplicación antes de activar la nueva versión.
 
-> **No pegues claves, contraseñas, cadenas de conexión ni archivos `.pem` en el repositorio, issues, logs o chats.** Los secretos se ingresan directamente en la interfaz de GitHub.
+> **No pegues claves, contraseñas, cadenas de conexión ni archivos `.pem` en el repositorio, issues, logs o chats.** Los secretos de GitHub se ingresan en su interfaz; las credenciales de PostgreSQL se guardan solo en el archivo privado de la VM.
 
 ## 1. Abrir el entorno de producción
 
@@ -14,19 +14,27 @@ Agrega los siguientes valores en **Environment secrets**. No los agregues como v
 
 | Secret | Valor |
 |---|---|
-| `MIGRATIONS_DATABASE_URL` | Conexión como `restaurant_pos_migrator` a la base PostgreSQL independiente. |
 | `TS_AUTHKEY` | Auth key dedicada de Tailscale para conectar el runner de GitHub Actions. |
 | `DEPLOY_SSH_KEY` | Clave privada SSH dedicada a GitHub Actions. |
 | `DEPLOY_KNOWN_HOSTS` | Clave pública de host SSH de la VM, después de verificar su huella. |
 
-El entorno `production` ya está creado. El workflow de migraciones y el de despliegue usan este entorno.
+El entorno `production` ya está creado. El job de despliegue usa este entorno.
 
-## 2. Configurar `MIGRATIONS_DATABASE_URL`
+## 2. Configurar las credenciales de migración en la VM
 
 1. Usa la base `restaurant_pos` y el usuario `restaurant_pos_migrator` creados por `backend/scripts/provision-postgres.sql`.
-2. Construye la URL con el host de PostgreSQL y codifica los caracteres reservados de la contraseña para URL.
-3. Guarda la URL directamente como secreto `MIGRATIONS_DATABASE_URL` del entorno `production`; nunca la imprimas en terminales compartidas ni la agregues a Git.
-4. No uses la cuenta `restaurant_pos_app` para el job de migraciones; esa cuenta es exclusiva del proceso API.
+2. Construye la URL con el host privado de PostgreSQL accesible desde la VM de aplicación y codifica los caracteres reservados de la contraseña para URL.
+3. Agrega `MIGRATIONS_DATABASE_URL` al archivo privado existente `/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env`. Pon la URL entre comillas simples y no la copies al `.env` del frontend:
+
+   ```sh
+   sudoedit /etc/apps/restaurant-post-supabase/restaurant-post-supabase.env
+   ```
+
+   ```sh
+   MIGRATIONS_DATABASE_URL='postgresql://restaurant_pos_migrator:URL_ENCODED_PASSWORD@POSTGRES_PRIVATE_HOST:5432/restaurant_pos'
+   ```
+
+4. No uses la cuenta `restaurant_pos_app` para las migraciones; esa cuenta es exclusiva del proceso API. La configuración de producción elimina `MIGRATIONS_DATABASE_URL` del entorno del backend al iniciar.
 
 ## 3. Crear la Auth key de Tailscale
 
@@ -125,15 +133,18 @@ Crea la ruta privada de configuración. El directorio queda accesible solo para 
 
 ```bash
 sudo install -d -o root -g ubuntu -m 750 /etc/apps
-sudo install -d -o root -g ubuntu -m 750 /etc/apps/restaurant-pos
-sudo install -o root -g ubuntu -m 640 /dev/null /etc/apps/restaurant-pos/restaurant-pos.env
+sudo install -d -o root -g ubuntu -m 750 /etc/apps/restaurant-post-supabase
+sudo touch /etc/apps/restaurant-post-supabase/restaurant-post-supabase.env
+sudo chown root:ubuntu /etc/apps/restaurant-post-supabase/restaurant-post-supabase.env
+sudo chmod 640 /etc/apps/restaurant-post-supabase/restaurant-post-supabase.env
 ```
 
-Edita `/etc/apps/restaurant-pos/restaurant-pos.env` en la VM con `sudoedit` y agrega las variables de producción del backend:
+Edita `/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env` en la VM con `sudoedit` y agrega las variables de producción del backend:
 
 - `NODE_ENV=production`
 - `PORT=3001`
 - `DATABASE_URL` con el rol de runtime `restaurant_pos_app`
+- `MIGRATIONS_DATABASE_URL` con el rol `restaurant_pos_migrator`
 - `AUTH_CSRF_SECRET` aleatorio de al menos 32 caracteres
 - `CORS_ORIGINS=https://post.vegtrixgroup.com`
 - `REDIS_URL` (obligatoria en producción)
