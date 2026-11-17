@@ -81,3 +81,36 @@ test("unsafe auth requests require a valid CSRF cookie and header", async () => 
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
   }
 })
+
+test("refresh without an existing session preserves the CSRF cookie for login", async () => {
+  const app = express()
+  app.use(express.json())
+  app.use(csrfProtection(config))
+  app.use("/api/auth", createAuthRoutes({}, config, (request, response, next) => next()))
+  app.use(errorHandler)
+  const server = app.listen(0)
+
+  try {
+    await new Promise((resolve) => server.once("listening", resolve))
+    const baseUrl = `http://127.0.0.1:${server.address().port}`
+    const csrfResponse = await fetch(`${baseUrl}/api/auth/csrf`)
+    const csrfToken = (await csrfResponse.json()).csrfToken
+    const csrfCookie = csrfResponse.headers.get("set-cookie").split(";")[0]
+
+    const refreshResponse = await fetch(`${baseUrl}/api/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "X-CSRF-Token": csrfToken,
+        Cookie: csrfCookie,
+      },
+    })
+    const responseCookies = refreshResponse.headers.get("set-cookie") ?? ""
+
+    assert.equal(refreshResponse.status, 401)
+    assert.match(responseCookies, /pos_access=; Path=\\/; SameSite=Lax/)
+    assert.match(responseCookies, /pos_refresh=; Path=\\/; SameSite=Lax/)
+    assert.doesNotMatch(responseCookies, /pos_csrf=/)
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+  }
+})

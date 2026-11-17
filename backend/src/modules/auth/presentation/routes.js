@@ -23,9 +23,13 @@ function setSessionCookies(response, session, user, config) {
   return { user, csrfToken }
 }
 
-function clearSessionCookies(response, config) {
+function clearAuthenticationCookies(response, config) {
   clearCookie(response, config.cookieNames.access, config)
   clearCookie(response, config.cookieNames.refresh, config)
+}
+
+function clearSessionCookies(response, config) {
+  clearAuthenticationCookies(response, config)
   clearCookie(response, config.cookieNames.csrf, config, { httpOnly: false })
 }
 
@@ -56,7 +60,7 @@ export function createAuthRoutes(auth, config, loginLimiter) {
   router.post("/refresh", asyncHandler(async (request, response) => {
     const refreshToken = readCookie(request, config.cookieNames.refresh)
     if (!refreshToken) {
-      clearSessionCookies(response, config)
+      clearAuthenticationCookies(response, config)
       throw new AppError(401, "INVALID_SESSION", "La sesión expiró. Inicia sesión nuevamente.")
     }
 
@@ -64,7 +68,9 @@ export function createAuthRoutes(auth, config, loginLimiter) {
       const { session, user } = await auth.refresh(refreshToken)
       response.json(setSessionCookies(response, session, user, config))
     } catch (error) {
-      if (error instanceof AppError && [401, 403].includes(error.status)) clearSessionCookies(response, config)
+      if (error instanceof AppError && [401, 403].includes(error.status)) {
+        clearAuthenticationCookies(response, config)
+      }
       throw error
     }
   }))
