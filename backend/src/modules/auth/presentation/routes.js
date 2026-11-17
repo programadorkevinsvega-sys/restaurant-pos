@@ -53,7 +53,7 @@ export function createAuthRoutes(auth, config, loginLimiter) {
   })
 
   router.post("/login", loginLimiter, validateRequest(signInSchemas), asyncHandler(async (request, response) => {
-    const { session, user } = await auth.signIn(request.validated.body.email, request.validated.body.password)
+    const { session, user } = await auth.signIn(request.validated.body.email, request.validated.body.password, request.id)
     response.json(setSessionCookies(response, session, user, config))
   }))
 
