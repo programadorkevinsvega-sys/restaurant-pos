@@ -106,16 +106,16 @@ jobs:
 
       - name: Validate database connection configuration
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MIGRATIONS_DATABASE_URL: ${{ secrets.MIGRATIONS_DATABASE_URL }}
         run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "Configure DATABASE_URL in the production environment secrets."
+          if [ -z "$MIGRATIONS_DATABASE_URL" ]; then
+            echo "Configure MIGRATIONS_DATABASE_URL in the production environment secrets."
             exit 1
           fi
 
       - name: Apply versioned database migrations
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MIGRATIONS_DATABASE_URL: ${{ secrets.MIGRATIONS_DATABASE_URL }}
         run: pnpm --dir backend migrate
 
   deploy:
@@ -207,7 +207,7 @@ jobs:
             exit 1
           fi
 
-          backend_env_file="/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env"
+          backend_env_file="/etc/apps/restaurant-pos/restaurant-pos.env"
           release_directory="$deploy_path/releases/$release_sha"
           current_link="$deploy_path/current"
 

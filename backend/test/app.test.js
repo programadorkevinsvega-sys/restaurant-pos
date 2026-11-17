@@ -6,9 +6,9 @@ test("HTTP composition exposes health and protects operational routes", async ()
   const { app, close } = await createApp({
     NODE_ENV: "test",
     PORT: 0,
-    SUPABASE_URL: "https://example.supabase.co",
-    SUPABASE_ANON_KEY: "public-test-key",
-    SUPABASE_SERVICE_ROLE_KEY: "server-only-test-key",
+    AUTH_CSRF_SECRET: "server-only-test-secret-that-is-long-enough",
+    DATABASE_URL: "postgresql://restaurant_pos_app:secret@localhost:5432/restaurant_pos",
+    PG_POOL_MAX: 10,
     corsOrigins: new Set(["https://pos.example.test"]),
     AUTH_COOKIE_SAME_SITE: "Lax",
     secureCookies: false,

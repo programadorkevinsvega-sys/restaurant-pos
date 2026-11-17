@@ -18,7 +18,7 @@ function setSessionCookies(response, session, user, config) {
   writeCookie(response, config.cookieNames.access, session.access_token, config, { maxAge })
   writeCookie(response, config.cookieNames.refresh, session.refresh_token, config, { maxAge: 60 * 60 * 24 * 30 })
 
-  const csrfToken = createCsrfToken(config.SUPABASE_SERVICE_ROLE_KEY)
+  const csrfToken = createCsrfToken(config.AUTH_CSRF_SECRET)
   writeCookie(response, config.cookieNames.csrf, csrfToken, config, { httpOnly: false, maxAge: 60 * 60 * 24 * 30 })
   return { user, csrfToken }
 }
@@ -42,8 +42,8 @@ export function createAuthRoutes(auth, config, loginLimiter) {
 
   router.get("/csrf", (request, response) => {
     let csrfToken = readCookie(request, config.cookieNames.csrf)
-    if (!isValidCsrfToken(csrfToken, config.SUPABASE_SERVICE_ROLE_KEY)) {
-      csrfToken = createCsrfToken(config.SUPABASE_SERVICE_ROLE_KEY)
+    if (!isValidCsrfToken(csrfToken, config.AUTH_CSRF_SECRET)) {
+      csrfToken = createCsrfToken(config.AUTH_CSRF_SECRET)
       writeCookie(response, config.cookieNames.csrf, csrfToken, config, {
         httpOnly: false,
         maxAge: 60 * 60 * 24 * 30,

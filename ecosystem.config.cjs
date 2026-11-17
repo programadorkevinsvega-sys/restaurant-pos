@@ -10,6 +10,7 @@ module.exports = {
       name: "restaurant-pos-backend",
       cwd: backendDirectory,
       script: "src/server.js",
+      node_args: "--import ./src/instrument.js",
       exec_mode: "fork",
       instances: 1,
       autorestart: true,
@@ -17,6 +18,7 @@ module.exports = {
       env_production: {
         NODE_ENV: "production",
         PORT: "3001",
+        SENTRY_RELEASE: path.basename(releaseDirectory),
       },
     },
     {

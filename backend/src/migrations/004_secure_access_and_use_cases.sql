@@ -18,19 +18,19 @@ BEGIN
 END;
 $$;
 
-CREATE POLICY catalog_categories_public_read
-  ON public.categories FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY catalog_products_public_read
-  ON public.products FOR SELECT TO anon, authenticated USING (true);
-GRANT SELECT ON public.categories, public.products TO anon, authenticated;
-GRANT ALL ON public.categories, public.products, public.orders, public.order_items,
-  public.tables, public.reservations, public.delivery_info, public.settings TO service_role;
+ALTER TABLE public.categories DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.products DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_items DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tables DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reservations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.delivery_info DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.settings DISABLE ROW LEVEL SECURITY;
 
-REVOKE ALL ON public.orders, public.order_items, public.tables,
-  public.reservations, public.delivery_info, public.settings
-  FROM anon, authenticated;
-REVOKE INSERT, UPDATE, DELETE ON public.categories, public.products
-  FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.categories, public.products,
+  public.orders, public.order_items, public.tables, public.reservations,
+  public.delivery_info, public.settings TO restaurant_pos_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO restaurant_pos_app;
 
 CREATE INDEX IF NOT EXISTS idx_orders_status_created_at
   ON public.orders(status, created_at DESC);
@@ -254,11 +254,11 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.create_pos_order(text, text, text, jsonb, text, text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.assign_delivery_driver(uuid, text, text, integer) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.get_sales_report(timestamptz, timestamptz, text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.get_best_selling_products(timestamptz, timestamptz) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.create_pos_order(text, text, text, jsonb, text, text) TO service_role;
-GRANT EXECUTE ON FUNCTION public.assign_delivery_driver(uuid, text, text, integer) TO service_role;
-GRANT EXECUTE ON FUNCTION public.get_sales_report(timestamptz, timestamptz, text) TO service_role;
-GRANT EXECUTE ON FUNCTION public.get_best_selling_products(timestamptz, timestamptz) TO service_role;
+REVOKE ALL ON FUNCTION public.create_pos_order(text, text, text, jsonb, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.assign_delivery_driver(uuid, text, text, integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_sales_report(timestamptz, timestamptz, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_best_selling_products(timestamptz, timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.create_pos_order(text, text, text, jsonb, text, text) TO restaurant_pos_app;
+GRANT EXECUTE ON FUNCTION public.assign_delivery_driver(uuid, text, text, integer) TO restaurant_pos_app;
+GRANT EXECUTE ON FUNCTION public.get_sales_report(timestamptz, timestamptz, text) TO restaurant_pos_app;
+GRANT EXECUTE ON FUNCTION public.get_best_selling_products(timestamptz, timestamptz) TO restaurant_pos_app;

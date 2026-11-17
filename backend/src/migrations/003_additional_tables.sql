@@ -62,27 +62,4 @@ ALTER TABLE reservations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE delivery_info ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 
--- Access policies are configured by the restricted policies migration.
-
--- Insertar datos de ejemplo para mesas
-INSERT INTO tables (id, number, capacity, status) VALUES
-  ('750e8400-e29b-41d4-a716-446655440001', 'Mesa 1', 4, 'available'),
-  ('750e8400-e29b-41d4-a716-446655440002', 'Mesa 2', 2, 'available'),
-  ('750e8400-e29b-41d4-a716-446655440003', 'Mesa 3', 6, 'available'),
-  ('750e8400-e29b-41d4-a716-446655440004', 'Mesa 4', 4, 'occupied'),
-  ('750e8400-e29b-41d4-a716-446655440005', 'Mesa 5', 8, 'available'),
-  ('750e8400-e29b-41d4-a716-446655440006', 'Mesa 6', 2, 'available'),
-  ('750e8400-e29b-41d4-a716-446655440007', 'Mesa 7', 4, 'reserved'),
-  ('750e8400-e29b-41d4-a716-446655440008', 'Mesa 8', 6, 'available')
-ON CONFLICT (id) DO NOTHING;
-
--- Insertar configuración inicial
-INSERT INTO settings (key, value, description) VALUES
-  ('restaurant_name', 'CHILI POS', 'Nombre del restaurante'),
-  ('tax_rate', '0.05', 'Tasa de impuesto (5%)'),
-  ('delivery_fee', '3.50', 'Tarifa de entrega'),
-  ('currency', 'USD', 'Moneda utilizada'),
-  ('timezone', 'America/New_York', 'Zona horaria'),
-  ('max_table_reservation_days', '30', 'Días máximos para reservar mesa'),
-  ('order_preparation_time', '25', 'Tiempo estimado de preparación (minutos)')
-ON CONFLICT (key) DO NOTHING;
+-- Runtime access is granted to the backend database role in migration 004.

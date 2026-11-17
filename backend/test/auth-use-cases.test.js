@@ -1,41 +1,81 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { AuthUseCases } from "../src/modules/auth/application/auth-use-cases.js"
+import { hashPassword } from "../src/modules/auth/application/passwords.js"
 
-test("sign-in returns only a public user and the server-side session", async () => {
-  const session = { access_token: "access", refresh_token: "refresh", expires_in: 3600 }
-  const auth = {
-    signInWithPassword: async () => ({
-      data: {
-        session,
-        user: { id: "staff-id", email: "staff@example.com", app_metadata: { role: "staff" }, user_metadata: { secret: true } },
-      },
-      error: null,
-    }),
+test("sign-in returns a public user and persists only hashed session tokens", async () => {
+  const passwordHash = await hashPassword("correct-password")
+  let createdSession
+  const repository = {
+    findUserByEmail: async (email) => {
+      assert.equal(email, "staff@example.com")
+      return {
+        id: "staff-id",
+        email,
+        role: "staff",
+        passwordHash,
+        isActive: true,
+      }
+    },
+    createSession: async (session) => { createdSession = session },
   }
-  const useCases = new AuthUseCases(() => ({ auth }))
+  const useCases = new AuthUseCases(repository)
+  const result = await useCases.signIn(" Staff@Example.com ", "correct-password")
 
-  assert.deepEqual(await useCases.signIn("staff@example.com", "password"), {
-    session,
-    user: { id: "staff-id", email: "staff@example.com", role: "staff" },
+  assert.deepEqual(result.user, { id: "staff-id", email: "staff@example.com", role: "staff" })
+  assert.equal(result.session.expires_in, 900)
+  assert.ok(result.session.access_token)
+  assert.ok(result.session.refresh_token)
+  assert.notEqual(createdSession.accessTokenHash, result.session.access_token)
+  assert.notEqual(createdSession.refreshTokenHash, result.session.refresh_token)
+  assert.equal(createdSession.userId, "staff-id")
+})
+
+test("sign-in uses one generic error for unknown users and invalid passwords", async () => {
+  const passwordHash = await hashPassword("correct-password")
+  const repository = {
+    findUserByEmail: async (email) => email === "known@example.com"
+      ? { id: "staff-id", email, role: "staff", passwordHash, isActive: true }
+      : null,
+  }
+  const useCases = new AuthUseCases(repository)
+
+  await assert.rejects(useCases.signIn("missing@example.com", "wrong-password"), {
+    status: 401,
+    code: "INVALID_CREDENTIALS",
+  })
+  await assert.rejects(useCases.signIn("known@example.com", "wrong-password"), {
+    status: 401,
+    code: "INVALID_CREDENTIALS",
   })
 })
 
-test("sign-in revokes a session for a user without an authorized app role", async () => {
-  let signedOut = false
-  const auth = {
-    signInWithPassword: async () => ({
-      data: { session: {}, user: { id: "customer", user_metadata: { role: "admin" } } },
-      error: null,
-    }),
-    signOut: async (options) => {
-      assert.deepEqual(options, { scope: "local" })
-      signedOut = true
-      return { error: null }
+test("refresh rotates the session and rejects revoked or expired sessions", async () => {
+  let rotation
+  const repository = {
+    rotateSession: async (session) => {
+      rotation = session
+      return { id: "staff-id", email: "staff@example.com", role: "staff", isActive: true }
     },
   }
-  const useCases = new AuthUseCases(() => ({ auth }))
+  const useCases = new AuthUseCases(repository)
+  const result = await useCases.refresh("refresh-token")
 
-  await assert.rejects(useCases.signIn("customer@example.com", "password"), { status: 403, code: "ROLE_REQUIRED" })
-  assert.equal(signedOut, true)
+  assert.equal(rotation.currentRefreshTokenHash.length, 64)
+  assert.ok(rotation.accessTokenHash)
+  assert.ok(rotation.refreshTokenHash)
+  assert.notEqual(result.session.refresh_token, "refresh-token")
+  repository.rotateSession = async () => null
+  await assert.rejects(useCases.refresh("revoked-token"), { status: 401, code: "INVALID_SESSION" })
+})
+
+test("sign-out revokes a matching session without requiring both cookies", async () => {
+  let revokedTokens
+  const repository = {
+    revokeSession: async (tokens) => { revokedTokens = tokens },
+  }
+  await new AuthUseCases(repository).signOut("access-token", null)
+
+  assert.equal(revokedTokens.accessTokenHash.length, 64)
+  assert.equal(revokedTokens.refreshTokenHash, null)
 })

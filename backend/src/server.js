@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node"
 import { createApp } from "./app.js"
 import { loadConfig } from "./shared/infrastructure/config.js"
 import { logger } from "./shared/infrastructure/logger.js"
@@ -20,6 +21,15 @@ async function shutdown(signal) {
     } catch (closeError) {
       logger.error({ code: closeError.code }, "Resource shutdown failed")
       process.exitCode = 1
+    }
+    if (Sentry.isInitialized()) {
+      try {
+        const flushed = await Sentry.close(2000)
+        if (!flushed) logger.warn("Sentry telemetry did not flush before shutdown timeout.")
+      } catch (sentryError) {
+        logger.error({ code: sentryError.code }, "Sentry shutdown failed")
+        process.exitCode = 1
+      }
     }
   })
 }

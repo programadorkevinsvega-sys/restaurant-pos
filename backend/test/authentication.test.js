@@ -12,16 +12,11 @@ function requestWithCookie(cookie) {
   return { get: (name) => name === "cookie" ? cookie : undefined }
 }
 
-test("authentication accepts only app_metadata roles from the session cookie", async () => {
+test("authentication resolves the user from the session cookie", async () => {
   const middleware = authenticate({
-    auth: {
-      getUser: async (token) => {
-        assert.equal(token, "valid-session")
-        return {
-          data: { user: { id: "staff-id", app_metadata: { role: "staff" }, user_metadata: { role: "admin" } } },
-          error: null,
-        }
-      },
+    getUser: async (token) => {
+      assert.equal(token, "valid-session")
+      return { id: "staff-id", role: "staff" }
     },
   }, "pos_access")
 
@@ -31,23 +26,21 @@ test("authentication accepts only app_metadata roles from the session cookie", a
   })
 })
 
-test("authentication rejects user_metadata-only roles", async () => {
+test("authentication propagates an invalid session", async () => {
   const middleware = authenticate({
-    auth: {
-      getUser: async () => ({
-        data: { user: { id: "customer-id", user_metadata: { role: "admin" } } },
-        error: null,
-      }),
+    getUser: async () => {
+      const error = new Error("invalid session")
+      error.status = 401
+      throw error
     },
   }, "pos_access")
   await assert.rejects(runMiddleware(middleware, requestWithCookie("pos_access=valid-session")), {
-    code: "ROLE_REQUIRED",
-    status: 403,
+    status: 401,
   })
 })
 
 test("authentication rejects missing session cookies", async () => {
-  const middleware = authenticate({ auth: { getUser: async () => { throw new Error("must not be called") } } }, "pos_access")
+  const middleware = authenticate({ getUser: async () => { throw new Error("must not be called") } }, "pos_access")
   await assert.rejects(runMiddleware(middleware, requestWithCookie("")), {
     code: "AUTHENTICATION_REQUIRED",
     status: 401,

@@ -3,16 +3,13 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import dotenv from "dotenv"
 import pg from "pg"
+import { getMigrationConnectionString } from "./migration-connection.js"
 
 dotenv.config()
 
 const { Pool } = pg
 const migrationDirectory = path.dirname(fileURLToPath(import.meta.url))
-const connectionString = process.env.DATABASE_URL
-
-if (!connectionString) {
-  throw new Error("DATABASE_URL es obligatoria para ejecutar migraciones.")
-}
+const connectionString = getMigrationConnectionString()
 
 const pool = new Pool({ connectionString, max: 1 })
 
