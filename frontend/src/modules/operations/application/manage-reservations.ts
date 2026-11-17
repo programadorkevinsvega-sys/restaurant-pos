@@ -1,11 +1,12 @@
 import type { ReservationsRepository } from "../domain/reservations-repository"
 import type { Reservation } from "../domain/models"
+import { traceOperation } from "../../../shared/infrastructure/tracing"
 
 export class ManageReservations {
   constructor(private readonly reservations: ReservationsRepository) {}
 
   getAll(signal?: AbortSignal) {
-    return this.reservations.getAll(signal)
+    return traceOperation("reservations.list", () => this.reservations.getAll(signal))
   }
 
   create(reservation: Omit<Reservation, "id" | "status">) {
@@ -15,10 +16,10 @@ export class ManageReservations {
     if (Number.isNaN(Date.parse(reservation.reservation_date))) {
       throw new Error("La fecha de reservación no es válida.")
     }
-    return this.reservations.create(reservation)
+    return traceOperation("reservations.create", () => this.reservations.create(reservation))
   }
 
   updateStatus(id: string, status: string) {
-    return this.reservations.updateStatus(id, status)
+    return traceOperation("reservations.update_status", () => this.reservations.updateStatus(id, status))
   }
 }

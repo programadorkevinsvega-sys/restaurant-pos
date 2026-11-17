@@ -12,7 +12,7 @@ const configSchema = z.object({
   CORS_ORIGINS: z.string().min(1).optional(),
   AUTH_COOKIE_SAME_SITE: z.enum(["Strict", "Lax", "None"]).default("Lax"),
   SENTRY_DSN: z.string().url().optional(),
-  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.5),
   SENTRY_PROFILES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
   REDIS_URL: z.string().url().optional(),
   TRUSTED_PROXY_IP: z.string().default("10.0.2.82"),
