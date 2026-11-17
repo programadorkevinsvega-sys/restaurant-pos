@@ -107,9 +107,9 @@ test("refresh without an existing session preserves the CSRF cookie for login", 
     const responseCookies = refreshResponse.headers.get("set-cookie") ?? ""
 
     assert.equal(refreshResponse.status, 401)
-    assert.match(responseCookies, /pos_access=; Path=\\/; SameSite=Lax/)
-    assert.match(responseCookies, /pos_refresh=; Path=\\/; SameSite=Lax/)
-    assert.doesNotMatch(responseCookies, /pos_csrf=/)
+    assert.ok(responseCookies.includes("pos_access=; Path=/; SameSite=Lax"))
+    assert.ok(responseCookies.includes("pos_refresh=; Path=/; SameSite=Lax"))
+    assert.equal(responseCookies.includes("pos_csrf="), false)
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
   }
