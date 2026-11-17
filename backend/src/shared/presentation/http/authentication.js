@@ -2,27 +2,15 @@ import { AppError } from "../../domain/app-error.js"
 import { asyncHandler } from "./async-handler.js"
 import { readCookie } from "./cookies.js"
 
-export function authenticate(authClient, cookieName) {
+export function authenticate(auth, cookieName) {
   return asyncHandler(async (request, response, next) => {
     const accessToken = readCookie(request, cookieName)
     if (!accessToken) {
       throw new AppError(401, "AUTHENTICATION_REQUIRED", "Inicia sesión para continuar.")
     }
 
-    const { data, error } = await authClient.auth.getUser(accessToken)
-    if (error && ![400, 401, 403, 422].includes(error.status)) {
-      throw new AppError(502, "AUTH_PROVIDER_ERROR", "No se pudo validar la sesión.")
-    }
-    if (error || !data.user) {
-      throw new AppError(401, "INVALID_TOKEN", "La sesión no es válida o expiró.")
-    }
-
-    const role = data.user.app_metadata?.role
-    if (!["staff", "admin"].includes(role)) {
-      throw new AppError(403, "ROLE_REQUIRED", "La cuenta no tiene acceso al sistema.")
-    }
-
-    request.auth = { userId: data.user.id, role }
+    const user = await auth.getUser(accessToken)
+    request.auth = { userId: user.id, role: user.role }
     next()
   })
 }

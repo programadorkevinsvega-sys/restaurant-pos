@@ -59,4 +59,4 @@ ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 
--- Public catalog access is configured by the restricted policies migration.
+-- Runtime access is granted to the backend database role in migration 004.

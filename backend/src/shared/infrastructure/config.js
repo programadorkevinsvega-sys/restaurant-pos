@@ -7,14 +7,16 @@ dotenv.config()
 const configSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_ANON_KEY: z.string().min(1),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  AUTH_CSRF_SECRET: z.string().min(32),
   CORS_ORIGINS: z.string().min(1).optional(),
   AUTH_COOKIE_SAME_SITE: z.enum(["Strict", "Lax", "None"]).default("Lax"),
+  SENTRY_DSN: z.string().url().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
+  SENTRY_PROFILES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
   REDIS_URL: z.string().url().optional(),
   TRUSTED_PROXY_IP: z.string().default("10.0.2.82"),
-  DATABASE_URL: z.string().min(1).optional(),
+  DATABASE_URL: z.string().url(),
+  PG_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
 })
 
 export function loadConfig(env = process.env) {

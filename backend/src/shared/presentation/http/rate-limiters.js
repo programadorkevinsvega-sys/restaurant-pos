@@ -71,6 +71,7 @@ export async function createRateLimiters(config, logger) {
     global: createLimiter("global", 300, 15 * 60 * 1000),
     writes: createLimiter("writes", 30, 60 * 1000),
     login: createLimiter("login", 5, 15 * 60 * 1000),
+    redisClient: client,
     close: async () => {
       if (client?.isOpen) await client.quit()
     },

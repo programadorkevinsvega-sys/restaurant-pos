@@ -1,7 +1,12 @@
 import pino from "pino"
+import { getSentryTraceId } from "./sentry-context.js"
 
 export const logger = pino({
   level: process.env.LOG_LEVEL ?? "info",
+  mixin() {
+    const traceId = getSentryTraceId()
+    return traceId ? { trace_id: traceId } : {}
+  },
   redact: {
     paths: [
       "req.headers.authorization",

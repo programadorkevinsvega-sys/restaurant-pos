@@ -33,7 +33,7 @@ export function csrfProtection(config) {
       !cookieToken ||
       !headerToken ||
       cookieToken !== headerToken ||
-      !isValidCsrfToken(cookieToken, config.SUPABASE_SERVICE_ROLE_KEY)
+      !isValidCsrfToken(cookieToken, config.AUTH_CSRF_SECRET)
     ) {
       return next(new AppError(403, "CSRF_VALIDATION_FAILED", "La solicitud no superó la validación de seguridad."))
     }

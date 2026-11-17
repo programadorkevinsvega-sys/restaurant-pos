@@ -2,9 +2,10 @@ import express from "express"
 import cors from "cors"
 import helmet from "helmet"
 import pinoHttp from "pino-http"
+import * as Sentry from "@sentry/node"
 import { loadConfig } from "./shared/infrastructure/config.js"
 import { logger } from "./shared/infrastructure/logger.js"
-import { createSupabaseClients } from "./shared/infrastructure/supabase-clients.js"
+import { createPostgresPool } from "./shared/infrastructure/postgres.js"
 import { createRateLimiters } from "./shared/presentation/http/rate-limiters.js"
 import { requestContext } from "./shared/presentation/http/request-context.js"
 import { authenticate, authorize } from "./shared/presentation/http/authentication.js"
@@ -12,38 +13,50 @@ import { csrfProtection } from "./shared/presentation/http/csrf.js"
 import { errorHandler, notFoundHandler } from "./shared/presentation/http/error-handler.js"
 import { AppError } from "./shared/domain/app-error.js"
 import { CatalogUseCases } from "./modules/catalog/application/catalog-use-cases.js"
-import { SupabaseCatalogRepository } from "./modules/catalog/infrastructure/supabase-catalog-repository.js"
+import { PostgresCatalogRepository } from "./modules/catalog/infrastructure/postgres-catalog-repository.js"
+import { RedisCachedCatalogRepository } from "./modules/catalog/infrastructure/redis-cached-catalog-repository.js"
 import { createCatalogRoutes } from "./modules/catalog/presentation/routes.js"
 import { createAdminCatalogRoutes } from "./modules/catalog/presentation/admin-routes.js"
 import { OrderUseCases } from "./modules/orders/application/order-use-cases.js"
-import { SupabaseOrderRepository } from "./modules/orders/infrastructure/supabase-order-repository.js"
+import { PostgresOrderRepository } from "./modules/orders/infrastructure/postgres-order-repository.js"
 import { createOrderRoutes } from "./modules/orders/presentation/routes.js"
 import { OperationsUseCases } from "./modules/operations/application/operations-use-cases.js"
-import { SupabaseOperationsRepository } from "./modules/operations/infrastructure/supabase-operations-repository.js"
+import { PostgresOperationsRepository } from "./modules/operations/infrastructure/postgres-operations-repository.js"
 import { createOperationsRoutes } from "./modules/operations/presentation/routes.js"
 import { AccountingUseCases } from "./modules/accounting/application/accounting-use-cases.js"
-import { SupabaseAccountingRepository } from "./modules/accounting/infrastructure/supabase-accounting-repository.js"
+import { PostgresAccountingRepository } from "./modules/accounting/infrastructure/postgres-accounting-repository.js"
 import { createAccountingRoutes } from "./modules/accounting/presentation/routes.js"
 import { AuthUseCases } from "./modules/auth/application/auth-use-cases.js"
+import { PostgresAuthRepository } from "./modules/auth/infrastructure/postgres-auth-repository.js"
 import { createAuthRoutes } from "./modules/auth/presentation/routes.js"
 
 export async function createApp(config = loadConfig()) {
-  const { authClient, createAuthClient, serviceClient } = createSupabaseClients(config)
+  const pool = createPostgresPool(config)
   const limiters = await createRateLimiters(config, logger)
-  const auth = new AuthUseCases(createAuthClient)
-  const requireUser = authenticate(authClient, config.cookieNames.access)
+  const auth = new AuthUseCases(new PostgresAuthRepository(pool))
+  const requireUser = authenticate(auth, config.cookieNames.access)
   const requireRole = (...roles) => authorize(...roles)
 
-  const catalog = new CatalogUseCases(new SupabaseCatalogRepository(serviceClient))
-  const orders = new OrderUseCases(new SupabaseOrderRepository(serviceClient))
-  const operations = new OperationsUseCases(new SupabaseOperationsRepository(serviceClient))
-  const accounting = new AccountingUseCases(new SupabaseAccountingRepository(serviceClient))
+  const catalogRepository = new PostgresCatalogRepository(pool)
+  const cachedCatalogRepository = new RedisCachedCatalogRepository(
+    catalogRepository,
+    limiters.redisClient,
+    logger,
+    `restaurant-pos:${config.NODE_ENV}:cache:v1:catalog`,
+  )
+  const catalog = new CatalogUseCases(cachedCatalogRepository)
+  const orders = new OrderUseCases(new PostgresOrderRepository(pool))
+  const operations = new OperationsUseCases(new PostgresOperationsRepository(pool))
+  const accounting = new AccountingUseCases(new PostgresAccountingRepository(pool))
   const app = express()
 
   app.disable("x-powered-by")
   app.use(requestContext)
   app.use(pinoHttp({
     logger,
+    customProps(request) {
+      return request.traceId ? { trace_id: request.traceId } : {}
+    },
     serializers: {
       req(request) {
         return {
@@ -91,6 +104,14 @@ export async function createApp(config = loadConfig()) {
   app.use("/api/accounting", createAccountingRoutes(accounting, requireUser, requireRole))
 
   app.use(notFoundHandler)
+  if (Sentry.isInitialized()) {
+    Sentry.setupExpressErrorHandler(app)
+  }
   app.use(errorHandler)
-  return { app, close: limiters.close }
+  return {
+    app,
+    close: async () => {
+      await Promise.all([limiters.close(), pool.end()])
+    },
+  }
 }

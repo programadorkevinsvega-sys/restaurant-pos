@@ -1,6 +1,6 @@
 # Configurar secretos de GitHub Actions
 
-Esta guía configura el acceso del workflow de producción a Supabase y a la VM. El workflow solo corre al hacer `push` a `main`; primero valida y compila, después aplica migraciones y, si estas terminan bien, despliega por Tailscale/SSH.
+Esta guía configura el acceso del workflow de producción a PostgreSQL y a la VM. El workflow solo corre al hacer `push` a `main`; primero valida y compila, después aplica migraciones y, si estas terminan bien, despliega por Tailscale/SSH.
 
 > **No pegues claves, contraseñas, cadenas de conexión ni archivos `.pem` en el repositorio, issues, logs o chats.** Los secretos se ingresan directamente en la interfaz de GitHub.
 
@@ -14,22 +14,19 @@ Agrega los siguientes valores en **Environment secrets**. No los agregues como v
 
 | Secret | Valor |
 |---|---|
-| `DATABASE_URL` | Cadena de conexión PostgreSQL de Supabase para el job de migraciones. |
+| `MIGRATIONS_DATABASE_URL` | Conexión como `restaurant_pos_migrator` a la base PostgreSQL independiente. |
 | `TS_AUTHKEY` | Auth key dedicada de Tailscale para conectar el runner de GitHub Actions. |
 | `DEPLOY_SSH_KEY` | Clave privada SSH dedicada a GitHub Actions. |
 | `DEPLOY_KNOWN_HOSTS` | Clave pública de host SSH de la VM, después de verificar su huella. |
 
 El entorno `production` ya está creado. El workflow de migraciones y el de despliegue usan este entorno.
 
-## 2. Obtener `DATABASE_URL` de Supabase
+## 2. Configurar `MIGRATIONS_DATABASE_URL`
 
-1. Abre el proyecto Supabase de Restaurant POS.
-2. En **Connect**, busca la conexión PostgreSQL y elige **Session pooler** si la conexión directa no es accesible desde GitHub Actions.
-3. Usa el modo **Session**, no **Transaction**: el migrador utiliza un advisory lock de sesión.
-4. Copia la cadena PostgreSQL completa y guárdala en GitHub como `DATABASE_URL`.
-5. Si Supabase te muestra una contraseña como marcador, reemplaza el marcador localmente antes de guardarla. Nunca la compartas ni la imprimas en la terminal.
-
-La cadena debe apuntar al mismo proyecto de Supabase que usa la aplicación. Este secreto se utiliza para las migraciones; no es una variable del frontend.
+1. Usa la base `restaurant_pos` y el usuario `restaurant_pos_migrator` creados por `backend/scripts/provision-postgres.sql`.
+2. Construye la URL con el host de PostgreSQL y codifica los caracteres reservados de la contraseña para URL.
+3. Guarda la URL directamente como secreto `MIGRATIONS_DATABASE_URL` del entorno `production`; nunca la imprimas en terminales compartidas ni la agregues a Git.
+4. No uses la cuenta `restaurant_pos_app` para el job de migraciones; esa cuenta es exclusiva del proceso API.
 
 ## 3. Crear la Auth key de Tailscale
 
@@ -128,31 +125,44 @@ Crea la ruta privada de configuración. El directorio queda accesible solo para 
 
 ```bash
 sudo install -d -o root -g ubuntu -m 750 /etc/apps
-sudo install -d -o root -g ubuntu -m 750 /etc/apps/restaurant-post-supabase
-sudo install -o root -g ubuntu -m 640 /dev/null /etc/apps/restaurant-post-supabase/restaurant-post-supabase.env
+sudo install -d -o root -g ubuntu -m 750 /etc/apps/restaurant-pos
+sudo install -o root -g ubuntu -m 640 /dev/null /etc/apps/restaurant-pos/restaurant-pos.env
 ```
 
-Edita `/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env` en la VM con `sudoedit` y agrega las variables de producción del backend:
+Edita `/etc/apps/restaurant-pos/restaurant-pos.env` en la VM con `sudoedit` y agrega las variables de producción del backend:
 
 - `NODE_ENV=production`
 - `PORT=3001`
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `DATABASE_URL` con el rol de runtime `restaurant_pos_app`
+- `AUTH_CSRF_SECRET` aleatorio de al menos 32 caracteres
 - `CORS_ORIGINS=https://post.vegtrixgroup.com`
 - `REDIS_URL` (obligatoria en producción)
 - `AUTH_COOKIE_SAME_SITE=Lax`
+- `TRUSTED_PROXY_IP` con la IP privada del proxy, si aplica.
+- `SENTRY_DSN` del proyecto Sentry **Node.js de la API** (opcional hasta completar el proyecto)
+- `SENTRY_TRACES_SAMPLE_RATE=0.1` (opcional; es el valor predeterminado)
+- `SENTRY_PROFILES_SAMPLE_RATE=0.1` (opcional; es el valor predeterminado)
 
-El `.env` local actual no contiene todos estos valores runtime: hay que agregarlos al archivo de la VM. El backend usa `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY`; los nombres `SUPABASE_SECRET_KEY`, `SUPABASE_JWKS_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` no los consume el backend actual y no hace falta copiarlos al archivo de producción. El backend utiliza la clave `service_role` solo en el servidor; nunca la agregues a GitHub Actions, al frontend ni a este repositorio. `DATABASE_URL` no es necesaria para iniciar la API; el workflow la recibe como secreto únicamente para migraciones.
+Genera `AUTH_CSRF_SECRET` con un generador criptográfico (por ejemplo, `openssl rand -base64 32`) y guárdalo solo en el archivo privado de la VM. No uses el mismo valor en otros entornos ni lo agregues a GitHub Actions. El usuario de runtime y la URL de conexión nunca deben llegar al frontend.
 
 Configura la persistencia de PM2 una sola vez para el usuario `ubuntu`, usando `pm2 startup` y luego `pm2 save`. No detengas ni reemplaces los servicios existentes de otros proyectos.
 
-## 8. Ejecutar y revisar el workflow
+## 8. Crear la primera cuenta administrativa
 
-Después de configurar los cuatro secretos, haz un `push` a `main` o vuelve a ejecutar el workflow desde **Actions**. El orden es:
+Después del primer despliegue exitoso (que aplica las migraciones) y desde la VM, ejecuta el comando con el usuario de despliegue:
+
+```bash
+pnpm --dir /opt/apps/restaurant-pos/current/backend user:create admin@example.com admin
+```
+
+El proceso solicita la contraseña dos veces sin mostrarla. Crea usuarios adicionales con el mismo comando, usando el rol `staff` si no necesitan permisos administrativos. No existe registro público.
+
+## 9. Ejecutar y revisar el workflow
+
+Después de configurar los cuatro secretos de GitHub, haz un `push` a `main` o vuelve a ejecutar el workflow desde **Actions**. El orden es:
 
 1. Tests, typecheck, lint y build.
-2. Migraciones pendientes de Supabase.
+2. Migraciones versionadas de PostgreSQL.
 3. Despliegue por Tailscale/SSH y verificación de salud.
 
 Si una migración falla, el workflow se detiene antes del despliegue. Consulta **Actions → Build and deploy production** para ver el error; nunca agregues una línea que imprima `DATABASE_URL` o una clave.

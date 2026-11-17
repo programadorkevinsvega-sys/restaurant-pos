@@ -6,7 +6,7 @@ import { csrfProtection } from "../src/shared/presentation/http/csrf.js"
 import { errorHandler } from "../src/shared/presentation/http/error-handler.js"
 
 const config = {
-  SUPABASE_SERVICE_ROLE_KEY: "server-side-test-secret",
+  AUTH_CSRF_SECRET: "server-side-test-secret-that-is-long-enough",
   AUTH_COOKIE_SAME_SITE: "Lax",
   secureCookies: false,
   cookieNames: { access: "pos_access", refresh: "pos_refresh", csrf: "pos_csrf" },

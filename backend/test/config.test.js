@@ -3,9 +3,8 @@ import test from "node:test"
 import { loadConfig } from "../src/shared/infrastructure/config.js"
 
 const required = {
-  SUPABASE_URL: "https://example.supabase.co",
-  SUPABASE_ANON_KEY: "public-test-key",
-  SUPABASE_SERVICE_ROLE_KEY: "server-only-test-key",
+  AUTH_CSRF_SECRET: "server-only-test-secret-that-is-long-enough",
+  DATABASE_URL: "postgresql://restaurant_pos_app:secret@localhost:5432/restaurant_pos",
 }
 
 test("production requires Redis for shared rate limits", () => {
@@ -52,6 +51,49 @@ test("configuration parses an explicit allowlist", () => {
 
 test("CORS allowlist is required in development too", () => {
   assert.throws(() => loadConfig(required), /CORS_ORIGINS es obligatoria/)
+})
+
+test("configuration requires a sufficiently long CSRF signing secret", () => {
+  assert.throws(
+    () => loadConfig({ ...required, AUTH_CSRF_SECRET: "too-short", CORS_ORIGINS: "https://pos.example.com" }),
+    /AUTH_CSRF_SECRET/,
+  )
+})
+
+test("configuration validates Sentry tracing sample rates", () => {
+  const config = loadConfig({
+    ...required,
+    CORS_ORIGINS: "https://pos.example.com",
+    SENTRY_TRACES_SAMPLE_RATE: "0.25",
+  })
+
+  assert.equal(config.SENTRY_TRACES_SAMPLE_RATE, 0.25)
+  assert.throws(
+    () => loadConfig({
+      ...required,
+      CORS_ORIGINS: "https://pos.example.com",
+      SENTRY_TRACES_SAMPLE_RATE: "1.5",
+    }),
+    /SENTRY_TRACES_SAMPLE_RATE/,
+  )
+})
+
+test("configuration validates Sentry profiling sample rates", () => {
+  const config = loadConfig({
+    ...required,
+    CORS_ORIGINS: "https://pos.example.com",
+    SENTRY_PROFILES_SAMPLE_RATE: "0.25",
+  })
+
+  assert.equal(config.SENTRY_PROFILES_SAMPLE_RATE, 0.25)
+  assert.throws(
+    () => loadConfig({
+      ...required,
+      CORS_ORIGINS: "https://pos.example.com",
+      SENTRY_PROFILES_SAMPLE_RATE: "1.5",
+    }),
+    /SENTRY_PROFILES_SAMPLE_RATE/,
+  )
 })
 
 test("CORS origins must be exact origins without paths", () => {
