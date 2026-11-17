@@ -40,7 +40,7 @@ if (dsn) {
     integrations: [
       Sentry.nodeRuntimeMetricsIntegration(),
       nodeProfilingIntegration(),
-      Sentry.pinoIntegration({ log: { levels: ["warn", "error"] } }),
+      Sentry.pinoIntegration({ log: { levels: ["info", "warn", "error"] } }),
     ],
     dataCollection: {
       userInfo: false,
