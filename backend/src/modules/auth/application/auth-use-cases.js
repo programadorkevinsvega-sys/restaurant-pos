@@ -1,4 +1,5 @@
 import { AppError } from "../../../shared/domain/app-error.js"
+import { logger } from "../../../shared/infrastructure/logger.js"
 
 const authorizedRoles = new Set(["staff", "admin"])
 const authenticationFailureStatuses = new Set([400, 401, 422])
@@ -29,10 +30,17 @@ export class AuthUseCases {
     this.createAuthClient = createAuthClient
   }
 
-  async signIn(email, password) {
+  async signIn(email, password, requestId) {
     const client = this.createAuthClient()
     const { data, error } = await client.auth.signInWithPassword({ email, password })
     if (error) {
+      logger.warn({
+        requestId,
+        provider: "supabase-auth",
+        providerStatus: error.status ?? null,
+        providerCode: error.code ?? null,
+        providerName: error.name ?? null,
+      }, "Supabase rechazó el inicio de sesión")
       throwUnexpectedProviderError(error, "el inicio de sesión")
       throw new AppError(401, "INVALID_CREDENTIALS", "Correo o contraseña incorrectos.")
     }
