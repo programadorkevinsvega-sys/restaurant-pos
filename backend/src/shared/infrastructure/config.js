@@ -1,4 +1,5 @@
 import dotenv from "dotenv"
+import { isIP } from "node:net"
 import { z } from "zod"
 
 dotenv.config()
@@ -12,6 +13,7 @@ const configSchema = z.object({
   CORS_ORIGINS: z.string().min(1).optional(),
   AUTH_COOKIE_SAME_SITE: z.enum(["Strict", "Lax", "None"]).default("Lax"),
   REDIS_URL: z.string().url().optional(),
+  TRUSTED_PROXY_IP: z.string().default("10.0.2.82"),
   DATABASE_URL: z.string().min(1).optional(),
 })
 
@@ -23,6 +25,9 @@ export function loadConfig(env = process.env) {
   }
 
   const config = parsed.data
+  if (isIP(config.TRUSTED_PROXY_IP) === 0) {
+    throw new Error("TRUSTED_PROXY_IP debe contener una dirección IPv4 o IPv6 válida.");
+  }
   if (config.NODE_ENV === "production" && !config.REDIS_URL) {
     throw new Error("REDIS_URL es obligatoria en producción para compartir el rate limit entre instancias.")
   }

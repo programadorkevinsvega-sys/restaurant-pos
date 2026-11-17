@@ -45,6 +45,7 @@ test("configuration parses an explicit allowlist", () => {
   })
 
   assert.equal(config.PORT, 3001)
+  assert.equal(config.TRUSTED_PROXY_IP, "10.0.2.82")
   assert.equal(config.corsOrigins.has("https://pos.example.com"), true)
   assert.equal(config.corsOrigins.has("https://attacker.example"), false)
 })
@@ -93,5 +94,16 @@ test("SameSite=None is rejected when cookies are not secure", () => {
       AUTH_COOKIE_SAME_SITE: "None",
     }),
     /requiere cookies Secure/,
+  )
+})
+
+test("trusted proxy IP must be a valid IPv4 or IPv6 address", () => {
+  assert.throws(
+    () => loadConfig({
+      ...required,
+      CORS_ORIGINS: "https://pos.example.com",
+      TRUSTED_PROXY_IP: "not-an-ip",
+    }),
+    /TRUSTED_PROXY_IP debe contener una dirección IPv4 o IPv6 válida/,
   )
 })
