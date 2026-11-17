@@ -41,7 +41,7 @@ La configuración separa `DATABASE_URL` (rol de runtime) de `MIGRATIONS_DATABASE
 - Crea un proyecto Sentry para la API, seleccionando la plataforma **Node.js**, y configura su DSN como `SENTRY_DSN` en el entorno privado del backend. Sin DSN, Sentry no envía eventos.
 - Se capturan errores 5xx, trazas de Express/HTTP y consultas PostgreSQL. `SENTRY_TRACES_SAMPLE_RATE` controla el muestreo y tiene un valor predeterminado de `0.1`.
 - Se habilita Profiling ligado a las trazas; `SENTRY_PROFILES_SAMPLE_RATE` también tiene un valor predeterminado de `0.1` para limitar el overhead. Ambos valores aceptan números entre `0` y `1`.
-- Los logs estructurados de Pino incluyen `trace_id` cuando existe una traza activa. Solo los niveles `warn` y `error` se envían a Sentry Logs; los logs de solicitud `info` permanecen en la salida local.
+- Los logs estructurados de Pino incluyen `trace_id` cuando existe una traza activa. Los niveles `info`, `warn` y `error` se envían a Sentry Logs, incluidos los logs de solicitudes completadas; `trace` y `debug` permanecen locales.
 - Las métricas de Node se recogen cada 30 segundos: memoria del proceso (RSS/heap), CPU del proceso, event loop y uptime. No son métricas completas de la VM y no incluyen temperatura.
 - Se deshabilita la recolección automática de identidad, cookies, headers, cuerpos HTTP, query params y parámetros/resultados de consultas SQL. Los atributos de logs con nombres sensibles también se filtran.
 
