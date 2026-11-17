@@ -3,6 +3,7 @@ import { isIP } from "node:net"
 import { z } from "zod"
 
 dotenv.config()
+delete process.env.MIGRATIONS_DATABASE_URL
 
 const configSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -20,6 +21,7 @@ const configSchema = z.object({
 })
 
 export function loadConfig(env = process.env) {
+  delete process.env.MIGRATIONS_DATABASE_URL
   const parsed = configSchema.safeParse(env)
   if (!parsed.success) {
     const missing = parsed.error.issues.map((issue) => issue.path.join(".")).join(", ")

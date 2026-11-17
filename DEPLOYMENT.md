@@ -48,12 +48,12 @@ Usa un usuario dedicado de despliegue (la configuración indicada es `ubuntu`) y
 
 - Node.js 24 o superior, pnpm 12.15.0, PM2, `curl` y `tar`.
 - El directorio `/opt/apps/restaurant-pos`, escribible por el usuario de despliegue.
-- `/etc/apps/restaurant-pos/restaurant-pos.env`, con los valores de producción requeridos por el backend. El archivo queda fuera de las versiones desplegadas y nunca se copia desde GitHub Actions; el script crea un enlace simbólico desde cada release.
+- `/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env`, con los valores de producción requeridos por el backend y `MIGRATIONS_DATABASE_URL`. El archivo queda fuera de las versiones desplegadas y nunca se copia desde GitHub Actions; el script crea un enlace simbólico desde cada release.
 - Los servicios PM2 deben poder persistir tras reiniciar la VM: ejecuta una vez `pm2 startup` y luego `pm2 save` con el usuario de despliegue.
 
 El archivo de entorno de la VM requiere `NODE_ENV=production`, `PORT=3001`, `DATABASE_URL` con el rol `restaurant_pos_app`, un `AUTH_CSRF_SECRET` aleatorio de al menos 32 caracteres, `CORS_ORIGINS=https://post.vegtrixgroup.com`, `AUTH_COOKIE_SAME_SITE=Lax`, `REDIS_URL` y `TRUSTED_PROXY_IP=10.0.2.82` (ajústala si cambia la IP privada de Nginx). Para Sentry, añade el `SENTRY_DSN` del proyecto Node.js de la API y, opcionalmente, `SENTRY_TRACES_SAMPLE_RATE` y `SENTRY_PROFILES_SAMPLE_RATE` (ambos predeterminados en `0.1`). No configures el DSN del backend como variable `NEXT_PUBLIC_*`. En cada despliegue, el workflow entrega ese mismo `CORS_ORIGINS` al proceso de backend mediante el entorno de PM2. Protege el archivo como `root:ubuntu` con modo `640` y el directorio como `root:ubuntu` con modo `750`, para que solo root lo modifique y el usuario de despliegue pueda leerlo.
 
-El workflow exige `MIGRATIONS_DATABASE_URL` con el rol `restaurant_pos_migrator`; la API usa `DATABASE_URL` con `restaurant_pos_app`. Nunca uses el usuario de runtime para migraciones ni el de migraciones en la API.
+El workflow ejecuta las migraciones desde la VM de aplicación, que debe poder conectarse a PostgreSQL por el puerto `5432`. Guarda `MIGRATIONS_DATABASE_URL` con el rol `restaurant_pos_migrator` en `/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env`, junto con la configuración del backend. La API elimina esa variable de su entorno al iniciar; nunca uses el usuario de runtime para migraciones ni el de migraciones en la API. Protege el archivo como `root:ubuntu` con modo `640`.
 
 Los nombres PM2 creados por `ecosystem.config.cjs` son `restaurant-pos-backend` (puerto 3001) y `restaurant-pos-frontend` (puerto 3002, porque el 3000 ya está ocupado en tu VM). El BFF existente en `8080` no se modifica. PM2 escucha en la VM; controla el acceso a esos puertos mediante firewall.
 
@@ -75,7 +75,6 @@ Configura estos secretos de Actions:
 
 | Secreto | Uso |
 |---|---|
-| `MIGRATIONS_DATABASE_URL` | Rol `restaurant_pos_migrator` para la base PostgreSQL independiente. |
 | `TS_AUTHKEY` | Auth key dedicada de Tailscale con el tag `tag:ci`; no es un API access token |
 | `DEPLOY_SSH_KEY` | Clave privada de despliegue dedicada; no reutilices una clave personal |
 | `DEPLOY_KNOWN_HOSTS` | Entrada de `known_hosts` verificada para la VM de destino |
@@ -84,10 +83,10 @@ Genera `TS_AUTHKEY` desde **Tailscale → Settings → Keys** como Auth key, con
 
 En **Settings → Environments**, crea el entorno `production`; opcionalmente exige aprobación antes del despliegue. Cada push a `main` que pase checks construirá y desplegará automáticamente.
 
-Los secretos de base de datos nunca deben ponerse en variables públicas, archivos versionados ni en `NEXT_PUBLIC_*`. El job solo necesita la conexión de migración; `DATABASE_URL` y `AUTH_CSRF_SECRET` se configuran únicamente en el entorno privado de la VM. El runner requiere una conexión con soporte de advisory locks de sesión, no un pooler en modo Transaction.
+Los secretos de base de datos nunca deben ponerse en variables públicas, archivos versionados ni en `NEXT_PUBLIC_*`. `DATABASE_URL`, `AUTH_CSRF_SECRET` y `MIGRATIONS_DATABASE_URL` se configuran únicamente en el archivo privado de la VM. La conexión de migraciones debe soportar advisory locks de sesión; no uses un pooler en modo Transaction.
 
 ## Despliegue y rollback
 
-El workflow `.github/workflows/deploy.yml` contiene los pasos del despliegue: instala cada artefacto en una carpeta versionada dentro de `releases/`, actualiza `current`, reinicia PM2 y valida el backend y frontend. Si la activación o las comprobaciones de salud fallan, restaura el release anterior. Revisa la salida de la acción y los logs PM2 si falla.
+El workflow `.github/workflows/deploy.yml` contiene los pasos del despliegue: instala cada artefacto en una carpeta versionada dentro de `releases/`, aplica las migraciones desde la VM de aplicación y solo entonces actualiza `current`, reinicia PM2 y valida el backend y frontend. Si una migración falla, el release actual sigue activo. Si la activación o las comprobaciones de salud fallan, restaura el release anterior.
 
-Las migraciones se ejecutan automáticamente antes del despliegue. El migrador registra cada archivo aplicado en `public.schema_migrations`, toma un advisory lock y ejecuta cada archivo pendiente dentro de una transacción. Revisa y prueba los archivos SQL antes de fusionarlos a `main`; para cambios destructivos, usa un backup y migraciones compatibles con el release actual.
+El migrador registra cada archivo aplicado en `public.schema_migrations`, toma un advisory lock y ejecuta cada archivo pendiente dentro de una transacción. Una migración ya aplicada no se revierte al restaurar un release anterior; revisa y prueba los archivos SQL antes de fusionarlos a `main`, y mantén los cambios compatibles con el release actual.

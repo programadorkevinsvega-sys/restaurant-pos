@@ -96,6 +96,17 @@ test("configuration validates Sentry profiling sample rates", () => {
   )
 })
 
+test("runtime configuration removes the migration-only database credential", () => {
+  process.env.MIGRATIONS_DATABASE_URL = "postgresql://migrator/target"
+
+  loadConfig({
+    ...required,
+    CORS_ORIGINS: "https://pos.example.com",
+  })
+
+  assert.equal(process.env.MIGRATIONS_DATABASE_URL, undefined)
+})
+
 test("CORS origins must be exact origins without paths", () => {
   assert.throws(
     () => loadConfig({ ...required, CORS_ORIGINS: "https://pos.example.com/app" }),
