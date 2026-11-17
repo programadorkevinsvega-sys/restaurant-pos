@@ -117,10 +117,8 @@ En **Settings → Secrets and variables → Actions → Variables**, verifica:
 | `DEPLOY_HOST` | `100.64.183.123` |
 | `DEPLOY_USER` | `ubuntu` |
 | `DEPLOY_PATH` | `/opt/apps/restaurant-pos` |
-| `FRONTEND_ORIGIN` | `https://sistemapost.jnmtortas.com` |
-| `NEXT_PUBLIC_API_URL` | `https://sistemapost.jnmtortas.com/api` |
 
-Estas son configuraciones, no contraseñas. `NEXT_PUBLIC_API_URL` es pública por diseño; **no pongas ninguna clave Supabase, contraseña ni `DATABASE_URL` en una variable `NEXT_PUBLIC_*`**.
+El dominio de producción queda definido en `.github/workflows/deploy.yml`: `FRONTEND_ORIGIN=https://post.vegtrixgroup.com` y `NEXT_PUBLIC_API_URL=https://post.vegtrixgroup.com/api`. No necesitas crear variables de Actions para esos dos valores. El workflow también pasa `CORS_ORIGINS` al proceso del backend al iniciar PM2, usando el mismo origen.
 
 ## 7. Preparar la VM antes del primer despliegue
 
@@ -141,7 +139,7 @@ Edita `/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env` en la VM
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `CORS_ORIGINS=https://sistemapost.jnmtortas.com`
+- `CORS_ORIGINS=https://post.vegtrixgroup.com`
 - `REDIS_URL` (obligatoria en producción)
 - `AUTH_COOKIE_SAME_SITE=Lax`
 
@@ -151,7 +149,7 @@ Configura la persistencia de PM2 una sola vez para el usuario `ubuntu`, usando `
 
 ## 8. Ejecutar y revisar el workflow
 
-Después de configurar los cinco secretos, haz un `push` a `main` o vuelve a ejecutar el workflow desde **Actions**. El orden es:
+Después de configurar los cuatro secretos, haz un `push` a `main` o vuelve a ejecutar el workflow desde **Actions**. El orden es:
 
 1. Tests, typecheck, lint y build.
 2. Migraciones pendientes de Supabase.

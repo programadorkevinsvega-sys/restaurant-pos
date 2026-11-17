@@ -17,7 +17,7 @@ jobs:
     name: Verify and build
     runs-on: ubuntu-latest
     env:
-      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+      NEXT_PUBLIC_API_URL: https://post.vegtrixgroup.com/api
     steps:
       - name: Check out main
         uses: actions/checkout@v7
@@ -49,7 +49,7 @@ jobs:
       - name: Validate frontend API URL
         run: |
           if [ -z "$NEXT_PUBLIC_API_URL" ]; then
-            echo "Configure the NEXT_PUBLIC_API_URL repository variable."
+            echo "Production API URL must be https://post.vegtrixgroup.com/api."
             exit 1
           fi
           case "$NEXT_PUBLIC_API_URL" in
@@ -127,7 +127,7 @@ jobs:
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
       DEPLOY_USER: ${{ vars.DEPLOY_USER }}
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
-      FRONTEND_ORIGIN: ${{ vars.FRONTEND_ORIGIN }}
+      FRONTEND_ORIGIN: https://post.vegtrixgroup.com
     steps:
       - name: Download release artifact
         uses: actions/download-artifact@v8
@@ -150,7 +150,7 @@ jobs:
         env:
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
-          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_PATH FRONTEND_ORIGIN; do
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_PATH; do
             if [ -z "${!name}" ]; then
               echo "Configure the $name repository variable."
               exit 1
@@ -258,7 +258,7 @@ jobs:
               fi
             done
 
-            pm2 start "$release/ecosystem.config.cjs" --env production --update-env || return 1
+            CORS_ORIGINS="$frontend_origin" pm2 start "$release/ecosystem.config.cjs" --env production --update-env || return 1
             pm2 jlist | EXPECTED_RELEASE="$release" node -e '
               let output = ""
               process.stdin.setEncoding("utf8")
