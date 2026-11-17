@@ -78,6 +78,15 @@ test("configuration validates Sentry tracing sample rates", () => {
   )
 })
 
+test("configuration samples half of traces by default", () => {
+  const config = loadConfig({
+    ...required,
+    CORS_ORIGINS: "https://pos.example.com",
+  })
+
+  assert.equal(config.SENTRY_TRACES_SAMPLE_RATE, 0.5)
+})
+
 test("configuration validates Sentry profiling sample rates", () => {
   const config = loadConfig({
     ...required,

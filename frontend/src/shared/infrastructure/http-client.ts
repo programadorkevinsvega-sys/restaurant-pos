@@ -1,3 +1,5 @@
+import { traceOperation } from "./tracing"
+
 export class HttpError extends Error {
   constructor(
     message: string,
@@ -44,21 +46,23 @@ export class HttpClient {
   }
 
   async login(email: string, password: string): Promise<{ user: AuthenticatedUser }> {
-    const result = await this.post<{ user: AuthenticatedUser; csrfToken: string }>("/auth/login", { email, password })
+    const result = await traceOperation("auth.login", () =>
+      this.post<{ user: AuthenticatedUser; csrfToken: string }>("/auth/login", { email, password }),
+    )
     this.csrfToken = result.csrfToken
     return { user: result.user }
   }
 
   async logout(): Promise<void> {
     try {
-      await this.post<void>("/auth/logout", {})
+      await traceOperation("auth.logout", () => this.post<void>("/auth/logout", {}))
     } finally {
       this.csrfToken = undefined
     }
   }
 
   async currentUser(): Promise<AuthenticatedUser> {
-    const result = await this.get<{ user: AuthenticatedUser }>("/auth/me")
+    const result = await traceOperation("auth.current_user", () => this.get<{ user: AuthenticatedUser }>("/auth/me"))
     return result.user
   }
 
@@ -100,7 +104,7 @@ export class HttpClient {
   private async ensureCsrfToken(): Promise<string> {
     if (this.csrfToken) return this.csrfToken
 
-    const response = await this.fetch("/auth/csrf", { method: "GET" })
+    const response = await traceOperation("auth.csrf", () => this.fetch("/auth/csrf", { method: "GET" }))
     const result = await this.readResponse<{ csrfToken: string }>(response)
     this.csrfToken = result.csrfToken
     return result.csrfToken
@@ -108,7 +112,7 @@ export class HttpClient {
 
   private async refreshSession(): Promise<boolean> {
     if (!this.refreshInFlight) {
-      this.refreshInFlight = (async () => {
+      this.refreshInFlight = traceOperation("auth.refresh", async () => {
         const csrfToken = await this.ensureCsrfToken()
         const response = await this.fetch("/auth/refresh", {
           method: "POST",
@@ -119,7 +123,7 @@ export class HttpClient {
         const result = await this.readResponse<{ csrfToken: string }>(response)
         this.csrfToken = result.csrfToken
         return true
-      })().finally(() => {
+      }).finally(() => {
         this.refreshInFlight = undefined
       })
     }

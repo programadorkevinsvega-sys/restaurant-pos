@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto"
 import { AppError } from "../../../shared/domain/app-error.js"
 import { logger } from "../../../shared/infrastructure/logger.js"
+import { traceOperation } from "../../../shared/infrastructure/tracing.js"
 import { hashPassword, verifyPassword } from "./passwords.js"
 
 const authorizedRoles = new Set(["staff", "admin"])
@@ -46,58 +47,66 @@ export class AuthUseCases {
     this.authRepository = authRepository
   }
 
-  async signIn(email, password, requestId) {
-    const user = await this.authRepository.findUserByEmail(email.trim().toLowerCase())
-    const passwordHash = user?.passwordHash ?? await dummyPasswordHash
-    const passwordMatches = await verifyPassword(password, passwordHash)
-    if (!user || !user.isActive || !passwordMatches) {
-      logger.warn({ requestId }, "Intento de inicio de sesión rechazado")
-      throw new AppError(401, "INVALID_CREDENTIALS", "Correo o contraseña incorrectos.")
-    }
+  signIn(email, password, requestId) {
+    return traceOperation("auth.sign_in", async () => {
+      const user = await this.authRepository.findUserByEmail(email.trim().toLowerCase())
+      const passwordHash = user?.passwordHash ?? await dummyPasswordHash
+      const passwordMatches = await verifyPassword(password, passwordHash)
+      if (!user || !user.isActive || !passwordMatches) {
+        logger.warn({ requestId }, "Intento de inicio de sesión rechazado")
+        throw new AppError(401, "INVALID_CREDENTIALS", "Correo o contraseña incorrectos.")
+      }
 
-    requireAuthorizedUser(user)
-    const tokens = createSessionTokens()
-    await this.authRepository.createSession({
-      userId: user.id,
-      accessTokenHash: hashToken(tokens.accessToken),
-      refreshTokenHash: hashToken(tokens.refreshToken),
-      accessExpiresAt: tokens.accessExpiresAt,
-      refreshExpiresAt: tokens.refreshExpiresAt,
+      requireAuthorizedUser(user)
+      const tokens = createSessionTokens()
+      await this.authRepository.createSession({
+        userId: user.id,
+        accessTokenHash: hashToken(tokens.accessToken),
+        refreshTokenHash: hashToken(tokens.refreshToken),
+        accessExpiresAt: tokens.accessExpiresAt,
+        refreshExpiresAt: tokens.refreshExpiresAt,
+      })
+
+      return { session: sessionResponse(tokens), user: publicUser(user) }
     })
-
-    return { session: sessionResponse(tokens), user: publicUser(user) }
   }
 
-  async refresh(refreshToken) {
-    const tokens = createSessionTokens()
-    const user = await this.authRepository.rotateSession({
-      currentRefreshTokenHash: hashToken(refreshToken),
-      accessTokenHash: hashToken(tokens.accessToken),
-      refreshTokenHash: hashToken(tokens.refreshToken),
-      accessExpiresAt: tokens.accessExpiresAt,
-      refreshExpiresAt: tokens.refreshExpiresAt,
+  refresh(refreshToken) {
+    return traceOperation("auth.refresh", async () => {
+      const tokens = createSessionTokens()
+      const user = await this.authRepository.rotateSession({
+        currentRefreshTokenHash: hashToken(refreshToken),
+        accessTokenHash: hashToken(tokens.accessToken),
+        refreshTokenHash: hashToken(tokens.refreshToken),
+        accessExpiresAt: tokens.accessExpiresAt,
+        refreshExpiresAt: tokens.refreshExpiresAt,
+      })
+      if (!user) {
+        throw new AppError(401, "INVALID_SESSION", "La sesión expiró. Inicia sesión nuevamente.")
+      }
+
+      return { session: sessionResponse(tokens), user: requireAuthorizedUser(user) }
     })
-    if (!user) {
-      throw new AppError(401, "INVALID_SESSION", "La sesión expiró. Inicia sesión nuevamente.")
-    }
-
-    return { session: sessionResponse(tokens), user: requireAuthorizedUser(user) }
   }
 
-  async getUser(accessToken) {
-    const user = await this.authRepository.findUserByAccessTokenHash(hashToken(accessToken))
-    if (!user) {
-      throw new AppError(401, "INVALID_SESSION", "La sesión expiró. Inicia sesión nuevamente.")
-    }
-    return requireAuthorizedUser(user)
+  getUser(accessToken) {
+    return traceOperation("auth.get_user", async () => {
+      const user = await this.authRepository.findUserByAccessTokenHash(hashToken(accessToken))
+      if (!user) {
+        throw new AppError(401, "INVALID_SESSION", "La sesión expiró. Inicia sesión nuevamente.")
+      }
+      return requireAuthorizedUser(user)
+    })
   }
 
-  async signOut(accessToken, refreshToken) {
-    if (!accessToken && !refreshToken) return
+  signOut(accessToken, refreshToken) {
+    return traceOperation("auth.sign_out", async () => {
+      if (!accessToken && !refreshToken) return
 
-    await this.authRepository.revokeSession({
-      accessTokenHash: accessToken ? hashToken(accessToken) : null,
-      refreshTokenHash: refreshToken ? hashToken(refreshToken) : null,
+      await this.authRepository.revokeSession({
+        accessTokenHash: accessToken ? hashToken(accessToken) : null,
+        refreshTokenHash: refreshToken ? hashToken(refreshToken) : null,
+      })
     })
   }
 }

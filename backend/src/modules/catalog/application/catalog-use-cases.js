@@ -1,25 +1,27 @@
+import { traceOperation } from "../../../shared/infrastructure/tracing.js"
+
 export class CatalogUseCases {
   constructor(repository) {
     this.repository = repository
   }
 
   listCategories() {
-    return this.repository.listCategories()
+    return traceOperation("catalog.list_categories", () => this.repository.listCategories())
   }
 
   listProducts(categoryId) {
-    return this.repository.listProducts(categoryId)
+    return traceOperation("catalog.list_products", () => this.repository.listProducts(categoryId))
   }
 
   findProduct(id) {
-    return this.repository.findProduct(id)
+    return traceOperation("catalog.find_product", () => this.repository.findProduct(id))
   }
 
   createCategory(input) {
-    return this.repository.createCategory(input)
+    return traceOperation("catalog.create_category", () => this.repository.createCategory(input))
   }
 
   createProduct(input) {
-    return this.repository.createProduct(input)
+    return traceOperation("catalog.create_product", () => this.repository.createProduct(input))
   }
 }

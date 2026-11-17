@@ -1,4 +1,5 @@
 import type { CatalogRepository } from "../domain/catalog-repository"
+import { traceOperation } from "../../../shared/infrastructure/tracing"
 
 export class CreateCategory {
   constructor(private readonly catalog: CatalogRepository) {}
@@ -8,6 +9,6 @@ export class CreateCategory {
     if (!normalizedName) {
       throw new Error("El nombre de la categoría es obligatorio.")
     }
-    return this.catalog.createCategory(normalizedName)
+    return traceOperation("catalog.create_category", () => this.catalog.createCategory(normalizedName))
   }
 }

@@ -1,5 +1,6 @@
 import type { CatalogRepository } from "../domain/catalog-repository"
 import type { NewProduct } from "../domain/models"
+import { traceOperation } from "../../../shared/infrastructure/tracing"
 
 export class CreateProduct {
   constructor(private readonly catalog: CatalogRepository) {}
@@ -15,6 +16,6 @@ export class CreateProduct {
       throw new Error("Selecciona una categoría.")
     }
 
-    return this.catalog.createProduct(product)
+    return traceOperation("catalog.create_product", () => this.catalog.createProduct(product))
   }
 }

@@ -18,6 +18,8 @@ Agrega los siguientes valores en **Environment secrets**. No los agregues como v
 | `DEPLOY_SSH_KEY` | Clave privada SSH dedicada a GitHub Actions. |
 | `DEPLOY_KNOWN_HOSTS` | Clave pública de host SSH de la VM, después de verificar su huella. |
 
+Opcionalmente, agrega `SENTRY_AUTH_TOKEN` como **secreto del repositorio** en **Settings → Secrets and variables → Actions → Secrets**. El job de build lo usa para subir source maps y obtener trazas de errores minificadas legibles; no es necesario para desplegar.
+
 El entorno `production` ya está creado. El job de despliegue usa este entorno.
 
 ## 2. Configurar las credenciales de migración en la VM
@@ -122,6 +124,7 @@ En **Settings → Secrets and variables → Actions → Variables**, verifica:
 | `DEPLOY_HOST` | `100.64.183.123` |
 | `DEPLOY_USER` | `ubuntu` |
 | `DEPLOY_PATH` | `/opt/apps/restaurant-pos` |
+| `NEXT_PUBLIC_SENTRY_DSN` | DSN público del proyecto Sentry `restaurant_post`, usado por el frontend. |
 
 El dominio de producción queda definido en `.github/workflows/deploy.yml`: `FRONTEND_ORIGIN=https://post.vegtrixgroup.com` y `NEXT_PUBLIC_API_URL=https://post.vegtrixgroup.com/api`. No necesitas crear variables de Actions para esos dos valores. El workflow también pasa `CORS_ORIGINS` al proceso del backend al iniciar PM2, usando el mismo origen.
 
@@ -151,7 +154,7 @@ Edita `/etc/apps/restaurant-post-supabase/restaurant-post-supabase.env` en la VM
 - `AUTH_COOKIE_SAME_SITE=Lax`
 - `TRUSTED_PROXY_IP` con la IP privada del proxy, si aplica.
 - `SENTRY_DSN` del proyecto Sentry **Node.js de la API** (opcional hasta completar el proyecto)
-- `SENTRY_TRACES_SAMPLE_RATE=0.1` (opcional; es el valor predeterminado)
+- `SENTRY_TRACES_SAMPLE_RATE=0.5` (recomendado para el muestreo inicial de trazas)
 - `SENTRY_PROFILES_SAMPLE_RATE=0.1` (opcional; es el valor predeterminado)
 
 Genera `AUTH_CSRF_SECRET` con un generador criptográfico (por ejemplo, `openssl rand -base64 32`) y guárdalo solo en el archivo privado de la VM. No uses el mismo valor en otros entornos ni lo agregues a GitHub Actions. El usuario de runtime y la URL de conexión nunca deben llegar al frontend.

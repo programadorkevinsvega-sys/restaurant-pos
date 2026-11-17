@@ -1,20 +1,23 @@
 import type { CatalogRepository } from "../domain/catalog-repository"
+import { traceOperation } from "../../../shared/infrastructure/tracing"
 
 export class ListCatalog {
   constructor(private readonly catalog: CatalogRepository) {}
 
   getCategories(signal?: AbortSignal) {
-    return this.catalog.getCategories(signal)
+    return traceOperation("catalog.list_categories", () => this.catalog.getCategories(signal))
   }
 
   getProducts(categoryId?: string, signal?: AbortSignal) {
-    return this.catalog.getProducts(categoryId, signal)
+    return traceOperation("catalog.list_products", () => this.catalog.getProducts(categoryId, signal))
   }
 
   execute(categoryId?: string, signal?: AbortSignal) {
-    return Promise.all([
-      this.catalog.getCategories(signal),
-      this.catalog.getProducts(categoryId, signal),
-    ] as const)
+    return traceOperation("catalog.load", () =>
+      Promise.all([
+        this.catalog.getCategories(signal),
+        this.catalog.getProducts(categoryId, signal),
+      ] as const),
+    )
   }
 }
