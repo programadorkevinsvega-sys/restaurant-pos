@@ -14,6 +14,7 @@ import type {
   SalesReport,
 } from "@/modules/operations/domain/models"
 import type { AppSection } from "@/components/sidebar-nav"
+import { HttpError } from "@/shared/infrastructure/http-client"
 
 interface OperationsPanelProps {
   section: Extract<AppSection, "reservations" | "delivery" | "accounting" | "settings">
@@ -31,6 +32,28 @@ interface OperationsPanelProps {
   onCreateCategory: (name: string) => Promise<void>
 }
 
+const reservationFieldLabels: Record<string, string> = {
+  customer_name: "nombre del cliente",
+  customer_phone: "teléfono del cliente",
+  customer_email: "correo del cliente",
+  table_id: "mesa",
+  reservation_date: "fecha y hora",
+  party_size: "número de personas",
+  notes: "notas",
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof HttpError && error.details.length > 0) {
+    const fields = [...new Set(error.details.map(({ field }) => {
+      const name = field.split(".").pop() ?? field
+      return reservationFieldLabels[name] ?? name.replaceAll("_", " ")
+    }))]
+    return `${error.message} Revisa: ${fields.join(", ")}.`
+  }
+
+  return error instanceof Error ? error.message : "No se pudo completar la operación."
+}
+
 export function OperationsPanel(props: OperationsPanelProps) {
   const {
     section, tables, reservations, deliveries, salesReport, bestSellingProducts, settings, categories,
@@ -46,7 +69,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
     try {
       await operation()
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo completar la operación.")
+      setMessage(getErrorMessage(error))
     } finally {
       setBusy(false)
     }
@@ -62,7 +85,6 @@ export function OperationsPanel(props: OperationsPanelProps) {
         await onCreateReservation({
           customer_name: String(form.get("customer_name")),
           customer_phone: String(form.get("customer_phone")),
-          customer_email: "",
           table_id: String(form.get("table_id")),
           reservation_date: new Date(rawDate).toISOString(),
           party_size: Number(form.get("party_size")),

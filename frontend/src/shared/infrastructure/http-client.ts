@@ -1,9 +1,15 @@
 import { traceOperation } from "./tracing"
 
+export interface HttpErrorDetail {
+  field: string
+  message: string
+}
+
 export class HttpError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly details: HttpErrorDetail[] = [],
   ) {
     super(message)
     this.name = "HttpError"
@@ -154,9 +160,25 @@ export class HttpClient {
               typeof errorPayload.message === "string"
             ? errorPayload.message
             : `La solicitud falló (${response.status})`
-      throw new HttpError(message, response.status)
+      const details =
+        typeof errorPayload === "object" &&
+        errorPayload !== null &&
+        "details" in errorPayload &&
+        Array.isArray(errorPayload.details)
+          ? errorPayload.details.filter(isHttpErrorDetail)
+          : []
+      throw new HttpError(message, response.status, details)
     }
 
     return payload as T
   }
+}
+
+function isHttpErrorDetail(value: unknown): value is HttpErrorDetail {
+  return typeof value === "object" &&
+    value !== null &&
+    "field" in value &&
+    typeof value.field === "string" &&
+    "message" in value &&
+    typeof value.message === "string"
 }
