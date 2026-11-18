@@ -21,7 +21,7 @@ Ejecutar desde un shell autorizado con psql instalado. La variable INSPECTION_DA
 
     set -Eeuo pipefail
     umask 077
-    : "\${INSPECTION_DATABASE_URL:?Define INSPECTION_DATABASE_URL mediante el gestor seguro de secretos}"
+    test -n "$INSPECTION_DATABASE_URL" || { printf "Define INSPECTION_DATABASE_URL mediante el gestor seguro de secretos\\n" >&2; exit 1; }
 
     psql "$INSPECTION_DATABASE_URL" \
       --no-psqlrc \
