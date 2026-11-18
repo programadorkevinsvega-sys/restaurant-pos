@@ -260,13 +260,13 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 |---|---|
 | Inventario de módulos, rutas, repositorios, tablas y funciones actuales | En análisis; inventario estático inicial documentado |
 | Matriz de brechas multisucursal | En análisis; brechas principales identificadas |
-| Modelo organización-entidad legal-sucursal-almacén | Propuesta documentada; pendiente aprobación |
-| Matriz de propiedad/ámbito por recurso | Pendiente de decisiones D0-01 a D0-10 |
+| Modelo organización-entidad legal-sucursal-almacén | Relación organización-entidad legal y sucursal-entidad legal N:M incorporadas; el resto del modelo sigue pendiente de aprobación |
+| Matriz de propiedad/ámbito por recurso | Pendiente de decisiones D0-03 a D0-10 y revisión de consistencia |
 | Matriz de roles, permisos y asignaciones | Propuesta documentada; pendiente aprobación |
 | Estrategia de migración y backfill | Propuesta documentada; requiere datos reales y plan de respaldo |
 | Diseño de aislamiento y RLS | Pendiente de diseño detallado y pruebas |
 | Pruebas de integración PostgreSQL y aislamiento entre sucursales | Pendiente; no implementadas en esta fase |
-| Decisiones de negocio registradas y aprobadas | Pendiente |
+| Decisiones de negocio registradas | D0-01 y D0-02 respondidas; D0-03 a D0-10 pendientes |
 | Evidencia de CI/entorno objetivo | Pendiente |
 
 ### Criterios de aceptación para cerrar Ola 0
@@ -298,7 +298,7 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 
 ## 12. Diseño técnico de referencia — versión 1
 
-> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. Las decisiones D0-01 a D0-10 siguen siendo entradas del propietario del negocio.
+> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. D0-01 y D0-02 ya fueron respondidas por el propietario; D0-03 a D0-10 siguen pendientes.
 
 ### 12.1 Modelo lógico y cardinalidades recomendadas
 
@@ -308,7 +308,7 @@ Entidades lógicas:
 
 - `Organization`: raíz de propiedad y gobierno de la cadena.
 - `LegalEntity`: identidad fiscal/contable; pertenece a una organización.
-- `Branch`: unidad operativa; pertenece a una organización y tiene una asignación legal explícita cuando la operación fiscal lo requiera.
+- `Branch`: unidad operativa perteneciente a una organización; puede vincularse con una o varias entidades legales mediante asignaciones explícitas.
 - `Warehouse`: unidad física de inventario; pertenece a una organización y, si aplica, se asigna a una sucursal.
 - `StorageLocation`: ubicación interna opcional dentro de un almacén.
 - `User`: identidad autenticable global dentro de la instalación.
