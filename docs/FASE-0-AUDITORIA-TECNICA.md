@@ -278,9 +278,12 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 | Diseño caja-terminal-turnos | Modelo separado de terminal, sesión técnica, caja, sesión de caja y turno; multi-entidad legal requiere política de fondo aprobada | Diseño de referencia |
 | Inspección PostgreSQL productiva | Runbook de solo lectura preparado; ejecución y evidencia productiva pendientes | Pendiente |
 | Restauración de backup | Procedimiento de restauración aislada y criterios de integridad especificados; ejecución pendiente | Pendiente |
-| Diseño CI de PR | Workflow separado, sin secretos ni despliegue, especificado; creación y ejecución pendientes | Pendiente |
-| Runbook PostgreSQL/backup | Procedimiento de inspección de solo lectura y restauración aislada en docs/FASE-0-RUNBOOK-POSTGRES-BACKUP.md | Preparado; no ejecutado |
-| Evidencia de CI/entorno objetivo | Pendiente |
+| Diseño CI de PR | Workflow independiente implementado en .github/workflows/ci-pr.yml; permisos mínimos, sin secretos ni deploy de producción | Implementado |
+| Runbook PostgreSQL/backup | Procedimiento de inspección de solo lectura y restauración aislada en docs/FASE-0-RUNBOOK-POSTGRES-BACKUP.md; propuesta RPO/RTO de partida documentada | Preparado; no ejecutado |
+| Pruebas de integración PostgreSQL | backend/test/postgres-integration.test.js valida migraciones, idempotencia, privilegios runtime y creación/rechazo de pedidos contra PostgreSQL real | Ejecutado con éxito en CI PostgreSQL 16 y 17 |
+| Ejecución CI de Pull Request | Workflow y suite completos; ejecución push SHA ab15634da307e739946f3aa6fa980fc9f76d0938 terminó con quality y PostgreSQL 16/17 en success. La ejecución PR del HEAD más reciente debe finalizar para cerrar evidencia actual | Éxito inicial; verificación del HEAD actual pendiente |
+| Protección de main | Política documentada en docs/FASE-0-PROTECCION-MAIN.md con checks requeridos y sin bypass | Pendiente de configuración/verificación en GitHub |
+| Evidencia de CI/entorno objetivo | CI aislada comprobada; evidencia productiva y protección efectiva de main pendientes | Parcial |
 
 ### Criterios de aceptación para cerrar Ola 0
 
@@ -695,7 +698,7 @@ La existencia de un archivo o snapshot no constituye evidencia suficiente. El cr
 
 ## 13. Matriz de entregables y evidencia — actualización
 
-Se documentó el detalle técnico de referencia para RBAC, configuración internacional, cajas/terminales, inspección de producción, restauración y CI PR. Los diseños no equivalen a implementación ni a evidencia de ejecución; ver secciones 12.9–12.14 y el [runbook de PostgreSQL y backup](./FASE-0-RUNBOOK-POSTGRES-BACKUP.md).
+Se documentó el detalle técnico de referencia para RBAC, configuración internacional, cajas/terminales, inspección de producción, restauración y CI PR. Se implementaron workflow y prueba de integración PostgreSQL. La política de main está en [FASE-0-PROTECCION-MAIN.md](./FASE-0-PROTECCION-MAIN.md) y el procedimiento de producción en [FASE-0-RUNBOOK-POSTGRES-BACKUP.md](./FASE-0-RUNBOOK-POSTGRES-BACKUP.md). Diseño, ejecución de CI y evidencia productiva se distinguen expresamente.
 
 | Entregable | Resultado de esta revisión | Estado |
 |---|---|---|
@@ -713,8 +716,8 @@ Se documentó el detalle técnico de referencia para RBAC, configuración intern
 | Seguridad | Amenazas IDOR, scope leakage, RLS, cache, jobs y privilegios documentadas | Diseño de referencia |
 | Migración | Expand/contract, backfill, verificación y rollback documentados | Plan; requiere acceso a datos reales |
 | Pruebas | 15 escenarios de aceptación multisucursal definidos | Especificadas; no ejecutadas |
-| Producción/VM/backup | Runbook de inspección read-only y recuperación aislada preparado; no se accedió al entorno ni se ejecutó restauración | Pendiente de ejecución/evidencia |
-| CI de PR | Se verificó que el único workflow es deploy.yml (push a main con job de despliegue); arquitectura de CI independiente documentada, workflow aún no creado | Pendiente de implementación |
+| Producción/VM/backup | Runbook read-only y procedimiento de restauración aislada preparados; no hubo acceso a la VM, PostgreSQL productivo ni catálogo real de backups | Bloqueado por falta de acceso de ejecución |
+| CI de PR | Se agregó ci-pr.yml separado de deploy.yml, trigger pull_request, pruebas backend/frontend/build y matriz PostgreSQL 16/17 con roles de prueba separados. Primera ejecución completa exitosa; el HEAD documental actual debe pasar su propia ejecución | Implementado; evidencia CI inicial exitosa |
 | Decisiones de negocio D0-01 y D0-02 | Respondidas por el propietario e incorporadas al modelo lógico | Respondidas |
 | Decisión D0-03 | Modelo central/local y control de inventario por ubicación más total consolidado del almacén definidos | Respondida |
 | Decisión D0-04 | Catálogo maestro corporativo y surtido/precio/disponibilidad por sucursal definidos | Respondida |
@@ -735,7 +738,7 @@ Bloqueantes para cierre formal:
 3. Aprobar el modelo de caja compartida, asignación de fondos por entidad legal, operación concurrente y segregación de cierre/aprobación.
 4. Ejecutar la inspección de PostgreSQL productivo y validar el runbook con evidencia sanitizada.
 5. Restaurar realmente un backup en entorno aislado y validar integridad, RPO/RTO frente a objetivos aprobados.
-6. Crear, ejecutar y hacer obligatoria la CI de PR independiente del despliegue; proteger main.
+6. Esperar la ejecución completa del workflow en el HEAD final del PR y configurar/verificar la protección de main conforme a docs/FASE-0-PROTECCION-MAIN.md.
 7. Aprobar el diseño lógico, la matriz recurso/ámbito y las decisiones de operación/finanzas que aún dependen de políticas legales locales.
 
-No se creó ni modificó código de aplicación, migraciones, scripts, dependencias, workflows ni infraestructura. Se documentó el diseño técnico de referencia y un runbook de inspección/restauración; no se ejecutaron consultas en la base productiva, pruebas de restauración, pruebas automatizadas ni despliegues. No se debe iniciar la migración multisucursal ni marcar Fase 0 como cerrada hasta adjuntar evidencia de ejecución de todos los bloqueantes.
+Se añadió .github/workflows/ci-pr.yml y la prueba backend/test/postgres-integration.test.js; la ejecución inicial de CI sobre PostgreSQL 16/17, backend, frontend, lint y build terminó exitosamente en el commit registrado arriba. La ejecución del HEAD final debe volver a verificarse. No se modificó el workflow de despliegue, el código funcional, las migraciones ni la infraestructura. No se accedió a producción, no se inspeccionó PostgreSQL real y no se restauró un backup; la protección de main está especificada pero pendiente de activación/verificación desde GitHub Settings. No marcar Fase 0 como cerrada hasta adjuntar esas evidencias.
