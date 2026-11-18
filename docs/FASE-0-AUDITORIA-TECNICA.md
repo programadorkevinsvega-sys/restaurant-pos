@@ -1,6 +1,6 @@
 # Fase 0 — Auditoría técnica y cimientos multisucursal
 
-> **Estado:** En análisis. Este documento no declara cerrada la Fase 0 ni autoriza cambios de esquema o comportamiento.
+> **Estado:** Fase 0 no está cerrada integralmente. Esta auditoría no autoriza cambios productivos; sus pendientes de protección de rama y recuperación no impiden continuar análisis, diseño, implementación y pruebas en ramas/CI con bases aisladas. Las operaciones sobre esquema o datos productivos conservan las puertas de seguridad descritas en este documento y en el roadmap.
 > **Base auditada:** `main` en `8b92115223f724f98ee2e41f6c68c95bde57d586`.
 > **Modelo comercial confirmado:** una organización/cadena de restaurantes con múltiples sucursales y una o varias entidades legales (NIT). Una sucursal puede operar para una o varias entidades legales; cada operación fiscal/financiera debe identificar la entidad legal responsable. No es un SaaS multi-tenant para restaurantes independientes.
 > **Alcance de esta auditoría:** lectura estática de código, SQL versionado, contratos HTTP, frontend, pruebas, configuración y workflow disponible en GitHub.
@@ -453,6 +453,9 @@ No se debe reactivar RLS por simple `ALTER TABLE ENABLE ROW LEVEL SECURITY`: sin
 ### 12.6 Plan expand/contract para datos actuales
 
 Secuencia de migración propuesta:
+
+> **Alcance de esta secuencia:** los pasos de inspección/backup son precondiciones para aplicar cambios sobre producción. No impiden diseñar, implementar ni probar migraciones en ramas o bases de datos efímeras/aisladas de CI. No ejecutar en producción DDL multisucursal, backfill, conversiones, cutover ni operaciones destructivas/incompatibles hasta completar inspección y restauración aislada satisfactoria.
+
 1. Obtener snapshot de esquema y datos desde producción: tablas, columnas, constraints, índices, funciones, triggers, policies, roles, grants, extensiones, tamaños y conteos.
 2. Verificar backup restaurable en un entorno aislado; registrar timestamp, tamaño, checksum y duración de restauración.
 3. Definir y aprobar Organization, LegalEntity, Branch y Warehouse iniciales con datos reales.
@@ -693,7 +696,7 @@ La existencia de un archivo o snapshot no constituye evidencia suficiente. El cr
 4. Para migraciones destructivas o backfills, agregar aprobación manual protegida antes del paso productivo; el rollback de aplicación no revierte por sí solo el esquema/datos.
 5. Publicar estados requeridos claros: backend checks, frontend checks/build, PostgreSQL integration/migrations, security checks y E2E cuando aplique.
 
-**Límite de esta fase:** este diseño no crea ni cambia workflows todavía. Primero se aprueba el diseño y se construye un CI PR que no pueda desplegar por construcción.
+**Estado de ejecución actualizado:** el workflow `.github/workflows/ci-pr.yml` y la prueba `backend/test/postgres-integration.test.js` ya están implementados en la rama del PR #8. El HEAD `b1bcc1f97e15a524f80843519899f364b5cb29f2` pasó los tres jobs de CI —backend/frontend/build y PostgreSQL 16/17— en [GitHub Actions run 44422575565](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44422575565). La protección efectiva de `main` sigue pendiente; hasta activarla, los tres checks deben verificarse manualmente sobre el HEAD exacto de cada PR. La ausencia temporal de Branch Protection no bloquea el trabajo en ramas, pero no equivale a tener los controles automáticos activos.
 
 
 ## 13. Matriz de entregables y evidencia — actualización
@@ -732,7 +735,7 @@ Se documentó el detalle técnico de referencia para RBAC, configuración intern
 
 La Fase 0 queda **completada en su componente de análisis estático y diseño técnico de referencia**, pero **no puede declararse cerrada integralmente**.
 
-Bloqueantes para cierre formal:
+Pendientes para el cierre integral de Fase 0 (no son un bloqueo global para el desarrollo en ramas y entornos aislados):
 1. Revisar/aprobar la matriz RBAC y sus perfiles mínimos; cerrar excepciones y permisos delegables.
 2. Aprobar la precedencia por familia de configuración, monedas admitidas por entidad legal, reglas de conversión, fecha de negocio y snapshots horarios.
 3. Aprobar el modelo de caja compartida, asignación de fondos por entidad legal, operación concurrente y segregación de cierre/aprobación.
@@ -742,3 +745,13 @@ Bloqueantes para cierre formal:
 7. Aprobar el diseño lógico, la matriz recurso/ámbito y las decisiones de operación/finanzas que aún dependen de políticas legales locales.
 
 Se añadió .github/workflows/ci-pr.yml y la prueba backend/test/postgres-integration.test.js. La ejecución completa del HEAD `7ba5ce791b432eab0a5f93d2d405bdc61808f03b` terminó exitosamente: backend, frontend typecheck/lint/build y PostgreSQL 16/17; evidencia: [run 44422339379](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44422339379). No se modificó el workflow de despliegue, el código funcional, las migraciones ni la infraestructura. No se accedió a producción, no se inspeccionó PostgreSQL real y no se restauró un backup; la protección de main está especificada pero pendiente de activación/verificación desde GitHub Settings. No marcar Fase 0 como cerrada hasta adjuntar esas evidencias.
+
+### Actualización de continuidad — 2026-11-18
+
+Se acuerda mantener pendientes la protección efectiva de `main`, la inspección PostgreSQL productiva y la restauración real del backup, sin detener las demás fases:
+
+- Se permite continuar análisis, diseño, implementación, pruebas de integración y migraciones contra PostgreSQL efímero/aislado en ramas de trabajo y CI.
+- Las decisiones funcionales pendientes (matriz RBAC, precedencia monetaria/temporal, política de caja compartida y otras reglas de negocio) bloquean únicamente las capacidades que dependan de ellas.
+- Mientras `main` no tenga Branch Protection activa, se exige operativamente PR, revisión del cambio y verificación manual de los tres checks exitosos en el HEAD exacto. No hacer pushes directos a `main`. Esta práctica temporal no se presenta como protección automática.
+- La falta de inspección/restore no impide construir o probar el esquema multisucursal fuera de producción. Sí impide aplicar migraciones productivas que cambien esquema/datos, backfills, conversiones, cutovers o cambios destructivos/incompatibles hasta que el backup se restaure satisfactoriamente y se verifique integridad y recuperación.
+- Un desarrollo puede avanzar hasta validación en CI sin declarar que está desplegado o verificado en producción. La Fase 0 seguirá abierta hasta completar sus pendientes, en paralelo con las fases siguientes.
