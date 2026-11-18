@@ -1107,7 +1107,8 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 
 - **Completado:** inventario estático inicial de arquitectura, módulos, migraciones, autenticación, autorización, funciones SQL, caché, frontend y pruebas.
 - **Completado:** matriz inicial de brechas, modelo lógico candidato, matriz de propiedad propuesta, contrato de contexto, amenazas, estrategia expand/contract y 15 escenarios de aceptación multisucursal.
-- **Pendiente:** decisiones D0-01 a D0-10 del propietario del negocio.
+- **Respondidas:** D0-01 (una organización puede tener varias entidades legales/NIT) y D0-02 (una sucursal puede operar con una o varias entidades legales; relación N:M).
+- **Pendiente:** decisiones D0-03 a D0-10 del propietario del negocio.
 - **Pendiente:** inspección de esquema/datos/roles/backups reales de producción y verificación de restauración.
 - **Pendiente:** CI de PR que valide sin desplegar producción.
 - **No autorizado todavía:** migraciones, backfill, cambios de autorización o despliegue multisucursal.
