@@ -269,11 +269,16 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 | Matriz de brechas multisucursal | En análisis; brechas principales identificadas |
 | Modelo organización-entidad legal-sucursal-almacén | Relación organización-entidad legal y sucursal-entidad legal N:M incorporadas; el resto del modelo sigue pendiente de aprobación |
 | Matriz de propiedad/ámbito por recurso | Modelo mixto D0-10 incorporado como referencia; falta completar/validar la matriz recurso por recurso y revisar permisos/precedencia |
-| Matriz de roles, permisos y asignaciones | Propuesta documentada; pendiente aprobación |
+| Matriz de roles, permisos y asignaciones | Modelo RBAC por ámbito, permisos granulares, perfiles mínimos y controles de delegación especificados; queda revisión/aprobación de permisos por acción |
 | Estrategia de migración y backfill | Propuesta documentada; requiere datos reales y plan de respaldo |
 | Diseño de aislamiento y RLS | Pendiente de diseño detallado y pruebas |
 | Pruebas de integración PostgreSQL y aislamiento entre sucursales | Pendiente; no implementadas en esta fase |
-| Decisiones de negocio registradas | D0-01 a D0-10 respondidas en su alcance principal; siguen pendientes la matriz detallada de permisos de D0-06, reglas complementarias de D0-08 y D0-09, y la precedencia/detalle de configuración y visibilidad de D0-10 |
+| Decisiones de negocio registradas | D0-01 a D0-10 respondidas en alcance principal; quedan por cerrar reglas operativas/contables complementarias y aprobar el diseño técnico de referencia antes de implementar |
+| Diseño de configuración internacional | Precedencia por familia, moneda funcional/transaccional y snapshots de zona horaria especificados; reglas contables/fiscales locales y pruebas pendientes | Pendiente de aprobación/implementación |
+| Diseño caja-terminal-turnos | Modelo separado de terminal, sesión técnica, caja, sesión de caja y turno; multi-entidad legal requiere política de fondo aprobada | Diseño de referencia |
+| Inspección PostgreSQL productiva | Runbook de solo lectura preparado; ejecución y evidencia productiva pendientes | Pendiente |
+| Restauración de backup | Procedimiento de restauración aislada y criterios de integridad especificados; ejecución pendiente | Pendiente |
+| Diseño CI de PR | Workflow separado, sin secretos ni despliegue, especificado; creación y ejecución pendientes | Pendiente |
 | Evidencia de CI/entorno objetivo | Pendiente |
 
 ### Criterios de aceptación para cerrar Ola 0
@@ -305,7 +310,7 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 
 ## 12. Diseño técnico de referencia — versión 1
 
-> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. D0-01 a D0-10 ya fueron respondidas en su alcance principal por el propietario; la matriz detallada de permisos de D0-06, las reglas complementarias de D0-08 y D0-09, y la precedencia/detalle de configuración y visibilidad de D0-10 siguen pendientes.
+> Este diseño concreta las decisiones de alcance y las recomendaciones técnicas de referencia; no constituye todavía un esquema SQL aprobado ni reemplaza la aprobación de reglas contables/fiscales locales. Las diez decisiones de negocio están respondidas en su alcance principal. Los detalles operativos, permisos delegables, excepciones financieras y configuración por familia quedan sujetos a revisión antes de implementar.
 
 ### 12.1 Modelo lógico y cardinalidades recomendadas
 
@@ -491,6 +496,202 @@ Antes de habilitar el modelo:
 - Runbook de backup, restauración, migración, verificación, rollback de aplicación y recuperación.
 - Canary o despliegue controlado compatible con la infraestructura existente; no desplegar cambios de Fase 0 a producción porque esta entrega es de diseño.
 
+
+### 12.9 Autorización RBAC por ámbito — diseño objetivo
+
+La autorización será **RBAC + asignaciones de ámbito (scope-based access control)**. Los roles agrupan permisos; la asignación determina dónde puede ejercerlos. El nombre del rol, la sucursal activa o un identificador recibido desde el cliente nunca conceden acceso por sí solos.
+
+**Catálogo de permisos**
+
+- Claves estables con formato \`recurso.acción\`, por ejemplo: \`orders.read\`, \`orders.create\`, \`orders.cancel\`, \`catalog.manage\`, \`pricing.manage\`, \`inventory.receive\`, \`inventory.adjust\`, \`cash.open\`, \`cash.close\`, \`cash.reconcile\`, \`finance.ledger.read\`, \`finance.post\`, \`users.assign\`, \`roles.manage\`, \`settings.manage\` y \`audit.read\`.
+- El catálogo de permisos pertenece al sistema y se versiona. Los administradores asignan permisos a roles existentes o roles personalizados; no pueden crear permisos arbitrarios que el backend no implemente.
+- Cada permiso declara los ámbitos donde puede aplicarse, si admite herencia, si requiere aprobación adicional y si es sensible. La herencia es opt-in por permiso; no existe propagación automática de un permiso corporativo a todas las sucursales.
+- Separar lectura, ejecución, configuración, aprobación y reverso. No agrupar acciones de riesgo diferente en un único permiso genérico.
+
+**Asignaciones y resolución**
+
+La relación conceptual será \`UserScopeRole(user_id, role_id, scope_type, scope_id, valid_from, valid_until, status, granted_by, reason, version)\`, con FK/constraints que validen la pertenencia del ámbito a la organización. Un usuario puede tener roles distintos y vigentes en varias sucursales. Las asignaciones tienen vigencia, estado, actor otorgante y motivo; se revocan, no se borran físicamente.
+
+La decisión de autorización se calcula con: identidad autenticada + asignación vigente + permiso solicitado + ámbito del recurso + estado del recurso + restricciones de negocio. **Default deny**: ausencia de asignación/contexto, recurso fuera del ámbito o permiso no concedido implica rechazo. Las consultas y escrituras vuelven a comprobar el ámbito en repositorio/SQL; ocultar un botón en frontend no es control de seguridad.
+
+La herencia seguirá una lista permitida explícita:
+- Un rol corporativo solo alcanza los ámbitos descendientes para los permisos marcados expresamente como heredables.
+- Un rol de sucursal solo aplica a esa sucursal y a sus recursos subordinados cuando el permiso lo permita.
+- Roles de entidad legal, almacén o caja no se extienden lateralmente a otras entidades.
+- No se permiten comodines equivalentes a "todo" para usuarios operativos ni elevación implícita desde el antiguo \`admin\`.
+
+**Matriz inicial de perfiles recomendados**
+
+| Perfil | Alcance asignable | Capacidades base recomendadas | Separación explícita |
+|---|---|---|---|
+| Propietario | Organización, mediante asignación expresa | Gobierno de organización, entidades legales, sucursales, roles, auditoría y visión corporativa | Sus acciones privilegiadas quedan auditadas; no evita controles de integridad ni aprobaciones obligatorias |
+| Administrador general | Organización y sucursales delegadas | Usuarios/asignaciones dentro de su delegación, configuración general, catálogo, sucursales y operación | Sin acceso automático a asientos, certificados fiscales, secretos o aprobación de sus propios privilegios |
+| Director de operaciones | Organización/sucursales delegadas | Operación, catálogo/surtido, inventario, cocina, delivery y reportes operativos consolidados | Sin contabilización, administración de certificados ni conciliación bancaria por defecto |
+| Responsable financiero | Entidades legales autorizadas y sucursales de consulta | Libros, reportes financieros, conciliación, cierres revisables y configuración financiera aprobada | No abre cajones ni registra ventas por el mero rol financiero; las aprobaciones sensibles se separan |
+| Gerente de sucursal | Una o más sucursales asignadas | Operación local, personal operativo asignado, mesas, pedidos, disponibilidad/precios locales, supervisión de cajas y reportes locales | No administra otras sucursales ni cambia su propio nivel de privilegio |
+| Administrador de sucursal | Sucursal asignada | Configuración operativa local, catálogo local permitido, reservas, inventario y usuarios de bajo privilegio dentro de límites | No cambia parámetros legales/contables ni concede permisos superiores |
+| Cajero | Caja/turno asignado dentro de una sucursal | Cobros, apertura/cierre permitidos, consulta de su sesión y registro de movimientos autorizados | Sin gestión de roles, inventario administrativo, reembolsos o aprobación de sus propias diferencias salvo permiso específico |
+| Mesero | Sucursal y áreas/mesas asignadas | Crear/actualizar comandas y consultar estado operativo necesario | Sin administración de precios, caja, inventario ni datos financieros no necesarios |
+| Cocinero | Sucursal/estaciones asignadas | Consultar tickets KDS y actualizar estados de preparación | Sin datos de pago, administración comercial o caja |
+| Responsable de inventario | Almacenes/sucursales asignados | Recepción, conteos, transferencias, trazabilidad y ajustes autorizados | Ajustes de riesgo pueden requerir aprobación distinta del ejecutor |
+
+Esta es una **matriz base de mínimo privilegio**, no una concesión automática a todos los usuarios con ese título. Los permisos finales y quién puede aprobar cada acción deben quedar en una matriz versionada antes de codificar. Los roles personalizados podrán reducir o combinar capacidades dentro de la delegación del administrador, nunca superar sus propios permisos delegables.
+
+**Controles de privilegio y operación**
+
+1. Ningún usuario puede otorgarse roles, ampliar su propia asignación ni modificar una asignación de mayor alcance que sus facultades.
+2. Las altas, cambios, expiraciones y revocaciones de roles/permisos generan eventos append-only con actor, objetivo, ámbito, permiso anterior/nuevo, motivo, fecha y correlación.
+3. Las operaciones de alto impacto aplican segregación de funciones configurable (por ejemplo, quien solicita no es quien aprueba). Umbrales y excepciones requieren aprobación de negocio.
+4. La revocación invalida permisos cacheados y se aplica en la siguiente autorización; las operaciones sensibles consultan versión de autorización vigente.
+5. La caché de permisos incluye usuario, ámbito, versión y expiración corta; cambios de asignación incrementan una versión de autorización e invalidan entradas.
+6. La identidad y autorización se verifican en backend. RLS, cuando se active, será defensa adicional y se probará con el rol runtime real; nunca reemplazará estas reglas.
+
+**Pruebas obligatorias:** escalamiento horizontal/vertical, asignación expirada, cambio/revocación durante sesión, ámbito padre sin permiso heredable, rol corporativo con permisos limitados, manipulación de IDs, acceso a exportaciones/reportes/jobs, caché después de revocación y concurrencia entre cambios de permisos y operaciones.
+
+### 12.10 Precedencia de moneda, zona horaria y configuración
+
+No se usará una precedencia universal ciega. Cada parámetro tendrá metadatos: ámbitos permitidos, fuente de verdad, regla de herencia, capacidad de override, vigencia, tipo de dato, validación y si representa una restricción legal/de seguridad.
+
+**Regla general de configuración**
+
+- Valores de organización sirven como defaults para nuevas entidades.
+- Una entidad legal puede definir sus propios valores dentro de los parámetros permitidos.
+- Una sucursal puede sobrescribir parámetros operativos autorizados.
+- Una terminal solo puede sobrescribir preferencias del dispositivo (impresora, pantalla, idioma de interfaz, periféricos); nunca moneda contable, impuestos, permisos o reglas legales.
+- Cada valor se guarda como \`inherit\`, \`override\` o \`disabled\`, con origen, autor, versión y \`effective_from/effective_until\`. Un valor nulo no significa indistintamente "heredar" o "desactivar".
+- Para parámetros fiscales, legales, de seguridad o de integridad, la entidad legal o la política central aplicable es autoritativa; una sucursal no puede debilitarla. Las excepciones necesitan permiso y aprobación explícitos.
+- Para parámetros puramente operativos de sucursal, prevalece el override de la sucursal. Los cambios son auditables y no reescriben snapshots de operaciones históricas.
+
+**Moneda**
+
+- Usar códigos ISO 4217 y conservar el código en cada importe; el importe no existe sin moneda. La precisión/escala y redondeo se determinan por moneda y regla de negocio, sin \`float\` ni conversiones a coma flotante.
+- La entidad legal define moneda funcional contable y conjunto de monedas de transacción que tiene habilitadas. La sucursal define la moneda operativa predeterminada.
+- Una venta usa la moneda operativa de la sucursal solo si está habilitada para la entidad legal responsable. Si no coincide o no está autorizada, el backend rechaza la operación/configuración o exige selección explícita de otra moneda permitida; jamás convierte silenciosamente.
+- Separar \`transaction_currency\`, \`functional_currency\` y moneda de liquidación/cobro cuando aplique. El documento de venta conserva importe y moneda originales; el asiento conserva importe funcional y la conversión aplicada.
+- Toda conversión financiera guarda snapshot inmutable de moneda origen/destino, tasa, dirección, fuente, fecha/hora, regla de redondeo y usuario/proceso que la aplicó. No se recalcula el pasado cuando cambia una tasa.
+- La aceptación de pagos en monedas distintas, cambio entregado y diferencias de cambio se habilita mediante política explícita y submayores por moneda; no se infiere de que una sucursal tenga una moneda configurada.
+
+**Zona horaria y fecha de negocio**
+
+- Guardar instantes técnicos como \`timestamptz\` en UTC. Guardar también el identificador IANA aplicado y el \`business_date\` calculado para operaciones con corte, para que el cambio futuro de configuración no altere el historial.
+- La zona horaria de sucursal es la autoridad para horario operativo, turnos, ventas del día y cortes locales. La zona de la entidad legal puede usarse para reportes/plazos legales solo cuando la regla fiscal/contable aplicable lo determine y esté configurada.
+- Toda operación conserva \`occurred_at_utc\`, \`branch_timezone_snapshot\` y, cuando aplique, \`legal_timezone_snapshot\` y \`business_date\`.
+- Manejar horario de verano y horas locales inexistentes/duplicadas mediante zona IANA; nunca fijar offsets manuales ni depender de la zona horaria del servidor.
+
+**Matriz de precedencia por familia**
+
+| Familia | Fuente autoritativa | Override permitido |
+|---|---|---|
+| Preferencias corporativas | Organización | Entidad legal y sucursal según definición del parámetro |
+| Parámetro operativo local | Sucursal | Terminal solo para preferencias del dispositivo |
+| Identidad fiscal, régimen, numeración y moneda funcional | Entidad legal | No por sucursal; excepciones legales documentadas |
+| Moneda de transacción predeterminada | Sucursal, validada contra monedas habilitadas de la entidad legal | Selección explícita entre monedas permitidas |
+| Zona horaria de operación y fecha de negocio | Sucursal | No por terminal |
+| Seguridad y límites mínimos | Política central/organización | Solo se permite endurecer, no debilitar |
+
+### 12.11 Cajas, terminales, sesiones y turnos
+
+Se separan cuatro conceptos que no deben compartir una única tabla o estado:
+
+- \`CashRegister\`: punto/caja física o lógica donde se controla efectivo y conciliación; pertenece a una sola sucursal.
+- \`Terminal\`: dispositivo POS registrado, con identidad propia, estado, sucursal asignada y credenciales de dispositivo revocables.
+- \`TerminalSession\`: sesión técnica/autenticada de uso del dispositivo; no representa dinero abierto.
+- \`CashRegisterSession\`: ciclo financiero de apertura a cierre de una caja, con fondo inicial, movimientos, conteo, diferencias y cierre.
+- \`CashierShift\`: turno individual de un cajero/operador, enlazado a la sesión de caja y, cuando corresponda, a una terminal.
+
+**Cardinalidades y concurrencia recomendadas**
+
+- Branch 1:N CashRegister y Branch 1:N Terminal. Cada caja/terminal pertenece a exactamente una sucursal.
+- Una terminal tiene como máximo una asignación activa a una caja en un instante. La asignación conserva historial, actor y vigencia; no se cambia mientras exista operación/turno activo.
+- Una caja puede operar en modo dedicado (una terminal) o compartido (varias terminales) si se habilita explícitamente. El modo compartido exige ledger transaccional, bloqueo de concurrencia e idempotencia para impedir dobles cobros y dobles movimientos.
+- Solo existe una sesión de caja abierta por caja física/lógica a la vez (constraint único parcial sobre sesiones abiertas). Una sesión puede contener varios turnos individuales si la caja opera en modo compartido; cada cajero mantiene identidad y trazabilidad propias.
+- La sesión de terminal no abre/cierra la caja automáticamente. Cerrar sesión de un usuario o apagar terminal no liquida ni cierra el efectivo.
+- Cada pedido/pago/movimiento registra organización, sucursal, entidad legal responsable, caja, terminal, sesión de caja, turno/actor, moneda, método y referencia idempotente. La entidad legal nunca se deduce solo de la caja.
+
+**Libro de caja y cierre**
+
+- Cada movimiento financiero es append-only y se enlaza a su documento de origen; correcciones por reverso/ajuste, no UPDATE/DELETE de movimientos confirmados.
+- Apertura registra actor, hora, moneda, fondo inicial y desglose aprobado. El fondo debe asignarse a un propietario contable explícito.
+- Movimientos concurrentes se contabilizan dentro de transacciones con bloqueo de la sesión/cuenta afectada y clave idempotente. El saldo esperado se deriva del ledger, no de un total editable en frontend.
+- El cierre detiene nuevas operaciones, exige resolver turnos activos conforme a política, calcula esperado por moneda/medio/entidad legal, registra conteo declarado por denominación, diferencia y motivo, y produce snapshot inmutable.
+- Una diferencia no se elimina ni se corrige editando el cierre. Se registra ajuste/reverso con actor, aprobación y auditoría.
+- El cierre y la conciliación se separan: cerrar la sesión física no implica que pagos externos/bancarios estén conciliados.
+
+**Particularidad de sucursales con varias entidades legales**
+
+Un mismo local puede vender para varios NIT. Por eso cada venta/movimiento debe conservar \`legal_entity_id\`, y el registro de caja debe poder conciliar submayores por entidad legal y moneda además del efectivo físico total. El fondo de apertura y el efectivo compartido deben tener propietario/criterio de asignación explícito. No se permitirá efectivo sin atribución contable; el tratamiento de fondos compartidos requiere aprobación del responsable financiero antes de activarlo.
+
+**Pruebas obligatorias:** dos terminales cobrando simultáneamente en una caja compartida, dos cajas en la misma sucursal, terminal reasignada con sesión activa, doble envío/reintento, cierre concurrente con cobro, usuario revocado durante turno, diferencia de arqueo, reinicio de proceso, moneda distinta, y operaciones de dos entidades legales en una caja autorizada.
+
+### 12.12 Inspección de PostgreSQL de producción
+
+La inspección será una captura reproducible y **de solo lectura**, antes de cualquier migración. No se usará el usuario propietario de migraciones para tareas exploratorias normales ni se cambiarán roles, grants, políticas, parámetros o datos durante el levantamiento.
+
+Alcance mínimo:
+1. Identificar proveedor/host lógico, base, versión exacta y extensiones habilitadas.
+2. Inventariar schemas, tablas/particiones, vistas, secuencias, funciones, triggers, índices, constraints y dependencias.
+3. Capturar tamaño por base/tabla/índice y estimaciones de filas; los \`COUNT(*)\` exactos se programan selectivamente si el costo/impacto es aceptable.
+4. Identificar owners, roles, atributos de rol, membresías, grants, default privileges y rol efectivo de runtime; nunca consultar ni exportar hashes de contraseña de roles.
+5. Inspeccionar RLS habilitado/forzado y políticas por tabla; revisar funciones \`SECURITY DEFINER\`, propietario, \`search_path\`, grants y posibles bypass.
+6. Revisar transacciones largas, locks, conexiones, replicación y estado de archivado WAL si aplica.
+7. Comparar \`schema_migrations\` con los SQL versionados y documentar cualquier diferencia.
+8. Registrar relaciones huérfanas y validaciones de integridad con consultas acotadas, sin alterar registros.
+9. Obtener un inventario de configuración de backup, frecuencia, retención, cifrado, destino, WAL/PITR y últimas ejecuciones; secretos y URLs con credenciales quedan fuera de la evidencia compartida.
+
+La captura se guarda como artefacto privado con fecha UTC, commit de aplicación asociado, versión PostgreSQL, rol de inspección y huella/hash de los informes. Al PR solo se incorpora un resumen sanitizado: jamás PII, correos, tokens, hashes, cadenas de conexión o datos de clientes.
+
+### 12.13 Backup, restauración y recuperación verificable
+
+La existencia de un archivo o snapshot no constituye evidencia suficiente. El criterio es restaurar en un entorno aislado y verificar que la aplicación y los datos recuperados son consistentes.
+
+**Política técnica recomendada**
+
+- Primero identificar el mecanismo actual (backup administrado, pgBackRest, Barman, WAL-G u otro) y conservarlo si cumple los requisitos; no introducir una herramienta nueva sin evaluar infraestructura, costos y operación.
+- Preferir recuperación a un punto en el tiempo (PITR) cuando el proveedor/arquitectura lo soporte, con base backup y cadena WAL íntegra.
+- Asegurar cifrado en tránsito y reposo, acceso mínimo, retención protegida frente a borrado accidental, logs de backup y alertas de fallo.
+- Respaldar datos y metadatos necesarios para reconstruir roles/permisos/extensiones/configuración, con secretos gestionados aparte y protegidos; nunca adjuntarlos al repositorio.
+- Definir RPO y RTO con el negocio según impacto real. No se inventan objetivos numéricos en esta fase.
+
+**Prueba de restauración requerida para cerrar Fase 0**
+
+1. Seleccionar una copia identificada y registrar origen, timestamp, tipo, tamaño y checksum/manifiesto.
+2. Crear infraestructura/base aislada, sin ruta de escritura hacia producción, sin tráfico real y con integraciones/webhooks salientes deshabilitados.
+3. Restaurar con versión mayor compatible de PostgreSQL y extensiones requeridas; aplicar el procedimiento correspondiente al formato físico o lógico.
+4. Verificar finalización sin errores, objetos, owners/grants, extensiones, historial de migraciones, índices, constraints, funciones y políticas.
+5. Comparar conteos exactos de tablas críticas, relaciones, agregados financieros/inventario y muestras anonimizadas contra un snapshot de referencia coherente.
+6. Ejecutar health checks y un conjunto de consultas/pruebas de lectura de la aplicación contra la restauración. No permitir que el entorno restaurado envíe cobros, emails, webhooks ni notificaciones reales.
+7. Medir duración real de restauración y validación, calcular RPO/RTO observado y compararlo con objetivos aprobados.
+8. Registrar evidencia, errores, desviaciones y acciones correctivas. Repetir la prueba después de corregir cualquier fallo.
+
+\`pg_verifybackup\` o la inspección de un catálogo \`pg_restore --list\` sirven como verificaciones complementarias del artefacto/formato, pero **no sustituyen una restauración completa y pruebas de consistencia**. Nunca se restaura encima de producción como prueba.
+
+### 12.14 CI de Pull Request separada del despliegue
+
+**Hallazgo del repositorio:** el árbol \`.github/workflows\` en \`main\` contiene solamente \`deploy.yml\`. El workflow se dispara por \`push\` a \`main\`; su job \`build\` instala dependencias y ejecuta \`pnpm --dir backend check\`, typecheck/lint/build del frontend, y después el job \`deploy\` conecta por Tailscale/SSH, ejecuta \`pnpm migrate\` en la VM y activa la versión. No existe un workflow independiente de \`pull_request\`. Los tests \`postgres-repositories.test.js\` usan objetos con un método \`query\` simulado, por lo que no prueban PostgreSQL real.
+
+**Diseño objetivo de CI PR**
+
+- Nuevo workflow independiente que se ejecute en \`pull_request\` hacia \`main\` y en ejecuciones manuales de diagnóstico; permisos mínimos \`contents: read\`, concurrencia por PR y cancelación de ejecuciones obsoletas.
+- Node.js 24 y pnpm 12.15.0, coherentes con el workflow actual. Instalar backend y frontend desde sus lockfiles independientes con \`--frozen-lockfile\`.
+- Job estático/unitario: comprobación de sintaxis/tests backend, typecheck y lint frontend, build frontend con valores de prueba no productivos y sin credenciales reales.
+- Job de integración: PostgreSQL efímero de la misma versión mayor que producción (se confirma en la inspección), Redis de prueba si la suite lo necesita, aplicación de todas las migraciones desde cero, comprobación de upgrade desde el esquema base y tests usando el rol runtime limitado, no el owner de migraciones.
+- Suites de integración deben validar constraints, transacciones, RLS cuando esté habilitado, funciones privilegiadas, permisos, aislamiento y concurrencia. Los doubles se conservan para unit tests, no como sustituto de integración.
+- Job de frontend/API contract y E2E cuando existan fixtures y entorno local determinista; sin acceder a producción.
+- Escaneo de dependencias/secretos y artefactos de diagnóstico sanitizados; nunca imprimir variables sensibles.
+- No incluir \`SENTRY_AUTH_TOKEN\`, \`TS_AUTHKEY\`, SSH keys, \`DATABASE_URL\` de producción, environment \`production\`, migraciones productivas ni acciones de deploy en el workflow PR.
+- Los servicios de prueba se destruyen al terminar. Ninguna prueba de PR puede conectarse a la red ni al hostname de producción.
+
+**Puertas de merge y CD**
+
+1. Proteger \`main\`: exigir PR, checks obligatorios de CI, revisión aprobada y resolución de conversaciones; deshabilitar bypass administrativo ordinario.
+2. El workflow de despliegue queda separado y solo se activa en \`push\` a \`main\` después de un merge que satisfizo las protecciones.
+3. Las migraciones productivas siguen siendo una operación de CD, no de CI. Antes de migraciones con impacto de datos deben existir backup restaurado/verificado, plan expand/contract, compatibilidad con versión anterior y procedimiento de recuperación.
+4. Para migraciones destructivas o backfills, agregar aprobación manual protegida antes del paso productivo; el rollback de aplicación no revierte por sí solo el esquema/datos.
+5. Publicar estados requeridos claros: backend checks, frontend checks/build, PostgreSQL integration/migrations, security checks y E2E cuando aplique.
+
+**Límite de esta fase:** este diseño no crea ni cambia workflows todavía. Primero se aprueba el diseño y se construye un CI PR que no pueda desplegar por construcción.
+
+
 ## 13. Matriz de entregables y evidencia — actualización
 
 | Entregable | Resultado de esta revisión | Estado |
@@ -526,10 +727,12 @@ Antes de habilitar el modelo:
 La Fase 0 queda **completada en su componente de análisis estático y diseño técnico de referencia**, pero **no puede declararse cerrada integralmente**.
 
 Bloqueantes para cierre formal:
-1. Aprobar la matriz detallada de permisos de D0-06, cerrar los detalles complementarios de D0-08 y D0-09, completar la precedencia y el detalle de visibilidad de D0-10 y validar la consistencia del modelo completo.
-2. Auditoría de esquema, datos, roles, grants, policies, volúmenes y backups en la base productiva.
-3. Verificación de backup restaurable y plan de migración basado en conteos reales.
-4. Validación del pipeline de PR que no despliegue producción.
-5. Revisión y aprobación del diseño lógico final y matriz de propiedad/permisos.
+1. Revisar/aprobar la matriz RBAC y sus perfiles mínimos; cerrar excepciones y permisos delegables.
+2. Aprobar la precedencia por familia de configuración, monedas admitidas por entidad legal, reglas de conversión, fecha de negocio y snapshots horarios.
+3. Aprobar el modelo de caja compartida, asignación de fondos por entidad legal, operación concurrente y segregación de cierre/aprobación.
+4. Ejecutar la inspección de PostgreSQL productivo y validar el runbook con evidencia sanitizada.
+5. Restaurar realmente un backup en entorno aislado y validar integridad, RPO/RTO frente a objetivos aprobados.
+6. Crear, ejecutar y hacer obligatoria la CI de PR independiente del despliegue; proteger main.
+7. Aprobar el diseño lógico, la matriz recurso/ámbito y las decisiones de operación/finanzas que aún dependen de políticas legales locales.
 
-No se creó ni modificó código de aplicación, migraciones, scripts, dependencias, workflows ni infraestructura. No se ejecutaron pruebas ni despliegues. No se debe iniciar la migración multisucursal ni marcar Fase 0 como cerrada hasta resolver los bloqueantes anteriores.
+No se creó ni modificó código de aplicación, migraciones, scripts, dependencias, workflows ni infraestructura. Se documentó el diseño técnico de referencia y un runbook de inspección/restauración; no se ejecutaron consultas en la base productiva, pruebas de restauración, pruebas automatizadas ni despliegues. No se debe iniciar la migración multisucursal ni marcar Fase 0 como cerrada hasta adjuntar evidencia de ejecución de todos los bloqueantes.
