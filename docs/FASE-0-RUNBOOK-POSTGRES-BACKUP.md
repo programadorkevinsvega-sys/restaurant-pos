@@ -213,7 +213,28 @@ Comparar esa lista con los archivos backend/src/migrations/*.sql del commit prod
 
 El runner actual registra versión y fecha, ejecuta cada archivo en transacción y usa advisory lock; no registra checksum del contenido en el esquema revisado. No modificar la tabla histórica para "hacerla coincidir" sin un plan aprobado.
 
-## 5. Inventario del mecanismo de backup
+## 5. Objetivos de recuperación recomendados (propuesta para aprobar)
+
+Estos son valores de partida recomendados para un POS transaccional de operación diaria; **no describen la capacidad actual ni se consideran objetivos aprobados** hasta que el negocio confirme presupuesto, criticidad y horarios de soporte.
+
+| Objetivo | Valor de partida propuesto | Cómo se demuestra |
+|---|---:|---|
+| RPO de base productiva | ≤ 15 minutos | Recuperación PITR y comparación del último commit transaccional incluido |
+| RTO de servicio de base de datos | ≤ 2 horas | Tiempo desde declaración del incidente hasta conexión validada de la base restaurada |
+| Punto de recuperación (PITR) | Mínimo 14 días | Base backup válida y cadena WAL completa para los puntos solicitados |
+| Backups base | Al menos uno diario | Catálogo con ejecuciones completas verificables |
+| Protección de copia | Cifrado, destino independiente y copia no borrable por el usuario de runtime | Prueba de acceso, retención y protección frente a borrado |
+| Prueba de restauración | Mensual automatizada/operativa; simulacro integral trimestral | Evidencia con duración, checks de integridad y desviaciones |
+
+Criterios:
+- Si la base está alojada en un servicio gestionado que ofrece PITR, comprobar retención, SLA, límites, regiones y costo; la existencia de PITR no sustituye el restore drill.
+- Si se usa PostgreSQL autogestionado, preferir backups base más archivado continuo de WAL mediante la herramienta que ya opere el equipo. No asumir que basta con copiar el directorio de datos mientras PostgreSQL está activo.
+- Los backups deben almacenarse fuera del mismo volumen/VM que aloja la base; idealmente en una cuenta/proyecto de almacenamiento separado con retención protegida.
+- Las credenciales del backup no deben ser las del runtime y no deben residir dentro del dump.
+- Revisar objetivos por crecimiento, volumen de transacciones y jurisdicción. Cifrado, retención legal y eliminación de copias deben cumplir las obligaciones de cada país.
+- Si no se pueden cumplir RPO/RTO con el mecanismo actual, documentar la brecha, el costo y el plan correctivo antes de declarar continuidad operativa aprobada.
+
+## 6. Inventario del mecanismo de backup
 
 Primero identificar el mecanismo realmente utilizado, sin asumir que una herramienta concreta está instalada:
 
@@ -244,7 +265,7 @@ La salida anterior solo indica herramientas/timers visibles; no demuestra que un
 
 Si el mecanismo es administrado por un proveedor, conservar evidencia/exportación del proveedor y ejecutar una restauración real. Si es físico, revisar la verificación propia del base backup y la continuidad WAL. Si es lógico (pg_dump), validar el archivo y realizar pg_restore completo en un entorno aislado. Los roles/globales requieren tratamiento protegido separado: sus hashes y nombres internos no se publican en el PR.
 
-## 6. Restauración de prueba — procedimiento obligatorio
+## 7. Restauración de prueba — procedimiento obligatorio
 
 1. Elegir un backup de producción con fecha, ID y cobertura conocidos.
 2. Aprovisionar una instancia o VM temporal aislada. Bloquear acceso entrante no necesario y bloquear conexiones salientes a pasarelas, SMTP, webhooks, servicios de mensajería y producción.
@@ -258,7 +279,7 @@ Si el mecanismo es administrado por un proveedor, conservar evidencia/exportaci�
 
 Un pg_restore --list o pg_verifybackup es evidencia complementaria, no el cierre. La prueba se considera aprobada solo después de restauración completa y verificaciones funcionales/de integridad.
 
-## 7. Registro de evidencia de restauración
+## 8. Registro de evidencia de restauración
 
 Completar sin incluir secretos ni PII:
 
@@ -278,7 +299,7 @@ Completar sin incluir secretos ni PII:
 | Desviaciones y acciones correctivas | Pendiente |
 | Responsable, fecha y aprobación | Pendiente |
 
-## 8. Criterios de aceptación
+## 9. Criterios de aceptación
 
 La inspección productiva se aprueba cuando el inventario está completo, se sabe qué rol ejecutó cada consulta, todas las limitaciones de permisos se documentan y el informe está vinculado al commit/versión productiva.
 
