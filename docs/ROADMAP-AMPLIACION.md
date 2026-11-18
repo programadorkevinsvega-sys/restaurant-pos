@@ -1,7 +1,7 @@
 # Roadmap maestro de ampliación — Chili POS
 
 > **Estado general:** propuesta aprobada para planificación; las fases y subfases de este documento permanecen **Pendientes** hasta su implementación y verificación.
-> **Modelo comercial confirmado:** una cadena de restaurantes perteneciente a una organización empresarial, con múltiples sucursales.
+> **Modelo comercial confirmado:** una cadena de restaurantes perteneciente a una organización empresarial, con múltiples sucursales y una o varias entidades legales (NIT). Cada sucursal puede operar con una sola entidad legal o con varias; la relación es N:M.
 > **Alcance:** evolución del POS actual hacia un sistema integral de gestión de restaurantes (Restaurant Management System, RMS).
 > **Importante:** este documento define alcance futuro. No declara implementadas capacidades que no hayan sido verificadas en código, pruebas y entorno objetivo.
 
@@ -14,8 +14,8 @@ La organización empresarial es el límite de propiedad de los datos. Las sucurs
 ### 1.1 Modelo organizacional objetivo
 
 - **Organización/Grupo:** propietaria de la instalación, políticas y configuración corporativa.
-- **Entidad legal:** entidad que contrata, factura, declara impuestos y mantiene libros contables. Una organización puede tener una o varias; esta cardinalidad debe confirmarse durante el diseño financiero y fiscal.
-- **Sucursal:** local operativo con dirección, zona horaria, horarios, configuración, mesas, cajas, personal y existencias.
+- **Entidad legal:** entidad que contrata, factura, declara impuestos y mantiene libros contables. Una organización puede tener varias, cada una con su propio NIT.
+- **Sucursal:** local operativo con dirección, zona horaria, horarios, configuración, mesas, cajas, personal y existencias. Puede estar vinculada a una o varias entidades legales mediante asignaciones explícitas.
 - **Almacén/ubicación:** almacenes centrales, almacenes de sucursal y ubicaciones internas, según la operación real.
 - **Usuario:** identidad única con asignaciones explícitas de organización, entidad legal, sucursal y permisos.
 - **Recursos compartidos:** catálogo, recetas, proveedores, listas de precios y políticas pueden tener alcance corporativo o de sucursal; cada recurso debe declarar su ámbito.
@@ -29,7 +29,7 @@ La organización empresarial es el límite de propiedad de los datos. Las sucurs
 5. Inventario, caja, turnos, comandas, reservas y métricas operativas pertenecen a una sucursal y, cuando aplique, a una ubicación concreta.
 6. Los traslados entre sucursales son movimientos trazables con despacho, tránsito, recepción, diferencias y autorización.
 7. Los informes consolidados deben conservar el detalle de origen y no mezclar monedas, entidades legales o periodos incompatibles.
-8. La facturación y la contabilidad se asignan a la entidad legal correspondiente; la sucursal es una dimensión operativa, no necesariamente un emisor fiscal.
+8. La facturación y la contabilidad se asignan a la entidad legal correspondiente; una sucursal puede operar para una o varias entidades legales, pero cada operación fiscal/financiera debe identificar la entidad legal responsable. La sucursal es una dimensión operativa, no necesariamente un emisor fiscal.
 9. Las fechas se almacenan de forma consistente y se presentan según la zona horaria de la sucursal; los cierres deben usar reglas de corte explícitas.
 10. No se introducirán tablas, APIs o filtros multi-tenant genéricos para terceros independientes sin una decisión futura que cambie formalmente el modelo comercial.
 
@@ -1017,7 +1017,7 @@ No implementar reglas arbitrarias para llenar vacíos. Registrar decisión, resp
 
 | Área | Decisiones requeridas |
 |---|---|
-| Organización | Número de entidades legales, sucursales, almacenes centrales y modelo de propiedad |
+| Organización | D0-01 respondida: una organización puede tener varias entidades legales/NIT. D0-02 respondida: una sucursal puede operar con una o varias entidades legales (relación N:M). Pendiente: número inicial, sucursales, almacenes centrales y modelo de propiedad detallado |
 | Catálogo | Qué recursos son corporativos y cuáles pueden variar por sucursal |
 | Inventario | Método de costeo, FEFO/FIFO, stock de seguridad, tolerancias y aprobaciones |
 | Recetas | Rendimientos, mermas estándar, sustituciones y actualización de costos |
@@ -1112,4 +1112,6 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 - **Pendiente:** CI de PR que valide sin desplegar producción.
 - **No autorizado todavía:** migraciones, backfill, cambios de autorización o despliegue multisucursal.
 
-**Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. No iniciar la implementación de la base multisucursal hasta resolver los bloqueantes documentados.
+**Decisiones registradas:** D0-01 — la organización puede tener varias entidades legales/NIT. D0-02 — una sucursal puede operar con una sola entidad legal o con varias; se requiere una relación N:M explícita y cada operación fiscal/financiera debe identificar su entidad legal responsable.
+
+**Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. D0-03 a D0-10, la inspección de producción, la restauración de backup y la validación de CI siguen pendientes. No iniciar la implementación de la base multisucursal hasta resolver los bloqueantes documentados.
