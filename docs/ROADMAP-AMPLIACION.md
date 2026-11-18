@@ -1116,4 +1116,4 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 
 **Decisiones registradas:** D0-01 — la organización puede tener varias entidades legales/NIT. D0-02 — una sucursal puede operar con una sola entidad legal o con varias; se requiere una relación N:M explícita y cada operación fiscal/financiera debe identificar su entidad legal responsable.
 
-**Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. D0-03 a D0-10, la inspección de producción, la restauración de backup y la validación de CI siguen pendientes. No iniciar la implementación de la base multisucursal hasta resolver los bloqueantes documentados.
+**Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. La parte de almacenes de D0-03 está definida, pero faltan las ubicaciones internas y las decisiones D0-04 a D0-10. También siguen pendientes la inspección de producción, la restauración de backup y la validación de CI. No iniciar la implementación de la base multisucursal hasta resolver los bloqueantes documentados.
