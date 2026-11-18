@@ -197,8 +197,9 @@ Propuesta a validar:
 
 No se debe resolver todo agregando `branch_id` indiscriminadamente. Se necesita una matriz de propiedad por módulo:
 
-- Catálogo maestro, categorías, recetas y proveedores podrían ser corporativos.
-- Precios, disponibilidad, surtido y excepciones podrían variar por sucursal.
+- El catálogo maestro de productos será corporativo y compartido por todas las sucursales; cada producto tendrá una identidad única, evitando duplicados por local.
+- Cada sucursal administrará su surtido (qué productos ofrece), precio y disponibilidad mediante configuración local vinculada al producto maestro. Estas diferencias no crearán copias independientes del producto.
+- Los campos adicionales que puedan modificarse localmente, aparte de surtido, precio y disponibilidad, no quedan autorizados por esta decisión y requerirán una decisión posterior.
 - Existencias y movimientos siempre deben apuntar a almacén/ubicación.
 - Mesas, reservas, turnos, comandas, caja y despacho son operativos de sucursal.
 - Libros, impuestos, facturas y cuentas deben asociarse a entidad legal, con sucursal como dimensión cuando aplique.
@@ -230,7 +231,7 @@ La creación de sucursales adicionales y la activación de nuevas capacidades de
 | D0-01 | **Respondida:** la organización podrá tener varias entidades legales, cada una con su propio NIT. | Define contabilidad, impuestos y facturación por entidad legal |
 | D0-02 | **Respondida:** ambas modalidades serán válidas; una sucursal podrá operar con una sola entidad legal o con varias. Se modelará la relación como N:M. | Define cardinalidad y asignación fiscal por operación |
 | D0-03 | **Respondida:** coexistirán almacenes centrales de la organización y almacenes propios de cada sucursal. El inventario se controlará tanto por el total del almacén como por sus ubicaciones físicas internas (por ejemplo, zonas, estanterías, cámaras o áreas de preparación). El saldo total del almacén será una consolidación de sus ubicaciones, no una cantidad paralela editable que duplique existencias. | Define propiedad del inventario, transferencias, abastecimiento y granularidad de ubicación |
-| D0-04 | ¿El catálogo maestro es corporativo? ¿Qué campos/precios/disponibilidad pueden variar por sucursal? | Evita duplicar productos y define overrides |
+| D0-04 | **Respondida:** el catálogo maestro de productos será corporativo y compartido, con una identidad única por producto. Cada sucursal podrá definir su propio surtido, precio y disponibilidad mediante configuraciones locales vinculadas al producto maestro, sin duplicarlo. Otros campos locales no quedan autorizados por esta decisión. | Evita duplicar productos y define el límite de las variaciones por sucursal |
 | D0-05 | ¿Un usuario puede estar asignado a varias sucursales y cambiar de sucursal activa? | Define asignaciones y sesión/contexto |
 | D0-06 | ¿Qué roles corporativos y roles operativos existen, y qué acciones pueden ejecutar? | Define RBAC/permissions y migración de admin/staff |
 | D0-07 | ¿Una sucursal tendrá varias cajas/terminales y turnos concurrentes? | Define caja, terminal, sesión operativa y auditoría |
@@ -266,7 +267,7 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 | Estrategia de migración y backfill | Propuesta documentada; requiere datos reales y plan de respaldo |
 | Diseño de aislamiento y RLS | Pendiente de diseño detallado y pruebas |
 | Pruebas de integración PostgreSQL y aislamiento entre sucursales | Pendiente; no implementadas en esta fase |
-| Decisiones de negocio registradas | D0-01, D0-02 y D0-03 respondidas; D0-04 a D0-10 pendientes |
+| Decisiones de negocio registradas | D0-01 a D0-04 respondidas; D0-05 a D0-10 pendientes |
 | Evidencia de CI/entorno objetivo | Pendiente |
 
 ### Criterios de aceptación para cerrar Ola 0
@@ -298,7 +299,7 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 
 ## 12. Diseño técnico de referencia — versión 1
 
-> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. D0-01, D0-02 y D0-03 ya fueron respondidas por el propietario; D0-04 a D0-10 siguen pendientes.
+> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. D0-01 a D0-04 ya fueron respondidas por el propietario; D0-05 a D0-10 siguen pendientes.
 
 ### 12.1 Modelo lógico y cardinalidades recomendadas
 
@@ -343,8 +344,10 @@ La matriz es una clasificación arquitectónica inicial para revisar; los casos 
 | Entidad legal | Organización | Organization | Datos fiscales no se infieren de la sucursal |
 | Sucursal | Organización | Organization | Zona horaria y estado propios |
 | Almacén | Organización o sucursal | Organization / Branch | Se confirman almacenes centrales y locales. El inventario se controla por ubicación física y se consolida por almacén, sin duplicar saldos |
-| Categorías y productos maestros | Corporativo | Organization | Surtido y disponibilidad local como relación separada |
-| Precio y menú publicado | Corporativo con override local | Organization / Branch | Pendiente D0-04 |
+| Categorías y productos maestros | Corporativo | Organization | Catálogo compartido; identidad única del producto en toda la organización |
+| Surtido por sucursal | Sucursal | Branch | Define qué productos maestros ofrece cada local; no duplica el producto |
+| Precio por sucursal | Sucursal, con valor corporativo solo si se aprueba después | Branch | Cada sucursal puede definir su precio para un producto maestro |
+| Disponibilidad por sucursal | Sucursal | Branch | Cada local controla si el producto está disponible, sin alterar el catálogo maestro |
 | Receta y versión | Corporativo con posible override | Organization / Branch | Costeo por sucursal/fecha |
 | Proveedor | Corporativo | Organization | Condiciones comerciales pueden variar |
 | Existencia y movimiento | Almacén | Warehouse | No se guarda stock como cifra editable sin movimientos |
@@ -486,6 +489,7 @@ Antes de habilitar el modelo:
 | Decisión D0-01 — varias entidades legales por organización | Confirmada por el propietario: una organización podrá tener varias empresas/NIT | Respondida |
 | Decisión D0-02 — relación sucursal-entidad legal | Confirmada por el propietario: se admiten sucursales vinculadas a una o varias entidades legales (N:M) | Respondida |
 | Decisión D0-03 — almacenes y granularidad del inventario | Confirmado: almacenes centrales y locales por sucursal; control por ubicación física y total consolidado por almacén | Respondida |
+| Decisión D0-04 — catálogo de productos | Confirmado: catálogo maestro corporativo único; surtido, precio y disponibilidad configurables por sucursal sin duplicar productos | Respondida |
 | Auditoría estática de código y migraciones versionadas | Revisados composición backend, autenticación, migraciones 001/003/004/005 y módulos actuales en el commit base | Realizado estáticamente |
 | Brechas multisucursal | Identificadas en persistencia, autorización, funciones SQL, caché, frontend y pruebas | Realizado |
 | Modelo lógico de referencia | Entidades, relaciones y cardinalidades candidatas documentadas | Propuesto; requiere aprobación D0 |
@@ -498,14 +502,15 @@ Antes de habilitar el modelo:
 | CI de PR | No hay workflow de validación de PR en el commit base inspeccionado; no se ha cambiado | Pendiente |
 | Decisiones de negocio D0-01 y D0-02 | Respondidas por el propietario e incorporadas al modelo lógico | Respondidas |
 | Decisión D0-03 | Modelo central/local y control de inventario por ubicación más total consolidado del almacén definidos | Respondida |
-| Decisiones de negocio D0-04 a D0-10 | Pendientes de respuesta del propietario | Pendientes |
+| Decisión D0-04 | Catálogo maestro corporativo y surtido/precio/disponibilidad por sucursal definidos | Respondida |
+| Decisiones de negocio D0-05 a D0-10 | Pendientes de respuesta del propietario | Pendientes |
 
 ## 14. Dictamen de Fase 0
 
 La Fase 0 queda **completada en su componente de análisis estático y diseño técnico de referencia**, pero **no puede declararse cerrada integralmente**.
 
 Bloqueantes para cierre formal:
-1. Resolver D0-04 a D0-10 y validar la consistencia del modelo completo.
+1. Resolver D0-05 a D0-10 y validar la consistencia del modelo completo.
 2. Auditoría de esquema, datos, roles, grants, policies, volúmenes y backups en la base productiva.
 3. Verificación de backup restaurable y plan de migración basado en conteos reales.
 4. Validación del pipeline de PR que no despliegue producción.
