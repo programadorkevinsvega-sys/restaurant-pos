@@ -1097,3 +1097,19 @@ Una fase solo puede marcarse **Completada** cuando:
 **Todos los módulos, fases y subfases de ampliación descritos aquí quedan en estado Pendiente.** El estado de funcionalidades ya existentes debe determinarse mediante auditoría del código y evidencia; este roadmap no modifica retroactivamente ese estado.
 
 La primera entrega de planificación debe cerrar la Ola 0: inventario técnico del estado actual, modelo organizacional/sucursal, matriz de permisos y decisiones bloqueantes. Solo después se comprometerán las fases de implementación.
+
+
+---
+
+## Estado de Ola 0 — actualización 2026-11-18
+
+La auditoría estática y el diseño técnico de referencia de Fase 0 están documentados en [FASE-0-AUDITORIA-TECNICA.md](./FASE-0-AUDITORIA-TECNICA.md).
+
+- **Completado:** inventario estático inicial de arquitectura, módulos, migraciones, autenticación, autorización, funciones SQL, caché, frontend y pruebas.
+- **Completado:** matriz inicial de brechas, modelo lógico candidato, matriz de propiedad propuesta, contrato de contexto, amenazas, estrategia expand/contract y 15 escenarios de aceptación multisucursal.
+- **Pendiente:** decisiones D0-01 a D0-10 del propietario del negocio.
+- **Pendiente:** inspección de esquema/datos/roles/backups reales de producción y verificación de restauración.
+- **Pendiente:** CI de PR que valide sin desplegar producción.
+- **No autorizado todavía:** migraciones, backfill, cambios de autorización o despliegue multisucursal.
+
+**Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. No iniciar la implementación de la base multisucursal hasta resolver los bloqueantes documentados.
