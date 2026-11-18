@@ -290,3 +290,212 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 - No se aprobó ningún criterio contable, fiscal, laboral, de inventario, compras, precios o operación.
 
 **Estado final de esta entrega:** auditoría estática inicial realizada y propuesta arquitectónica documentada. La Fase 0 permanece **En análisis**, no Completada.
+
+
+---
+
+## 12. Diseño técnico de referencia — versión 1
+
+> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. Las decisiones D0-01 a D0-10 siguen siendo entradas del propietario del negocio.
+
+### 12.1 Modelo lógico y cardinalidades recomendadas
+
+El modelo debe representar una única organización propietaria de la instalación, aunque se recomienda que el agregado soporte más de una organización solo si el negocio lo aprueba expresamente; no se construirá multi-tenancy de clientes.
+
+Entidades lógicas:
+
+- `Organization`: raíz de propiedad y gobierno de la cadena.
+- `LegalEntity`: identidad fiscal/contable; pertenece a una organización.
+- `Branch`: unidad operativa; pertenece a una organización y tiene una asignación legal explícita cuando la operación fiscal lo requiera.
+- `Warehouse`: unidad física de inventario; pertenece a una organización y, si aplica, se asigna a una sucursal.
+- `StorageLocation`: ubicación interna opcional dentro de un almacén.
+- `User`: identidad autenticable global dentro de la instalación.
+- `Role` y `Permission`: capacidades y permisos.
+- `UserAssignment`: asignación de usuario a un ámbito con rol/capacidades y vigencia.
+- `BranchTerminal` / `CashRegister`: terminal y caja de una sucursal, separados de la identidad de usuario.
+- `AuditEvent`: registro inmutable de acciones relevantes.
+
+Cardinalidades base propuestas:
+- Organization 1:N LegalEntity.
+- Organization 1:N Branch.
+- Organization 1:N Warehouse.
+- Branch 1:N Warehouse (solo almacenes locales); Warehouse.branch_id nullable para almacenes centrales, sujeto a aprobación D0-03.
+- Branch 1:N Terminal y CashRegister.
+- User N:M Organization/LegalEntity/Branch/Warehouse mediante asignaciones explícitas.
+- Branch N:1 LegalEntity como recomendación inicial de menor complejidad; si una sucursal puede operar con varias entidades legales, se requerirá una entidad asociativa con vigencia y reglas de asignación. No elegir cardinalidad definitiva hasta D0-02.
+
+No se recomienda guardar una única sucursal activa como atributo permanente del usuario: el contexto activo pertenece a la sesión/solicitud y debe poder cambiarse después de autorización.
+
+### 12.2 Matriz inicial de propiedad de recursos
+
+La matriz es una clasificación arquitectónica inicial para revisar; los casos marcados como "por aprobar" no se convertirán en constraints hasta recibir decisión del negocio.
+
+| Recurso | Ámbito recomendado | Propietario lógico | Observación |
+|---|---|---|---|
+| Organización | Organización | Organization | Raíz única de la cadena |
+| Entidad legal | Organización | Organization | Datos fiscales no se infieren de la sucursal |
+| Sucursal | Organización | Organization | Zona horaria y estado propios |
+| Almacén | Organización / sucursal | Organization / Branch | Central vs local pendiente D0-03 |
+| Categorías y productos maestros | Corporativo | Organization | Surtido y disponibilidad local como relación separada |
+| Precio y menú publicado | Corporativo con override local | Organization / Branch | Pendiente D0-04 |
+| Receta y versión | Corporativo con posible override | Organization / Branch | Costeo por sucursal/fecha |
+| Proveedor | Corporativo | Organization | Condiciones comerciales pueden variar |
+| Existencia y movimiento | Almacén | Warehouse | No se guarda stock como cifra editable sin movimientos |
+| Pedido/comanda | Sucursal | Branch | Snapshot de precio, impuesto y datos relevantes al vender |
+| Partida de pedido | Pedido | Order | No debe borrarse al eliminar/archivar producto |
+| Mesa/área/plano | Sucursal | Branch | Número único dentro de sucursal, no global |
+| Reserva/lista de espera | Sucursal | Branch | Mesa debe pertenecer a la misma sucursal |
+| Caja/turno/transacción de caja | Sucursal + caja | CashRegister | Requiere reglas de apertura/cierre |
+| Delivery/despacho | Sucursal | Branch | Zona y asignación local, salvo operación central aprobada |
+| Cliente/CRM | Organización, con datos de actividad por sucursal | Organization | Privacidad y visibilidad por aprobar |
+| Empleado/relación laboral | Organización y entidad legal | Organization / LegalEntity | No inferir empleador legal |
+| Factura/asiento/libro | Entidad legal | LegalEntity | Sucursal como dimensión analítica cuando aplique |
+| Configuración | Global/corporativa con override | Organization / Branch / Terminal | Precedencia explícita y auditable |
+| Reporte | Ámbito autorizado | Ámbito de origen | Consolidación sin perder moneda/entidad legal |
+
+### 12.3 Contrato del contexto de ejecución
+
+El backend debe construir un objeto de contexto inmutable después de autenticar y autorizar la selección de ámbito. Forma conceptual:
+
+```ts
+type ExecutionContext = {
+  requestId: string
+  userId: string
+  organizationId: string
+  legalEntityId?: string
+  branchId?: string
+  warehouseId?: string
+  terminalId?: string
+  permissions: ReadonlySet<string>
+  scope: "organization" | "legal_entity" | "branch" | "warehouse"
+}
+```
+
+Reglas obligatorias:
+1. La identidad proviene de la sesión autenticada, nunca del body.
+2. El cliente puede solicitar un `branchId`; el backend comprueba existencia, estado, pertenencia y asignación del usuario antes de construir el contexto.
+3. El caso de uso recibe el contexto explícitamente; no lee variables globales mutables.
+4. Cada método de repositorio que acceda a datos acotados recibe el contexto o identificadores ya validados y documentados.
+5. Las escrituras validan todas las relaciones en una única transacción.
+6. La ausencia de contexto en un caso de uso que lo requiere produce rechazo explícito; nunca se interpreta como "todas las sucursales".
+7. El acceso corporativo consolidado exige permiso explícito de alcance corporativo.
+8. Los trabajos asíncronos persisten el ámbito y actor de origen en el mensaje; no dependen de la sesión HTTP desaparecida.
+
+### 12.4 Autorización y amenazas
+
+Modelo recomendado: RBAC para agrupar capacidades más asignaciones de alcance (scope assignment). No se debe convertir el rol global actual en permiso universal implícito.
+
+Matriz mínima de capacidades que debe detallarse con el negocio:
+- `catalog.read`, `catalog.manage`, `pricing.manage`
+- `orders.read`, `orders.create`, `orders.change_status`, `orders.cancel`
+- `operations.tables.manage`, `reservations.manage`, `delivery.dispatch`
+- `inventory.read`, `inventory.receive`, `inventory.transfer`, `inventory.adjust`
+- `cash.open`, `cash.close`, `cash.reconcile`
+- `users.manage`, `assignments.manage`, `audit.read`
+- `reports.branch.read`, `reports.organization.read`, `finance.legal_entity.read`
+
+Amenazas y controles verificables:
+- IDOR/cambio de branch id: resolver asignación en backend y comprobar ownership en SQL.
+- Omisión de filtro en una consulta nueva: contratos de repositorio con contexto obligatorio y pruebas de aislamiento.
+- Cruce de entidades relacionadas: FK compuestas y constraints de mismo ámbito.
+- Fuga por caché: claves con todos los ámbitos y tests de hit/miss e invalidación.
+- Fuga por exportación/reporte: scope aplicado en query y prueba de datos señuelo en otra sucursal.
+- Contexto contaminado en pool PostgreSQL: transacción explícita y `SET LOCAL`; nunca `SET` de sesión sin reset garantizado.
+- Funciones `SECURITY DEFINER`: revisar owner, search_path, privilegios y validación de contexto; no confiar en RLS como única barrera.
+- Escalada de privilegios por rol: asignaciones y permisos comprobados en cada operación sensible.
+- Mensajes asíncronos falsificados/reproducidos: validar origen, ámbito, idempotencia y autorización del consumidor.
+- Auditoría manipulable: actor, acción, ámbito, recurso, resultado y correlación append-only; no registrar secretos ni datos de pago sensibles.
+
+### 12.5 Estrategia PostgreSQL y RLS
+
+Decisión técnica de referencia: autorización de dominio + restricciones relacionales como controles primarios; RLS puede añadirse como defensa en profundidad, después de probar el patrón con el rol real de runtime.
+
+Requisitos antes de activar RLS:
+- El pool debe iniciar transacción por operación acotada.
+- El contexto se establece con `SET LOCAL` o mecanismo equivalente dentro de esa transacción.
+- Todas las rutas de éxito y error hacen rollback/commit correctamente.
+- La conexión vuelve al pool sin estado residual.
+- Se prueban funciones `SECURITY DEFINER`, vistas, owners, bypassrls, superuser y FORCE ROW LEVEL SECURITY.
+- El rol runtime no debe ser superuser ni tener BYPASSRLS.
+- Las pruebas deben conectarse con el mismo rol/privilegios de producción, no solo con el owner de migraciones.
+
+No se debe reactivar RLS por simple `ALTER TABLE ENABLE ROW LEVEL SECURITY`: sin políticas correctas y pruebas con el rol runtime puede provocar indisponibilidad o dar una falsa sensación de aislamiento.
+
+### 12.6 Plan expand/contract para datos actuales
+
+Secuencia de migración propuesta:
+1. Obtener snapshot de esquema y datos desde producción: tablas, columnas, constraints, índices, funciones, triggers, policies, roles, grants, extensiones, tamaños y conteos.
+2. Verificar backup restaurable en un entorno aislado; registrar timestamp, tamaño, checksum y duración de restauración.
+3. Definir y aprobar Organization, LegalEntity, Branch y Warehouse iniciales con datos reales.
+4. Crear tablas organizacionales y relaciones sin alterar todavía lecturas/escrituras existentes.
+5. Añadir columnas de ámbito nullable y nuevos índices/FK sin validar inicialmente si la estrategia de despliegue lo requiere.
+6. Backfill por relaciones deterministas; no asignar registros ambiguos automáticamente.
+7. Comparar conteos, huérfanos, importes agregados, estados y relaciones antes/después; cualquier diferencia bloquea el avance.
+8. Desplegar backend compatible que escriba y lea el nuevo ámbito, con telemetría para detectar registros sin contexto.
+9. Validar consultas, reportes, tareas y caché con datos de dos sucursales.
+10. Aplicar constraints validados y NOT NULL solo cuando la cobertura sea completa.
+11. Activar controles de autorización y, después de sus pruebas, RLS.
+12. Retirar rutas legacy en una entrega posterior, con rollback operativo documentado.
+
+No ejecutar backfill en producción sin respaldo restaurado y plan de reversión. No se debe "rollback" una migración destructiva simplemente bajando el binario.
+
+### 12.7 Plan de pruebas de aceptación para la base multisucursal
+
+| ID | Escenario | Resultado exigido |
+|---|---|---|
+| MS-001 | Usuario de sucursal A consulta pedidos de A | Solo ve A |
+| MS-002 | Usuario de sucursal A solicita pedido de B por UUID | 404/403 sin revelar datos |
+| MS-003 | Usuario A crea pedido indicando producto no disponible en A | Rechazo consistente |
+| MS-004 | Usuario A asocia mesa perteneciente a B | Rechazo y rollback total |
+| MS-005 | Usuario sin sucursal activa ejecuta operación local | Rechazo explícito |
+| MS-006 | Usuario corporativo autorizado consulta consolidado | Ve sucursales autorizadas y conserva dimensión de origen |
+| MS-007 | Usuario corporativo sin permiso financiero intenta ver datos contables | 403 |
+| MS-008 | Dos sucursales usan el mismo número de mesa | Permitido si la clave compuesta lo define |
+| MS-009 | Dos transacciones concurrentes actualizan un recurso de sucursales distintas | Sin bloqueo/contaminación cruzada |
+| MS-010 | Caché de A se calienta y usuario B consulta mismo producto | No recibe precio/disponibilidad privada de A |
+| MS-011 | Falla una transacción después de establecer contexto | Rollback y conexión limpia al pool |
+| MS-012 | Se ejecuta función SQL privilegiada con contexto A apuntando a B | Rechazo |
+| MS-013 | Exportación y reporte filtran por ámbito | Ningún registro de B aparece en A |
+| MS-014 | Trabajo asíncrono de A se reintenta | Mantiene A e idempotencia |
+| MS-015 | Se revoca una asignación durante sesión activa | Acceso denegado según política de revocación aprobada |
+
+Estas pruebas requieren PostgreSQL real y el rol runtime equivalente. Los dobles de repositorio no satisfacen el criterio.
+
+### 12.8 Requisitos de observabilidad y operación
+
+Antes de habilitar el modelo:
+- Log estructurado con request id, actor, branch id y operación; nunca tokens, contraseñas, cookies ni datos sensibles.
+- Métricas de denegaciones por scope, consultas sin ámbito, registros huérfanos, fallos de migración y latencia por operación.
+- Alertas para intentos de acceso cruzado, errores de contexto y backfill incompleto.
+- Dashboard de migración con conteos por tabla y sucursal.
+- Runbook de backup, restauración, migración, verificación, rollback de aplicación y recuperación.
+- Canary o despliegue controlado compatible con la infraestructura existente; no desplegar cambios de Fase 0 a producción porque esta entrega es de diseño.
+
+## 13. Matriz de entregables y evidencia — actualización
+
+| Entregable | Resultado de esta revisión | Estado |
+|---|---|---|
+| Auditoría estática de código y migraciones versionadas | Revisados composición backend, autenticación, migraciones 001/003/004/005 y módulos actuales en el commit base | Realizado estáticamente |
+| Brechas multisucursal | Identificadas en persistencia, autorización, funciones SQL, caché, frontend y pruebas | Realizado |
+| Modelo lógico de referencia | Entidades, relaciones y cardinalidades candidatas documentadas | Propuesto; requiere aprobación D0 |
+| Matriz de propiedad | Clasificación inicial por recurso documentada | Propuesta; requiere decisiones operativas |
+| Contexto backend | Contrato conceptual, reglas de resolución y propagación documentados | Diseño de referencia |
+| Seguridad | Amenazas IDOR, scope leakage, RLS, cache, jobs y privilegios documentadas | Diseño de referencia |
+| Migración | Expand/contract, backfill, verificación y rollback documentados | Plan; requiere acceso a datos reales |
+| Pruebas | 15 escenarios de aceptación multisucursal definidos | Especificadas; no ejecutadas |
+| Producción/VM/backup | Sin acceso ni evidencia verificable en esta revisión | Bloqueado |
+| CI de PR | No hay workflow de validación de PR en el commit base inspeccionado; no se ha cambiado | Pendiente |
+| Decisiones de negocio D0-01 a D0-10 | No suministradas/aprobadas por el propietario | Bloqueante |
+
+## 14. Dictamen de Fase 0
+
+La Fase 0 queda **completada en su componente de análisis estático y diseño técnico de referencia**, pero **no puede declararse cerrada integralmente**.
+
+Bloqueantes para cierre formal:
+1. Aprobación de decisiones D0-01 a D0-10 por el propietario del negocio.
+2. Auditoría de esquema, datos, roles, grants, policies, volúmenes y backups en la base productiva.
+3. Verificación de backup restaurable y plan de migración basado en conteos reales.
+4. Validación del pipeline de PR que no despliegue producción.
+5. Revisión y aprobación del diseño lógico final y matriz de propiedad/permisos.
+
+No se creó ni modificó código de aplicación, migraciones, scripts, dependencias, workflows ni infraestructura. No se ejecutaron pruebas ni despliegues. No se debe iniciar la migración multisucursal ni marcar Fase 0 como cerrada hasta resolver los bloqueantes anteriores.
