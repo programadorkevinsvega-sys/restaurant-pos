@@ -6,7 +6,7 @@
 
 ## 1. Rama objetivo
 
-- Patrón exacto: \`main\`.
+- Patrón exacto: `main`.
 - Aplicación: todas las personas y automatizaciones que puedan escribir en la rama.
 - Excepciones/bypass: lista vacía como política base. Los administradores también deben quedar sujetos a las reglas.
 - No restringir pushes legítimos a ramas de trabajo. El código llega a main mediante PR.
@@ -29,15 +29,15 @@
 | Require signed commits | No requerido en esta etapa; adoptar solo con política de firma y gestión de claves |
 | Require linear history | No requerido mientras el repositorio permita merge commits |
 
-No activar CODEOWNERS approval hasta mantener un archivo \`.github/CODEOWNERS\` revisado que refleje responsables reales.
+No activar CODEOWNERS approval hasta mantener un archivo `.github/CODEOWNERS` revisado que refleje responsables reales.
 
 ## 3. Checks requeridos
 
-Seleccionar los tres checks generados por el workflow \`.github/workflows/ci-pr.yml\`:
+Seleccionar los tres checks generados por el workflow `.github/workflows/ci-pr.yml`:
 
-1. \`Pull Request CI / Backend, frontend and build checks\`
-2. \`Pull Request CI / PostgreSQL migrations and runtime integration (PG 16)\`
-3. \`Pull Request CI / PostgreSQL migrations and runtime integration (PG 17)\`
+1. `Pull Request CI / Backend, frontend and build checks`
+2. `Pull Request CI / PostgreSQL migrations and runtime integration (PG 16)`
+3. `Pull Request CI / PostgreSQL migrations and runtime integration (PG 17)`
 
 Si el selector de GitHub muestra solo el nombre del job, seleccionar el mismo nombre sin el prefijo del workflow. No seleccionar checks históricos, estados de despliegue ni un check genérico que no corresponda a estos jobs.
 
@@ -45,30 +45,30 @@ Al agregar una matriz de PostgreSQL o renombrar jobs, actualizar la lista de che
 
 ## 4. Configuración desde GitHub
 
-1. Abrir el repositorio \`programadorkevinsvega-sys/restaurant-pos\`.
+1. Abrir el repositorio `programadorkevinsvega-sys/restaurant-pos`.
 2. Ir a **Settings → Branches → Add branch protection rule** (o crear un Ruleset dirigido a branches si la interfaz del repositorio usa Rulesets).
-3. Definir el patrón \`main\`.
+3. Definir el patrón `main`.
 4. Activar los requisitos de PR, checks, rama actualizada, resolución de conversaciones y restricciones de force push/eliminación descritos arriba.
 5. Añadir los tres checks exactos de la sección 3.
 6. Activar la aplicación a administradores y dejar vacía la lista de bypass.
-7. Guardar y comprobar la regla reabriendo la configuración de \`main\`.
+7. Guardar y comprobar la regla reabriendo la configuración de `main`.
 
 ## 5. CD y entorno de producción
 
-El workflow de despliegue existente se activa en push a \`main\` y aplica migraciones desde la VM antes de activar el release. La protección de rama garantiza que el push normal provenga de un PR validado, pero no sustituye una política de despliegue.
+El workflow de despliegue existente se activa en push a `main` y aplica migraciones desde la VM antes de activar el release. La protección de rama garantiza que el push normal provenga de un PR validado, pero no sustituye una política de despliegue.
 
 Como endurecimiento adicional, revisar en **Settings → Environments → production**:
-- limitar deployment branches a \`main\`;
+- limitar deployment branches a `main`;
 - mantener los secretos de despliegue únicamente en el environment;
 - requerir aprobación manual de un responsable distinto del autor para migraciones destructivas, backfills o cambios de alto impacto;
 - no configurar una espera manual para cada release ordinario sin decidir primero el cambio operativo.
 
-El environment \`production\` no debe exponerse al workflow de Pull Request.
+El environment `production` no debe exponerse al workflow de Pull Request.
 
 ## 6. Verificación y evidencia de activación
 
 La protección queda **Activa** solo cuando se adjunta:
-- captura o exportación de la regla asociada a \`main\`, sin datos sensibles;
+- captura o exportación de la regla asociada a `main`, sin datos sensibles;
 - lista de checks requeridos;
 - evidencia de que un PR sin un check aprobado no puede fusionarse;
 - evidencia de que los administradores no tienen bypass ordinario;
