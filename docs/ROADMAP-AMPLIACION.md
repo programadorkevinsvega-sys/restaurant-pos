@@ -17,7 +17,7 @@ La organización empresarial es el límite de propiedad de los datos. Las sucurs
 - **Entidad legal:** entidad que contrata, factura, declara impuestos y mantiene libros contables. Una organización puede tener varias, cada una con su propio NIT.
 - **Sucursal:** local operativo con dirección, zona horaria, horarios, configuración, mesas, cajas, personal y existencias. Puede estar vinculada a una o varias entidades legales mediante asignaciones explícitas.
 - **Almacén:** coexistirán almacenes centrales propiedad de la organización y almacenes locales propiedad de cada sucursal. El inventario se controlará tanto por el total consolidado de cada almacén como por ubicaciones físicas internas (zonas, estanterías, cámaras, congeladores o áreas de preparación). El total del almacén se consolidará desde las ubicaciones para evitar duplicar existencias.
-- **Usuario:** identidad única con asignaciones explícitas de organización, entidad legal, sucursal y permisos.
+- **Usuario:** identidad única con asignaciones explícitas de organización, entidad legal y una o varias sucursales. Puede seleccionar la sucursal activa al iniciar sesión o cambiarla desde la aplicación; sus roles y permisos se validan para cada ámbito en backend.
 - **Recursos compartidos:** catálogo, recetas, proveedores, listas de precios y políticas pueden tener alcance corporativo o de sucursal; cada recurso debe declarar su ámbito.
 
 ### 1.2 Reglas de aislamiento y operación multisucursal
@@ -32,6 +32,7 @@ La organización empresarial es el límite de propiedad de los datos. Las sucurs
 8. La facturación y la contabilidad se asignan a la entidad legal correspondiente; una sucursal puede operar para una o varias entidades legales, pero cada operación fiscal/financiera debe identificar la entidad legal responsable. La sucursal es una dimensión operativa, no necesariamente un emisor fiscal.
 9. Las fechas se almacenan de forma consistente y se presentan según la zona horaria de la sucursal; los cierres deben usar reglas de corte explícitas.
 10. No se introducirán tablas, APIs o filtros multi-tenant genéricos para terceros independientes sin una decisión futura que cambie formalmente el modelo comercial.
+11. Un usuario puede tener asignaciones a varias sucursales y cambiar la sucursal activa al iniciar sesión o desde la aplicación; el cambio no amplía permisos y el backend valida la asignación vigente y los permisos en cada petición.
 
 ## 2. Principios no negociables
 
@@ -1018,6 +1019,7 @@ No implementar reglas arbitrarias para llenar vacíos. Registrar decisión, resp
 | Área | Decisiones requeridas |
 |---|---|
 | Organización | D0-01 respondida: una organización puede tener varias entidades legales/NIT. D0-02 respondida: una sucursal puede operar con una o varias entidades legales (relación N:M). D0-03 respondida: coexistirán almacenes centrales y locales por sucursal, con control de existencias por ubicación y total consolidado por almacén. Pendiente: cantidades iniciales y reglas detalladas de propiedad |
+| Usuarios y permisos | D0-05 respondida: un usuario puede tener asignaciones a varias sucursales, elegir una al iniciar sesión y cambiarla desde la aplicación; los permisos se validan por sucursal en backend |
 | Catálogo | D0-04 respondida: productos maestros corporativos y compartidos; cada sucursal define surtido, precio y disponibilidad sin duplicar productos. Los demás campos locales requieren decisión adicional |
 | Inventario | Método de costeo, FEFO/FIFO, stock de seguridad, tolerancias y aprobaciones |
 | Recetas | Rendimientos, mermas estándar, sustituciones y actualización de costos |
@@ -1110,11 +1112,12 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 - **Respondidas:** D0-01 (una organización puede tener varias entidades legales/NIT) y D0-02 (una sucursal puede operar con una o varias entidades legales; relación N:M).
 - **Respondida:** D0-03 confirma almacenes centrales y locales por sucursal, con control de inventario por ubicación física y total consolidado por almacén.
 - **Respondida:** D0-04 establece catálogo maestro corporativo único y configuración local de surtido, precio y disponibilidad por sucursal, sin duplicar productos.
-- **Pendiente:** decisiones D0-05 a D0-10 del propietario del negocio.
+- **Respondida:** D0-05 permite asignar un usuario a varias sucursales, seleccionar la activa al iniciar sesión y cambiarla desde la aplicación, con permisos validados por sucursal en backend.
+- **Pendiente:** decisiones D0-06 a D0-10 del propietario del negocio.
 - **Pendiente:** inspección de esquema/datos/roles/backups reales de producción y verificación de restauración.
 - **Pendiente:** CI de PR que valide sin desplegar producción.
 - **No autorizado todavía:** migraciones, backfill, cambios de autorización o despliegue multisucursal.
 
-**Decisiones registradas:** D0-01 — la organización puede tener varias entidades legales/NIT. D0-02 — una sucursal puede operar con una sola entidad legal o con varias; se requiere una relación N:M explícita y cada operación fiscal/financiera debe identificar su entidad legal responsable. D0-03 — habrá almacenes centrales y almacenes locales por sucursal, con inventario controlado por ubicación física y total consolidado por almacén. D0-04 — el catálogo maestro de productos será corporativo y compartido; cada sucursal podrá configurar surtido, precio y disponibilidad sin duplicar productos.
+**Decisiones registradas:** D0-01 — la organización puede tener varias entidades legales/NIT. D0-02 — una sucursal puede operar con una sola entidad legal o con varias; se requiere una relación N:M explícita y cada operación fiscal/financiera debe identificar su entidad legal responsable. D0-03 — habrá almacenes centrales y almacenes locales por sucursal, con inventario controlado por ubicación física y total consolidado por almacén. D0-04 — el catálogo maestro de productos será corporativo y compartido; cada sucursal podrá configurar surtido, precio y disponibilidad sin duplicar productos. D0-05 — un mismo usuario podrá tener asignaciones a varias sucursales, seleccionar la activa al iniciar sesión y cambiarla desde la aplicación, manteniendo validación de permisos por ámbito en backend.
 
-**Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. D0-01 a D0-04 están respondidas. D0-05 a D0-10, la inspección de producción, la restauración de backup y la validación de CI siguen pendientes. No iniciar la implementación de la base multisucursal hasta resolver los bloqueantes documentados.
+**Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. D0-01 a D0-05 están respondidas. D0-06 a D0-10, la inspección de producción, la restauración de backup y la validación de CI siguen pendientes. No iniciar la implementación de la base multisucursal hasta resolver los bloqueantes documentados.
