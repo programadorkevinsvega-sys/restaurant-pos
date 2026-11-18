@@ -229,7 +229,7 @@ La creación de sucursales adicionales y la activación de nuevas capacidades de
 |---|---|---|
 | D0-01 | **Respondida:** la organización podrá tener varias entidades legales, cada una con su propio NIT. | Define contabilidad, impuestos y facturación por entidad legal |
 | D0-02 | **Respondida:** ambas modalidades serán válidas; una sucursal podrá operar con una sola entidad legal o con varias. Se modelará la relación como N:M. | Define cardinalidad y asignación fiscal por operación |
-| D0-03 | **Parcialmente respondida:** habrá almacenes centrales de la organización y almacenes propios de cada sucursal. **Pendiente:** decidir si cada almacén tendrá ubicaciones internas (zonas, estanterías, cámaras u otras divisiones). | Define propiedad del inventario, transferencias, abastecimiento y granularidad de ubicación |
+| D0-03 | **Respondida:** coexistirán almacenes centrales de la organización y almacenes propios de cada sucursal. El inventario se controlará tanto por el total del almacén como por sus ubicaciones físicas internas (por ejemplo, zonas, estanterías, cámaras o áreas de preparación). El saldo total del almacén será una consolidación de sus ubicaciones, no una cantidad paralela editable que duplique existencias. | Define propiedad del inventario, transferencias, abastecimiento y granularidad de ubicación |
 | D0-04 | ¿El catálogo maestro es corporativo? ¿Qué campos/precios/disponibilidad pueden variar por sucursal? | Evita duplicar productos y define overrides |
 | D0-05 | ¿Un usuario puede estar asignado a varias sucursales y cambiar de sucursal activa? | Define asignaciones y sesión/contexto |
 | D0-06 | ¿Qué roles corporativos y roles operativos existen, y qué acciones pueden ejecutar? | Define RBAC/permissions y migración de admin/staff |
@@ -261,12 +261,12 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 | Inventario de módulos, rutas, repositorios, tablas y funciones actuales | En análisis; inventario estático inicial documentado |
 | Matriz de brechas multisucursal | En análisis; brechas principales identificadas |
 | Modelo organización-entidad legal-sucursal-almacén | Relación organización-entidad legal y sucursal-entidad legal N:M incorporadas; el resto del modelo sigue pendiente de aprobación |
-| Matriz de propiedad/ámbito por recurso | Pendiente de ubicaciones internas (D0-03) y decisiones D0-04 a D0-10; requiere revisión de consistencia |
+| Matriz de propiedad/ámbito por recurso | Pendiente de decisiones D0-04 a D0-10 y revisión de consistencia; contempla almacén y ubicación interna |
 | Matriz de roles, permisos y asignaciones | Propuesta documentada; pendiente aprobación |
 | Estrategia de migración y backfill | Propuesta documentada; requiere datos reales y plan de respaldo |
 | Diseño de aislamiento y RLS | Pendiente de diseño detallado y pruebas |
 | Pruebas de integración PostgreSQL y aislamiento entre sucursales | Pendiente; no implementadas en esta fase |
-| Decisiones de negocio registradas | D0-01 y D0-02 respondidas; D0-03 parcialmente respondida (modelo central/local confirmado); D0-04 a D0-10 pendientes |
+| Decisiones de negocio registradas | D0-01, D0-02 y D0-03 respondidas; D0-04 a D0-10 pendientes |
 | Evidencia de CI/entorno objetivo | Pendiente |
 
 ### Criterios de aceptación para cerrar Ola 0
@@ -298,7 +298,7 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 
 ## 12. Diseño técnico de referencia — versión 1
 
-> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. D0-01 y D0-02 ya fueron respondidas por el propietario; D0-03 está parcialmente respondida (tipos de almacén confirmados, ubicaciones internas pendientes); D0-04 a D0-10 siguen pendientes.
+> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. D0-01, D0-02 y D0-03 ya fueron respondidas por el propietario; D0-04 a D0-10 siguen pendientes.
 
 ### 12.1 Modelo lógico y cardinalidades recomendadas
 
@@ -310,7 +310,7 @@ Entidades lógicas:
 - `LegalEntity`: identidad fiscal/contable; pertenece a una organización.
 - `Branch`: unidad operativa perteneciente a una organización; puede vincularse con una o varias entidades legales mediante asignaciones explícitas.
 - `Warehouse`: unidad física de inventario; pertenece a una organización y se clasifica como central (sin sucursal propietaria) o local (asignada a una sucursal).
-- `StorageLocation`: ubicación interna opcional dentro de un almacén; su obligatoriedad y granularidad siguen pendientes de D0-03.
+- `StorageLocation`: ubicación física interna de un almacén, organizada con la granularidad necesaria para representar zonas, estanterías, cámaras, congeladores o áreas de preparación. El modelo deberá permitir consultar tanto el saldo de cada ubicación como el total consolidado del almacén.
 - `User`: identidad autenticable global dentro de la instalación.
 - `Role` y `Permission`: capacidades y permisos.
 - `UserAssignment`: asignación de usuario a un ámbito con rol/capacidades y vigencia.
@@ -324,7 +324,7 @@ Cardinalidades base propuestas:
 - **Almacén central:** pertenece a la organización y no tiene `branch_id` propietario.
 - **Almacén local:** pertenece a la organización y tiene un `branch_id` obligatorio que identifica su sucursal propietaria.
 - **LegalEntity N:M Branch mediante `BranchLegalEntity`**; cada asignación debe tener estado/vigencia y permitir validar qué entidad legal puede operar en cada sucursal. Una sucursal podrá tener una o varias asignaciones activas.
-- Las ubicaciones internas (`StorageLocation`) podrán colgar de un almacén, pero su uso obligatorio, profundidad y clasificación quedan pendientes de D0-03.
+- Cada `StorageLocation` pertenece a un único almacén. El sistema debe exponer saldos por ubicación y el total del almacén. El total se obtiene de la suma de las ubicaciones y, solo si se autoriza una modalidad sin ubicación específica, de un saldo explícito no asignado; nunca se mantendrán dos cantidades independientes que puedan divergir.
 - Branch 1:N Terminal y CashRegister; la entidad legal responsable de cada operación de caja debe quedar identificada en sus transacciones, sin asumir todavía que una caja física pertenece exclusivamente a un único NIT.
 - User N:M Organization/LegalEntity/Branch/Warehouse mediante asignaciones explícitas.
 - Toda venta, factura, pago, asiento o registro financiero/fiscal debe quedar asociado a una única entidad legal responsable. El backend valida que esa entidad legal esté vinculada y habilitada para la sucursal al momento de la operación.
@@ -342,7 +342,7 @@ La matriz es una clasificación arquitectónica inicial para revisar; los casos 
 | Organización | Organización | Organization | Raíz única de la cadena |
 | Entidad legal | Organización | Organization | Datos fiscales no se infieren de la sucursal |
 | Sucursal | Organización | Organization | Zona horaria y estado propios |
-| Almacén | Organización o sucursal | Organization / Branch | Se confirman almacenes centrales propiedad de la organización y almacenes locales propiedad de una sucursal. Ubicaciones internas pendientes de D0-03 |
+| Almacén | Organización o sucursal | Organization / Branch | Se confirman almacenes centrales y locales. El inventario se controla por ubicación física y se consolida por almacén, sin duplicar saldos |
 | Categorías y productos maestros | Corporativo | Organization | Surtido y disponibilidad local como relación separada |
 | Precio y menú publicado | Corporativo con override local | Organization / Branch | Pendiente D0-04 |
 | Receta y versión | Corporativo con posible override | Organization / Branch | Costeo por sucursal/fecha |
@@ -485,7 +485,7 @@ Antes de habilitar el modelo:
 |---|---|---|
 | Decisión D0-01 — varias entidades legales por organización | Confirmada por el propietario: una organización podrá tener varias empresas/NIT | Respondida |
 | Decisión D0-02 — relación sucursal-entidad legal | Confirmada por el propietario: se admiten sucursales vinculadas a una o varias entidades legales (N:M) | Respondida |
-| Decisión D0-03 — modelo central/local de almacenes | Confirmado: habrá almacenes centrales de la organización y almacenes propios de cada sucursal. Las ubicaciones internas siguen pendientes | Parcial |
+| Decisión D0-03 — almacenes y granularidad del inventario | Confirmado: almacenes centrales y locales por sucursal; control por ubicación física y total consolidado por almacén | Respondida |
 | Auditoría estática de código y migraciones versionadas | Revisados composición backend, autenticación, migraciones 001/003/004/005 y módulos actuales en el commit base | Realizado estáticamente |
 | Brechas multisucursal | Identificadas en persistencia, autorización, funciones SQL, caché, frontend y pruebas | Realizado |
 | Modelo lógico de referencia | Entidades, relaciones y cardinalidades candidatas documentadas | Propuesto; requiere aprobación D0 |
@@ -497,7 +497,7 @@ Antes de habilitar el modelo:
 | Producción/VM/backup | Sin acceso ni evidencia verificable en esta revisión | Bloqueado |
 | CI de PR | No hay workflow de validación de PR en el commit base inspeccionado; no se ha cambiado | Pendiente |
 | Decisiones de negocio D0-01 y D0-02 | Respondidas por el propietario e incorporadas al modelo lógico | Respondidas |
-| Decisión D0-03 | Modelo central/local de almacenes respondido; definición de ubicaciones internas pendiente | Parcial |
+| Decisión D0-03 | Modelo central/local y control de inventario por ubicación más total consolidado del almacén definidos | Respondida |
 | Decisiones de negocio D0-04 a D0-10 | Pendientes de respuesta del propietario | Pendientes |
 
 ## 14. Dictamen de Fase 0
@@ -505,7 +505,7 @@ Antes de habilitar el modelo:
 La Fase 0 queda **completada en su componente de análisis estático y diseño técnico de referencia**, pero **no puede declararse cerrada integralmente**.
 
 Bloqueantes para cierre formal:
-1. Completar la decisión D0-03 sobre ubicaciones internas, resolver D0-04 a D0-10 y validar la consistencia del modelo completo.
+1. Resolver D0-04 a D0-10 y validar la consistencia del modelo completo.
 2. Auditoría de esquema, datos, roles, grants, policies, volúmenes y backups en la base productiva.
 3. Verificación de backup restaurable y plan de migración basado en conteos reales.
 4. Validación del pipeline de PR que no despliegue producción.
