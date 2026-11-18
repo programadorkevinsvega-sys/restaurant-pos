@@ -139,7 +139,7 @@ Organización / Cadena
 │   ├── Cajas / terminales
 │   ├── Mesas / áreas
 │   └── Almacenes de sucursal
-└── Almacenes centrales (si la operación los requiere)
+└── Almacenes centrales
 
 Relación Sucursal ↔ Entidad legal: N:M mediante asignaciones explícitas.
 ```
