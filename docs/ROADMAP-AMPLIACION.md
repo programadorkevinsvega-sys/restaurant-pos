@@ -1018,7 +1018,7 @@ No implementar reglas arbitrarias para llenar vacíos. Registrar decisión, resp
 | Área | Decisiones requeridas |
 |---|---|
 | Organización | D0-01 respondida: una organización puede tener varias entidades legales/NIT. D0-02 respondida: una sucursal puede operar con una o varias entidades legales (relación N:M). D0-03 respondida: coexistirán almacenes centrales y locales por sucursal, con control de existencias por ubicación y total consolidado por almacén. Pendiente: cantidades iniciales y reglas detalladas de propiedad |
-| Catálogo | Qué recursos son corporativos y cuáles pueden variar por sucursal |
+| Catálogo | D0-04 respondida: productos maestros corporativos y compartidos; cada sucursal define surtido, precio y disponibilidad sin duplicar productos. Los demás campos locales requieren decisión adicional |
 | Inventario | Método de costeo, FEFO/FIFO, stock de seguridad, tolerancias y aprobaciones |
 | Recetas | Rendimientos, mermas estándar, sustituciones y actualización de costos |
 | Compras | Límites de aprobación, proveedores permitidos, recepción y devoluciones |
@@ -1109,11 +1109,12 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 - **Completado:** matriz inicial de brechas, modelo lógico candidato, matriz de propiedad propuesta, contrato de contexto, amenazas, estrategia expand/contract y 15 escenarios de aceptación multisucursal.
 - **Respondidas:** D0-01 (una organización puede tener varias entidades legales/NIT) y D0-02 (una sucursal puede operar con una o varias entidades legales; relación N:M).
 - **Respondida:** D0-03 confirma almacenes centrales y locales por sucursal, con control de inventario por ubicación física y total consolidado por almacén.
-- **Pendiente:** decisiones D0-04 a D0-10 del propietario del negocio.
+- **Respondida:** D0-04 establece catálogo maestro corporativo único y configuración local de surtido, precio y disponibilidad por sucursal, sin duplicar productos.
+- **Pendiente:** decisiones D0-05 a D0-10 del propietario del negocio.
 - **Pendiente:** inspección de esquema/datos/roles/backups reales de producción y verificación de restauración.
 - **Pendiente:** CI de PR que valide sin desplegar producción.
 - **No autorizado todavía:** migraciones, backfill, cambios de autorización o despliegue multisucursal.
 
-**Decisiones registradas:** D0-01 — la organización puede tener varias entidades legales/NIT. D0-02 — una sucursal puede operar con una sola entidad legal o con varias; se requiere una relación N:M explícita y cada operación fiscal/financiera debe identificar su entidad legal responsable. D0-03 — habrá almacenes centrales y almacenes locales por sucursal, con inventario controlado por ubicación física y total consolidado por almacén.
+**Decisiones registradas:** D0-01 — la organización puede tener varias entidades legales/NIT. D0-02 — una sucursal puede operar con una sola entidad legal o con varias; se requiere una relación N:M explícita y cada operación fiscal/financiera debe identificar su entidad legal responsable. D0-03 — habrá almacenes centrales y almacenes locales por sucursal, con inventario controlado por ubicación física y total consolidado por almacén. D0-04 — el catálogo maestro de productos será corporativo y compartido; cada sucursal podrá configurar surtido, precio y disponibilidad sin duplicar productos.
 
-**Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. D0-01 a D0-03 están respondidas. D0-04 a D0-10, la inspección de producción, la restauración de backup y la validación de CI siguen pendientes. No iniciar la implementación de la base multisucursal hasta resolver los bloqueantes documentados.
+**Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. D0-01 a D0-04 están respondidas. D0-05 a D0-10, la inspección de producción, la restauración de backup y la validación de CI siguen pendientes. No iniciar la implementación de la base multisucursal hasta resolver los bloqueantes documentados.
