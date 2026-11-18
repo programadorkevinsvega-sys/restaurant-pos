@@ -136,7 +136,7 @@ Organización / Cadena
 ├── Entidades legales (una o varias; cada una con su NIT)
 ├── Sucursales
 │   ├── Relación con una o varias entidades legales
-│   ├── Cajas / terminales
+│   ├── Varias cajas registradoras y terminales POS (operación simultánea permitida)
 │   ├── Mesas / áreas
 │   └── Almacenes de sucursal
 └── Almacenes centrales
@@ -152,6 +152,7 @@ Principios propuestos:
 4. Todo dato operativo debe tener un propietario/ámbito explícito: organización, entidad legal, sucursal o almacén.
 5. Los movimientos entre almacenes/sucursales deben registrar origen, destino, actor, cantidades, estados y diferencias.
 6. Los informes consolidados deben mantener la dimensión de origen y separar entidades legales, monedas y periodos incompatibles.
+7. Cada sucursal podrá operar varias cajas registradoras y terminales POS simultáneamente. La relación concreta entre caja y terminal, así como las reglas de apertura, cierre, asignación de cajeros y turnos, requieren decisiones operativas separadas.
 
 ### 6.2 Contexto de ejecución en backend
 
@@ -235,7 +236,7 @@ La creación de sucursales adicionales y la activación de nuevas capacidades de
 | D0-05 | **Respondida:** un mismo usuario podrá tener asignaciones a varias sucursales y seleccionar la sucursal activa al iniciar sesión o cambiarla desde la aplicación. Los roles/permisos se resolverán según las asignaciones y el ámbito de la sucursal activa; el backend validará cada selección y operación. | Define asignaciones, permisos y contexto de sesión sin conceder acceso por cambiar un identificador |
 | D0-06 | **Respondida como modelo base:** se combinarán roles corporativos y roles operativos por sucursal, con permisos configurables por ámbito. Catálogo inicial corporativo: propietario, administrador general, director de operaciones y responsable financiero. Catálogo inicial de sucursal: gerente, administrador de sucursal, cajero, mesero, cocinero y responsable de inventario. Un usuario podrá tener roles distintos en distintas sucursales. La matriz exacta de acciones/permisos y sus límites deberá detallarse y aprobarse antes de implementar autorización. | Define RBAC por ámbito, catálogo de roles y separación de responsabilidades |
 | D0-06 | **Respondida como modelo base:** roles corporativos y operativos por sucursal, con permisos configurables. Catálogo inicial: propietario, administrador general, director de operaciones, responsable financiero, gerente de sucursal, administrador de sucursal, cajero, mesero, cocinero y responsable de inventario. Un usuario podrá tener roles distintos según la sucursal. La matriz exacta de acciones/permisos sigue pendiente de aprobación. | Define RBAC por ámbito y migración de admin/staff |
-| D0-07 | ¿Una sucursal tendrá varias cajas/terminales y turnos concurrentes? | Define caja, terminal, sesión operativa y auditoría |
+| D0-07 | **Respondida:** cada sucursal podrá tener varias cajas registradoras y terminales POS funcionando simultáneamente. Esta respuesta no define todavía la relación caja-terminal ni las reglas de apertura/cierre, asignación de cajeros o turnos. | Define la multiplicidad de cajas y terminales; las reglas de sesión y arqueo requieren decisiones posteriores |
 | D0-08 | ¿Qué zona horaria, moneda y reglas de corte aplican por sucursal/entidad? | Define cierres, reportes, fechas y dinero |
 | D0-09 | ¿Se permite vender un producto sin stock o con disponibilidad local desactivada? | Afecta POS, recetas, inventario y cocina |
 | D0-10 | ¿Qué datos y capacidades deben ser corporativos frente a locales en configuración, proveedores, clientes y promociones? | Define propiedad y sincronización |
@@ -263,12 +264,12 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 | Inventario de módulos, rutas, repositorios, tablas y funciones actuales | En análisis; inventario estático inicial documentado |
 | Matriz de brechas multisucursal | En análisis; brechas principales identificadas |
 | Modelo organización-entidad legal-sucursal-almacén | Relación organización-entidad legal y sucursal-entidad legal N:M incorporadas; el resto del modelo sigue pendiente de aprobación |
-| Matriz de propiedad/ámbito por recurso | Pendiente de decisiones D0-07 a D0-10 y revisión de consistencia; la matriz detallada de roles/permisos de D0-06 también requiere aprobación |
+| Matriz de propiedad/ámbito por recurso | Pendiente de decisiones D0-08 a D0-10 y revisión de consistencia; la matriz detallada de roles/permisos de D0-06 también requiere aprobación |
 | Matriz de roles, permisos y asignaciones | Propuesta documentada; pendiente aprobación |
 | Estrategia de migración y backfill | Propuesta documentada; requiere datos reales y plan de respaldo |
 | Diseño de aislamiento y RLS | Pendiente de diseño detallado y pruebas |
 | Pruebas de integración PostgreSQL y aislamiento entre sucursales | Pendiente; no implementadas en esta fase |
-| Decisiones de negocio registradas | D0-01 a D0-06 respondidas como decisiones de modelo; la matriz detallada de permisos de D0-06 y D0-07 a D0-10 siguen pendientes |
+| Decisiones de negocio registradas | D0-01 a D0-07 respondidas como decisiones de modelo; la matriz detallada de permisos de D0-06 y D0-08 a D0-10 siguen pendientes |
 | Evidencia de CI/entorno objetivo | Pendiente |
 
 ### Criterios de aceptación para cerrar Ola 0
@@ -300,7 +301,7 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 
 ## 12. Diseño técnico de referencia — versión 1
 
-> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. D0-01 a D0-06 ya fueron respondidas como decisiones de modelo por el propietario; la matriz detallada de permisos de D0-06 y D0-07 a D0-10 siguen pendientes.
+> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. D0-01 a D0-07 ya fueron respondidas como decisiones de modelo por el propietario; la matriz detallada de permisos de D0-06 y D0-08 a D0-10 siguen pendientes.
 
 ### 12.1 Modelo lógico y cardinalidades recomendadas
 
@@ -511,14 +512,15 @@ Antes de habilitar el modelo:
 | Decisión D0-04 | Catálogo maestro corporativo y surtido/precio/disponibilidad por sucursal definidos | Respondida |
 | Decisión D0-05 | Asignación de usuarios a varias sucursales y selección/cambio de sucursal activa definidos | Respondida |
 | Decisión D0-06 | Modelo de roles corporativos y operativos por sucursal aceptado; falta cerrar la matriz detallada de acciones/permisos | Respondida (modelo base) |
-| Decisiones de negocio D0-07 a D0-10 | Pendientes de respuesta del propietario | Pendientes |
+| Decisión D0-07 | Cada sucursal podrá operar múltiples cajas registradoras y terminales POS simultáneamente; reglas de sesiones y relación caja-terminal pendientes | Respondida (alcance confirmado) |
+| Decisiones de negocio D0-08 a D0-10 | Pendientes de respuesta del propietario | Pendientes |
 
 ## 14. Dictamen de Fase 0
 
 La Fase 0 queda **completada en su componente de análisis estático y diseño técnico de referencia**, pero **no puede declararse cerrada integralmente**.
 
 Bloqueantes para cierre formal:
-1. Aprobar la matriz detallada de permisos de D0-06, resolver D0-07 a D0-10 y validar la consistencia del modelo completo.
+1. Aprobar la matriz detallada de permisos de D0-06, resolver D0-08 a D0-10 y validar la consistencia del modelo completo.
 2. Auditoría de esquema, datos, roles, grants, policies, volúmenes y backups en la base productiva.
 3. Verificación de backup restaurable y plan de migración basado en conteos reales.
 4. Validación del pipeline de PR que no despliegue producción.
