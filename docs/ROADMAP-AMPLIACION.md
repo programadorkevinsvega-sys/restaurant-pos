@@ -1114,6 +1114,6 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 - **Pendiente:** CI de PR que valide sin desplegar producción.
 - **No autorizado todavía:** migraciones, backfill, cambios de autorización o despliegue multisucursal.
 
-**Decisiones registradas:** D0-01 — la organización puede tener varias entidades legales/NIT. D0-02 — una sucursal puede operar con una sola entidad legal o con varias; se requiere una relación N:M explícita y cada operación fiscal/financiera debe identificar su entidad legal responsable.
+**Decisiones registradas:** D0-01 — la organización puede tener varias entidades legales/NIT. D0-02 — una sucursal puede operar con una sola entidad legal o con varias; se requiere una relación N:M explícita y cada operación fiscal/financiera debe identificar su entidad legal responsable. D0-03 (parcial) — habrá almacenes centrales de la organización y almacenes propios por sucursal; falta decidir las ubicaciones internas.
 
 **Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. La parte de almacenes de D0-03 está definida, pero faltan las ubicaciones internas y las decisiones D0-04 a D0-10. También siguen pendientes la inspección de producción, la restauración de backup y la validación de CI. No iniciar la implementación de la base multisucursal hasta resolver los bloqueantes documentados.
