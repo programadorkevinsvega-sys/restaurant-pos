@@ -9,9 +9,6 @@ on:
       - synchronize
       - reopened
       - ready_for_review
-  push:
-    branches:
-      - docs/roadmap-ampliacion-seguridad-finanzas
   workflow_dispatch:
 
 permissions:
