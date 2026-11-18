@@ -953,6 +953,21 @@ La numeración de fases por módulo no implica que todos los módulos se desarro
 4. Resolver decisiones de negocio que bloqueen inventario, costos, compras, contabilidad y facturación.
 5. Establecer pruebas de aislamiento entre sucursales desde el primer cambio de esquema.
 
+
+### Ola 0.1 — Diseño técnico y evidencia de cierre
+
+Antes de abrir la implementación multisucursal, completar estos seis frentes según el detalle de \`FASE-0-AUDITORIA-TECNICA.md\`:
+
+1. **RBAC:** aprobar catálogo de permisos, perfiles mínimos, alcance de cada asignación, herencia explícita, delegación y segregación de funciones. Default deny; los roles actuales \`admin/staff\` no se convierten en privilegios globales.
+2. **Internacionalización y configuración:** aprobar la fuente autoritativa por tipo de parámetro. Moneda funcional por entidad legal y moneda operativa por sucursal; transacciones solo en monedas permitidas, conversiones con snapshot inmutable y fechas UTC más zona IANA/fecha de negocio.
+3. **Caja y terminales:** modelar caja, dispositivo, sesión técnica, sesión de caja y turno de cajero como entidades separadas. Soportar terminales concurrentes con idempotencia y ledger append-only; las cajas compartidas entre varias entidades legales requieren asignación contable del fondo y conciliación por NIT/moneda.
+4. **Inspección de PostgreSQL productivo:** ejecutar el runbook de solo lectura, capturar versión/esquema/roles/grants/RLS/funciones/tamaños/integridad y entregar únicamente evidencia sanitizada.
+5. **Restauración real:** seleccionar backup, restaurarlo en infraestructura aislada, comprobar objetos/conteos/integridad/consultas críticas y medir RPO/RTO contra objetivos aprobados. Un archivo existente o un listado de backup no cierra este requisito.
+6. **CI de Pull Request:** crear workflow separado de \`deploy.yml\`, con permisos mínimos y sin secretos ni acceso a producción. Probar backend, frontend, migraciones e integración con PostgreSQL real/rol runtime. Proteger \`main\` con checks obligatorios.
+
+**Orden y dependencias:** primero documentar/aprobar los modelos 1–3; en paralelo ejecutar inspección y restauración 4–5 sin modificar producción; implementar CI 6 antes de iniciar cambios de esquema; solo después diseñar el plan expand/contract y backfill. No ejecutar migraciones multisucursal hasta tener evidencia restaurable y CI PR aprobada.
+
+
 ### Ola 1 — Núcleo operativo y trazabilidad
 1. N09-F1 y N09-F3: estructura multisucursal y permisos.
 2. N01-F1 y N01-F2: inventario y libro de movimientos.
@@ -1025,7 +1040,7 @@ No implementar reglas arbitrarias para llenar vacíos. Registrar decisión, resp
 | Área | Decisiones requeridas |
 |---|---|
 | Organización | D0-01 respondida: una organización puede tener varias entidades legales/NIT. D0-02 respondida: una sucursal puede operar con una o varias entidades legales (relación N:M). D0-03 respondida: coexistirán almacenes centrales y locales por sucursal, con control de existencias por ubicación y total consolidado por almacén. Pendiente: cantidades iniciales y reglas detalladas de propiedad |
-| Usuarios y permisos | D0-05 respondida: un usuario puede tener asignaciones a varias sucursales, elegir una al iniciar sesión y cambiarla desde la aplicación. D0-06 respondida como modelo base: roles corporativos y roles operativos por sucursal, con permisos configurables; matriz detallada de acciones pendiente de aprobación |
+| Usuarios y permisos | D0-05 y D0-06 respondidas en alcance principal. Diseño RBAC recomendado: permisos granulares recurso.acción, asignaciones con ámbito/vigencia, default deny, herencia explícita, límites de delegación y auditoría. Matriz final y pruebas pendientes |
 | Catálogo | D0-04 respondida: productos maestros corporativos y compartidos; cada sucursal define surtido, precio y disponibilidad sin duplicar productos. Los demás campos locales requieren decisión adicional |
 | Inventario | Método de costeo, FEFO/FIFO, stock de seguridad, tolerancias y aprobaciones |
 | Recetas | Rendimientos, mermas estándar, sustituciones y actualización de costos |
@@ -1035,7 +1050,7 @@ No implementar reglas arbitrarias para llenar vacíos. Registrar decisión, resp
 | CRM | Consentimiento, vencimiento de puntos, recompensas y límites de campañas |
 | Delivery | Zonas, tarifas, proveedores de mapas, tracking y prueba de entrega |
 | Reservas | Duraciones, depósitos, cancelaciones, no-show y tolerancias |
-| Finanzas | Marco contable, plan de cuentas, moneda, reconocimiento y periodos |
+| Finanzas | Marco contable, plan de cuentas, moneda funcional por entidad legal, monedas de transacción autorizadas, conversión/snapshot, reconocimiento y periodos |
 | Impuestos | Jurisdicción, tarifas, vigencias, exenciones y documentos |
 | Facturación | Entidad emisora, régimen, proveedor, certificados y contingencias |
 | Notificaciones | Canales, horarios, severidad, destinatarios y escalamiento |
@@ -1124,10 +1139,12 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 - **Respondida en alcance:** D0-08 confirma que Chili POS será internacional y permitirá configurar moneda y zona horaria propias en cada entidad legal y sucursal. La precedencia entre ámbitos, moneda funcional/contable, conversiones y reglas de corte siguen pendientes.
 - **Respondida:** D0-09 acepta las tres políticas configurables por producto o sucursal: bloquear ventas por stock insuficiente, permitir vender sin stock suficiente y desactivar manualmente la disponibilidad aunque haya existencias. Las configura un administrador autorizado; matriz de permisos, precedencia entre ámbitos y tratamiento del faltante siguen pendientes.
 - **Respondida:** D0-10 adopta un modelo mixto: configuración corporativa con ajustes por entidad legal/sucursal; proveedores compartidos con habilitación por ámbito; clientes compartidos con historial de operaciones por sucursal; promociones corporativas para sucursales designadas o promociones locales. La precedencia de configuración y el detalle de permisos/visibilidad requieren definición adicional.
-- **Pendiente:** inspección de esquema/datos/roles/backups reales de producción y verificación de restauración.
-- **Pendiente:** CI de PR que valide sin desplegar producción.
+- **Diseño documentado:** RBAC por ámbito, precedencia de configuración/moneda/zona horaria, separación caja-terminal-turno, inspección read-only, restauración aislada y CI de PR separada de CD.
+- **Pendiente de ejecución:** inspección de esquema/datos/roles/grants/RLS/funciones y backups reales de producción.
+- **Pendiente de evidencia:** restaurar un backup en entorno aislado y validar integridad y tiempos.
+- **Pendiente de implementación:** workflow CI PR sin secretos ni deploy, protección de main y checks obligatorios.
 - **No autorizado todavía:** migraciones, backfill, cambios de autorización o despliegue multisucursal.
 
 **Decisiones registradas:** D0-01 — la organización puede tener varias entidades legales/NIT. D0-02 — una sucursal puede operar con una sola entidad legal o con varias; se requiere una relación N:M explícita y cada operación fiscal/financiera debe identificar su entidad legal responsable. D0-03 — habrá almacenes centrales y almacenes locales por sucursal, con inventario controlado por ubicación física y total consolidado por almacén. D0-04 — el catálogo maestro de productos será corporativo y compartido; cada sucursal podrá configurar surtido, precio y disponibilidad sin duplicar productos. D0-05 — un mismo usuario podrá tener asignaciones a varias sucursales, seleccionar la activa al iniciar sesión y cambiarla desde la aplicación, manteniendo validación de permisos por ámbito en backend. D0-06 — se combinarán roles corporativos (propietario, administrador general, director de operaciones y responsable financiero) y roles operativos por sucursal (gerente, administrador de sucursal, cajero, mesero, cocinero y responsable de inventario), con permisos configurables por ámbito; la matriz detallada de acciones queda pendiente de aprobación. D0-07 — cada sucursal podrá operar varias cajas registradoras y terminales POS simultáneamente; la relación caja-terminal y las reglas de apertura/cierre, asignación de cajeros y turnos requieren decisiones adicionales. D0-08 — Chili POS será internacional; cada entidad legal y sucursal podrá configurar su propia moneda y zona horaria. La precedencia entre ámbitos, moneda funcional, conversiones y reglas de corte quedan pendientes. D0-09 — las políticas de venta y disponibilidad serán configurables por producto o sucursal por un administrador autorizado: bloquear por stock insuficiente, permitir vender sin stock suficiente o desactivar manualmente la disponibilidad aunque existan unidades; permisos exactos, precedencia y tratamiento del faltante quedan pendientes. D0-10 — se adopta modelo mixto: configuración corporativa con ajustes por entidad legal/sucursal; proveedores compartidos con habilitación por ámbito; clientes compartidos con historial por sucursal; promociones corporativas o locales. La precedencia de configuración y el detalle de permisos/visibilidad quedan pendientes.
 
-**Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. D0-01 a D0-10 están respondidas en su alcance principal. La matriz detallada de permisos de D0-06, las reglas complementarias de D0-08 y D0-09 y la precedencia/detalle de D0-10, la inspección de producción, la restauración de backup y la validación de CI siguen pendientes. No iniciar la implementación de la base multisucursal hasta resolver los bloqueantes documentados.
+**Dictamen:** Fase 0 completada en análisis estático y diseño de referencia; no cerrada integralmente. D0-01 a D0-10 están respondidas en su alcance principal. El diseño técnico recomendado para permisos, configuración internacional, caja/terminales, inspección productiva, restauración aislada y CI PR queda especificado en FASE-0-AUDITORIA-TECNICA.md. Su aprobación, ejecución y evidencia siguen pendientes. No iniciar migraciones multisucursal hasta completar estos bloqueantes.
