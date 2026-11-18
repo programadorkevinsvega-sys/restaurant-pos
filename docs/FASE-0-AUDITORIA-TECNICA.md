@@ -179,7 +179,7 @@ Se propone separar:
 - **Permiso:** acción concreta sobre un recurso/capacidad.
 - **Excepción temporal:** solo si se aprueba, con motivo, vencimiento y auditoría.
 
-El modelo debe permitir usuarios corporativos con alcance a varias sucursales y usuarios limitados a una o varias sucursales. Un mismo usuario podrá tener asignaciones independientes a varias sucursales, con roles y permisos que pueden diferir entre ellas. Podrá seleccionar la sucursal activa al iniciar sesión y cambiarla desde la aplicación. Cada selección debe validarse en backend contra sus asignaciones vigentes; la sucursal activa es contexto de sesión/solicitud, no una concesión de permisos. No asumir que `admin` significa acceso irrestricto por defecto. Los roles actuales se deben migrar conservando acceso operativo de forma explícita y verificable.
+El modelo combinará roles corporativos y roles operativos asignados por sucursal, con permisos configurables por ámbito. El catálogo inicial de roles corporativos será: propietario, administrador general, director de operaciones y responsable financiero. El catálogo inicial de roles operativos por sucursal será: gerente, administrador de sucursal, cajero, mesero, cocinero y responsable de inventario. Un mismo usuario podrá desempeñar roles distintos en distintas sucursales y conservar asignaciones corporativas cuando corresponda. Los permisos efectivos se resolverán a partir del rol y la asignación del usuario en el ámbito correspondiente; no se asumirán permisos globales por el simple nombre del rol ni se tratará `admin` como acceso irrestricto. La matriz detallada de acciones, permisos y posibles restricciones por sucursal debe definirse y aprobarse antes de codificar la autorización. Los roles actuales se deben migrar conservando acceso operativo de forma explícita y verificable.
 
 ### 6.4 Persistencia y defensa en profundidad
 
@@ -233,6 +233,7 @@ La creación de sucursales adicionales y la activación de nuevas capacidades de
 | D0-03 | **Respondida:** coexistirán almacenes centrales de la organización y almacenes propios de cada sucursal. El inventario se controlará tanto por el total del almacén como por sus ubicaciones físicas internas (por ejemplo, zonas, estanterías, cámaras o áreas de preparación). El saldo total del almacén será una consolidación de sus ubicaciones, no una cantidad paralela editable que duplique existencias. | Define propiedad del inventario, transferencias, abastecimiento y granularidad de ubicación |
 | D0-04 | **Respondida:** el catálogo maestro de productos será corporativo y compartido, con una identidad única por producto. Cada sucursal podrá definir su propio surtido, precio y disponibilidad mediante configuraciones locales vinculadas al producto maestro, sin duplicarlo. Otros campos locales no quedan autorizados por esta decisión. | Evita duplicar productos y define el límite de las variaciones por sucursal |
 | D0-05 | **Respondida:** un mismo usuario podrá tener asignaciones a varias sucursales y seleccionar la sucursal activa al iniciar sesión o cambiarla desde la aplicación. Los roles/permisos se resolverán según las asignaciones y el ámbito de la sucursal activa; el backend validará cada selección y operación. | Define asignaciones, permisos y contexto de sesión sin conceder acceso por cambiar un identificador |
+| D0-06 | **Respondida como modelo base:** se combinarán roles corporativos y roles operativos por sucursal, con permisos configurables por ámbito. Catálogo inicial corporativo: propietario, administrador general, director de operaciones y responsable financiero. Catálogo inicial de sucursal: gerente, administrador de sucursal, cajero, mesero, cocinero y responsable de inventario. Un usuario podrá tener roles distintos en distintas sucursales. La matriz exacta de acciones/permisos y sus límites deberá detallarse y aprobarse antes de implementar autorización. | Define RBAC por ámbito, catálogo de roles y separación de responsabilidades |
 | D0-06 | ¿Qué roles corporativos y roles operativos existen, y qué acciones pueden ejecutar? | Define RBAC/permissions y migración de admin/staff |
 | D0-07 | ¿Una sucursal tendrá varias cajas/terminales y turnos concurrentes? | Define caja, terminal, sesión operativa y auditoría |
 | D0-08 | ¿Qué zona horaria, moneda y reglas de corte aplican por sucursal/entidad? | Define cierres, reportes, fechas y dinero |
@@ -267,7 +268,7 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 | Estrategia de migración y backfill | Propuesta documentada; requiere datos reales y plan de respaldo |
 | Diseño de aislamiento y RLS | Pendiente de diseño detallado y pruebas |
 | Pruebas de integración PostgreSQL y aislamiento entre sucursales | Pendiente; no implementadas en esta fase |
-| Decisiones de negocio registradas | D0-01 a D0-05 respondidas; D0-06 a D0-10 pendientes |
+| Decisiones de negocio registradas | D0-01 a D0-06 respondidas como decisiones de modelo; la matriz detallada de permisos de D0-06 y D0-07 a D0-10 siguen pendientes |
 | Evidencia de CI/entorno objetivo | Pendiente |
 
 ### Criterios de aceptación para cerrar Ola 0
@@ -299,7 +300,7 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 
 ## 12. Diseño técnico de referencia — versión 1
 
-> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. D0-01 a D0-05 ya fueron respondidas por el propietario; D0-06 a D0-10 siguen pendientes.
+> Este diseño concreta las decisiones técnicas que pueden establecerse sin inventar políticas comerciales, fiscales ni operativas. No constituye todavía un esquema SQL aprobado. D0-01 a D0-06 ya fueron respondidas como decisiones de modelo por el propietario; la matriz detallada de permisos de D0-06 y D0-07 a D0-10 siguen pendientes.
 
 ### 12.1 Modelo lógico y cardinalidades recomendadas
 
@@ -313,8 +314,9 @@ Entidades lógicas:
 - `Warehouse`: unidad física de inventario; pertenece a una organización y se clasifica como central (sin sucursal propietaria) o local (asignada a una sucursal).
 - `StorageLocation`: ubicación física interna de un almacén, organizada con la granularidad necesaria para representar zonas, estanterías, cámaras, congeladores o áreas de preparación. El modelo deberá permitir consultar tanto el saldo de cada ubicación como el total consolidado del almacén.
 - `User`: identidad autenticable global dentro de la instalación.
-- `Role` y `Permission`: capacidades y permisos.
-- `UserAssignment`: asignación de usuario a un ámbito con rol/capacidades y vigencia; permite que el mismo usuario tenga diferentes asignaciones y permisos en varias sucursales.
+- `Role` y `Permission`: catálogo separado por ámbito corporativo u operativo; agrupa capacidades y permisos configurables.
+- `UserAssignment`: asignación de usuario a un ámbito con uno o más roles/capacidades y vigencia; permite que el mismo usuario tenga diferentes asignaciones y permisos en varias sucursales.
+- `RolePermission` (relación conceptual): vincula cada rol con sus permisos; el conjunto efectivo debe considerar el ámbito de la asignación y la configuración autorizada para la sucursal.
 - `BranchTerminal` / `CashRegister`: terminal y caja de una sucursal, separados de la identidad de usuario.
 - `AuditEvent`: registro inmutable de acciones relevantes.
 
@@ -327,7 +329,8 @@ Cardinalidades base propuestas:
 - **LegalEntity N:M Branch mediante `BranchLegalEntity`**; cada asignación debe tener estado/vigencia y permitir validar qué entidad legal puede operar en cada sucursal. Una sucursal podrá tener una o varias asignaciones activas.
 - Cada `StorageLocation` pertenece a un único almacén. El sistema debe exponer saldos por ubicación y el total del almacén. El total se obtiene de la suma de las ubicaciones y, solo si se autoriza una modalidad sin ubicación específica, de un saldo explícito no asignado; nunca se mantendrán dos cantidades independientes que puedan divergir.
 - Branch 1:N Terminal y CashRegister; la entidad legal responsable de cada operación de caja debe quedar identificada en sus transacciones, sin asumir todavía que una caja física pertenece exclusivamente a un único NIT.
-- User N:M Organization/LegalEntity/Branch/Warehouse mediante asignaciones explícitas; cada asignación a sucursal mantiene su propio rol/permisos y vigencia.
+- User N:M Organization/LegalEntity/Branch/Warehouse mediante asignaciones explícitas; cada asignación a sucursal mantiene sus propios roles/permisos y vigencia.
+- Los roles corporativos se asignan en el ámbito de la organización; los roles operativos se asignan a una sucursal concreta. No se presume que un rol local se propague a otras sucursales ni que un rol corporativo conceda por sí solo todos los permisos operativos.
 - La sucursal activa se conserva como contexto de sesión/solicitud y puede seleccionarse al iniciar sesión o cambiarse desde la aplicación. Nunca se almacena como una única sucursal fija del usuario ni reemplaza la verificación de permisos en backend.
 - Toda venta, factura, pago, asiento o registro financiero/fiscal debe quedar asociado a una única entidad legal responsable. El backend valida que esa entidad legal esté vinculada y habilitada para la sucursal al momento de la operación.
 
@@ -492,6 +495,7 @@ Antes de habilitar el modelo:
 | Decisión D0-03 — almacenes y granularidad del inventario | Confirmado: almacenes centrales y locales por sucursal; control por ubicación física y total consolidado por almacén | Respondida |
 | Decisión D0-04 — catálogo de productos | Confirmado: catálogo maestro corporativo único; surtido, precio y disponibilidad configurables por sucursal sin duplicar productos | Respondida |
 | Decisión D0-05 — usuarios y sucursal activa | Confirmado: un usuario puede tener asignaciones a varias sucursales, seleccionar una al iniciar sesión y cambiarla desde la aplicación; permisos validados por sucursal en backend | Respondida |
+| Decisión D0-06 — roles y permisos por ámbito | Confirmado como modelo base: roles corporativos y roles operativos por sucursal, con permisos configurables. Catálogos iniciales definidos; matriz exacta de acciones pendiente de aprobación | Respondida (modelo base) |
 | Auditoría estática de código y migraciones versionadas | Revisados composición backend, autenticación, migraciones 001/003/004/005 y módulos actuales en el commit base | Realizado estáticamente |
 | Brechas multisucursal | Identificadas en persistencia, autorización, funciones SQL, caché, frontend y pruebas | Realizado |
 | Modelo lógico de referencia | Entidades, relaciones y cardinalidades candidatas documentadas | Propuesto; requiere aprobación D0 |
@@ -506,14 +510,15 @@ Antes de habilitar el modelo:
 | Decisión D0-03 | Modelo central/local y control de inventario por ubicación más total consolidado del almacén definidos | Respondida |
 | Decisión D0-04 | Catálogo maestro corporativo y surtido/precio/disponibilidad por sucursal definidos | Respondida |
 | Decisión D0-05 | Asignación de usuarios a varias sucursales y selección/cambio de sucursal activa definidos | Respondida |
-| Decisiones de negocio D0-06 a D0-10 | Pendientes de respuesta del propietario | Pendientes |
+| Decisión D0-06 | Modelo de roles corporativos y operativos por sucursal aceptado; falta cerrar la matriz detallada de acciones/permisos | Respondida (modelo base) |
+| Decisiones de negocio D0-07 a D0-10 | Pendientes de respuesta del propietario | Pendientes |
 
 ## 14. Dictamen de Fase 0
 
 La Fase 0 queda **completada en su componente de análisis estático y diseño técnico de referencia**, pero **no puede declararse cerrada integralmente**.
 
 Bloqueantes para cierre formal:
-1. Resolver D0-06 a D0-10 y validar la consistencia del modelo completo.
+1. Aprobar la matriz detallada de permisos de D0-06, resolver D0-07 a D0-10 y validar la consistencia del modelo completo.
 2. Auditoría de esquema, datos, roles, grants, policies, volúmenes y backups en la base productiva.
 3. Verificación de backup restaurable y plan de migración basado en conteos reales.
 4. Validación del pipeline de PR que no despliegue producción.
