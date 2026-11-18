@@ -262,7 +262,7 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 | Inventario de módulos, rutas, repositorios, tablas y funciones actuales | En análisis; inventario estático inicial documentado |
 | Matriz de brechas multisucursal | En análisis; brechas principales identificadas |
 | Modelo organización-entidad legal-sucursal-almacén | Relación organización-entidad legal y sucursal-entidad legal N:M incorporadas; el resto del modelo sigue pendiente de aprobación |
-| Matriz de propiedad/ámbito por recurso | Pendiente de decisiones D0-05 a D0-10 y revisión de consistencia; incorpora las reglas confirmadas de almacenes, ubicaciones y catálogo |
+| Matriz de propiedad/ámbito por recurso | Pendiente de decisiones D0-06 a D0-10 y revisión de consistencia; incorpora las reglas confirmadas de almacenes, ubicaciones, catálogo y asignaciones de usuarios |
 | Matriz de roles, permisos y asignaciones | Propuesta documentada; pendiente aprobación |
 | Estrategia de migración y backfill | Propuesta documentada; requiere datos reales y plan de respaldo |
 | Diseño de aislamiento y RLS | Pendiente de diseño detallado y pruebas |
