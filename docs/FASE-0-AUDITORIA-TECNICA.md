@@ -261,12 +261,12 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 | Inventario de módulos, rutas, repositorios, tablas y funciones actuales | En análisis; inventario estático inicial documentado |
 | Matriz de brechas multisucursal | En análisis; brechas principales identificadas |
 | Modelo organización-entidad legal-sucursal-almacén | Relación organización-entidad legal y sucursal-entidad legal N:M incorporadas; el resto del modelo sigue pendiente de aprobación |
-| Matriz de propiedad/ámbito por recurso | Pendiente de decisiones D0-03 a D0-10 y revisión de consistencia |
+| Matriz de propiedad/ámbito por recurso | Pendiente de ubicaciones internas (D0-03) y decisiones D0-04 a D0-10; requiere revisión de consistencia |
 | Matriz de roles, permisos y asignaciones | Propuesta documentada; pendiente aprobación |
 | Estrategia de migración y backfill | Propuesta documentada; requiere datos reales y plan de respaldo |
 | Diseño de aislamiento y RLS | Pendiente de diseño detallado y pruebas |
 | Pruebas de integración PostgreSQL y aislamiento entre sucursales | Pendiente; no implementadas en esta fase |
-| Decisiones de negocio registradas | D0-01 y D0-02 respondidas; D0-03 a D0-10 pendientes |
+| Decisiones de negocio registradas | D0-01 y D0-02 respondidas; D0-03 parcialmente respondida (modelo central/local confirmado); D0-04 a D0-10 pendientes |
 | Evidencia de CI/entorno objetivo | Pendiente |
 
 ### Criterios de aceptación para cerrar Ola 0
