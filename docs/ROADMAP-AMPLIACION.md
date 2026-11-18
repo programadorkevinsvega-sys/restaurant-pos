@@ -956,14 +956,14 @@ La numeración de fases por módulo no implica que todos los módulos se desarro
 
 ### Ola 0.1 — Diseño técnico y evidencia de cierre
 
-Antes de abrir la implementación multisucursal, completar estos seis frentes según el detalle de \`FASE-0-AUDITORIA-TECNICA.md\`:
+Antes de abrir la implementación multisucursal, completar estos seis frentes según el detalle de `FASE-0-AUDITORIA-TECNICA.md`:
 
-1. **RBAC:** aprobar catálogo de permisos, perfiles mínimos, alcance de cada asignación, herencia explícita, delegación y segregación de funciones. Default deny; los roles actuales \`admin/staff\` no se convierten en privilegios globales.
+1. **RBAC:** aprobar catálogo de permisos, perfiles mínimos, alcance de cada asignación, herencia explícita, delegación y segregación de funciones. Default deny; los roles actuales `admin/staff` no se convierten en privilegios globales.
 2. **Internacionalización y configuración:** aprobar la fuente autoritativa por tipo de parámetro. Moneda funcional por entidad legal y moneda operativa por sucursal; transacciones solo en monedas permitidas, conversiones con snapshot inmutable y fechas UTC más zona IANA/fecha de negocio.
 3. **Caja y terminales:** modelar caja, dispositivo, sesión técnica, sesión de caja y turno de cajero como entidades separadas. Soportar terminales concurrentes con idempotencia y ledger append-only; las cajas compartidas entre varias entidades legales requieren asignación contable del fondo y conciliación por NIT/moneda.
 4. **Inspección de PostgreSQL productivo:** ejecutar el runbook de solo lectura, capturar versión/esquema/roles/grants/RLS/funciones/tamaños/integridad y entregar únicamente evidencia sanitizada.
 5. **Restauración real:** seleccionar backup, restaurarlo en infraestructura aislada, comprobar objetos/conteos/integridad/consultas críticas y medir RPO/RTO contra objetivos aprobados. Un archivo existente o un listado de backup no cierra este requisito.
-6. **CI de Pull Request:** crear workflow separado de \`deploy.yml\`, con permisos mínimos y sin secretos ni acceso a producción. Probar backend, frontend, migraciones e integración con PostgreSQL real/rol runtime. Proteger \`main\` con checks obligatorios.
+6. **CI de Pull Request:** crear workflow separado de `deploy.yml`, con permisos mínimos y sin secretos ni acceso a producción. Probar backend, frontend, migraciones e integración con PostgreSQL real/rol runtime. Proteger `main` con checks obligatorios.
 
 **Orden y dependencias:** primero documentar/aprobar los modelos 1–3; en paralelo ejecutar inspección y restauración 4–5 sin modificar producción; implementar CI 6 antes de iniciar cambios de esquema; solo después diseñar el plan expand/contract y backfill. No ejecutar migraciones multisucursal hasta tener evidencia restaurable y CI PR aprobada.
 
@@ -1126,7 +1126,7 @@ La primera entrega de planificación debe cerrar la Ola 0: inventario técnico d
 
 ## Estado de Ola 0 — actualización 2026-11-18
 
-La auditoría estática y el diseño técnico de referencia de Fase 0 están documentados en [FASE-0-AUDITORIA-TECNICA.md](./FASE-0-AUDITORIA-TECNICA.md).
+La auditoría estática y el diseño técnico de referencia de Fase 0 están documentados en [FASE-0-AUDITORIA-TECNICA.md](./FASE-0-AUDITORIA-TECNICA.md). El procedimiento seguro para inspección de producción y restauración está en [FASE-0-RUNBOOK-POSTGRES-BACKUP.md](./FASE-0-RUNBOOK-POSTGRES-BACKUP.md).
 
 - **Completado:** inventario estático inicial de arquitectura, módulos, migraciones, autenticación, autorización, funciones SQL, caché, frontend y pruebas.
 - **Completado:** matriz inicial de brechas, modelo lógico candidato, matriz de propiedad propuesta, contrato de contexto, amenazas, estrategia expand/contract y 15 escenarios de aceptación multisucursal.
@@ -1139,7 +1139,7 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 - **Respondida en alcance:** D0-08 confirma que Chili POS será internacional y permitirá configurar moneda y zona horaria propias en cada entidad legal y sucursal. La precedencia entre ámbitos, moneda funcional/contable, conversiones y reglas de corte siguen pendientes.
 - **Respondida:** D0-09 acepta las tres políticas configurables por producto o sucursal: bloquear ventas por stock insuficiente, permitir vender sin stock suficiente y desactivar manualmente la disponibilidad aunque haya existencias. Las configura un administrador autorizado; matriz de permisos, precedencia entre ámbitos y tratamiento del faltante siguen pendientes.
 - **Respondida:** D0-10 adopta un modelo mixto: configuración corporativa con ajustes por entidad legal/sucursal; proveedores compartidos con habilitación por ámbito; clientes compartidos con historial de operaciones por sucursal; promociones corporativas para sucursales designadas o promociones locales. La precedencia de configuración y el detalle de permisos/visibilidad requieren definición adicional.
-- **Diseño documentado:** RBAC por ámbito, precedencia de configuración/moneda/zona horaria, separación caja-terminal-turno, inspección read-only, restauración aislada y CI de PR separada de CD.
+- **Diseño documentado:** RBAC por ámbito, precedencia de configuración/moneda/zona horaria, separación caja-terminal-turno, inspección read-only, restauración aislada y CI de PR separada de CD. Los detalles técnicos y el runbook se encuentran en los documentos de Fase 0 enlazados arriba.
 - **Pendiente de ejecución:** inspección de esquema/datos/roles/grants/RLS/funciones y backups reales de producción.
 - **Pendiente de evidencia:** restaurar un backup en entorno aislado y validar integridad y tiempos.
 - **Pendiente de implementación:** workflow CI PR sin secretos ni deploy, protección de main y checks obligatorios.
