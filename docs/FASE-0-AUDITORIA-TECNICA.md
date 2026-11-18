@@ -268,7 +268,7 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 | Inventario de módulos, rutas, repositorios, tablas y funciones actuales | En análisis; inventario estático inicial documentado |
 | Matriz de brechas multisucursal | En análisis; brechas principales identificadas |
 | Modelo organización-entidad legal-sucursal-almacén | Relación organización-entidad legal y sucursal-entidad legal N:M incorporadas; el resto del modelo sigue pendiente de aprobación |
-| Matriz de propiedad/ámbito por recurso | Modelo mixto D0-10 incorporado como referencia; falta completar/validar la matriz recurso por recurso y revisar permisos/precedencia |
+| Matriz de propiedad/ámbito por recurso | Modelo mixto D0-10 y reglas de propiedad propuestos; completar diccionario, precedencia por parámetro y revisión de datos sensibles por ámbito |
 | Matriz de roles, permisos y asignaciones | Modelo RBAC por ámbito, permisos granulares, perfiles mínimos y controles de delegación especificados; queda revisión/aprobación de permisos por acción |
 | Estrategia de migración y backfill | Propuesta documentada; requiere datos reales y plan de respaldo |
 | Diseño de aislamiento y RLS | Pendiente de diseño detallado y pruebas |
@@ -279,6 +279,7 @@ No se codificarán respuestas temporales a estas preguntas para aparentar progre
 | Inspección PostgreSQL productiva | Runbook de solo lectura preparado; ejecución y evidencia productiva pendientes | Pendiente |
 | Restauración de backup | Procedimiento de restauración aislada y criterios de integridad especificados; ejecución pendiente | Pendiente |
 | Diseño CI de PR | Workflow separado, sin secretos ni despliegue, especificado; creación y ejecución pendientes | Pendiente |
+| Runbook PostgreSQL/backup | Procedimiento de inspección de solo lectura y restauración aislada en docs/FASE-0-RUNBOOK-POSTGRES-BACKUP.md | Preparado; no ejecutado |
 | Evidencia de CI/entorno objetivo | Pendiente |
 
 ### Criterios de aceptación para cerrar Ola 0
@@ -694,6 +695,8 @@ La existencia de un archivo o snapshot no constituye evidencia suficiente. El cr
 
 ## 13. Matriz de entregables y evidencia — actualización
 
+Se documentó el detalle técnico de referencia para RBAC, configuración internacional, cajas/terminales, inspección de producción, restauración y CI PR. Los diseños no equivalen a implementación ni a evidencia de ejecución; ver secciones 12.9–12.14 y el [runbook de PostgreSQL y backup](./FASE-0-RUNBOOK-POSTGRES-BACKUP.md).
+
 | Entregable | Resultado de esta revisión | Estado |
 |---|---|---|
 | Decisión D0-01 — varias entidades legales por organización | Confirmada por el propietario: una organización podrá tener varias empresas/NIT | Respondida |
@@ -701,22 +704,22 @@ La existencia de un archivo o snapshot no constituye evidencia suficiente. El cr
 | Decisión D0-03 — almacenes y granularidad del inventario | Confirmado: almacenes centrales y locales por sucursal; control por ubicación física y total consolidado por almacén | Respondida |
 | Decisión D0-04 — catálogo de productos | Confirmado: catálogo maestro corporativo único; surtido, precio y disponibilidad configurables por sucursal sin duplicar productos | Respondida |
 | Decisión D0-05 — usuarios y sucursal activa | Confirmado: un usuario puede tener asignaciones a varias sucursales, seleccionar una al iniciar sesión y cambiarla desde la aplicación; permisos validados por sucursal en backend | Respondida |
-| Decisión D0-06 — roles y permisos por ámbito | Confirmado como modelo base: roles corporativos y roles operativos por sucursal, con permisos configurables. Catálogos iniciales definidos; matriz exacta de acciones pendiente de aprobación | Respondida (modelo base) |
+| Decisión D0-06 — roles y permisos por ámbito | Catálogos iniciales y diseño RBAC por ámbito, default deny, permisos recurso.acción, límites de delegación y auditoría especificados; aprobación de permisos finales pendiente | Respondida (modelo base); diseño documentado |
 | Auditoría estática de código y migraciones versionadas | Revisados composición backend, autenticación, migraciones 001/003/004/005 y módulos actuales en el commit base | Realizado estáticamente |
 | Brechas multisucursal | Identificadas en persistencia, autorización, funciones SQL, caché, frontend y pruebas | Realizado |
 | Modelo lógico de referencia | Entidades, relaciones y cardinalidades candidatas documentadas | Propuesto; requiere aprobación D0 |
-| Matriz de propiedad | Clasificación inicial por recurso documentada | Propuesta; requiere decisiones operativas |
+| Matriz de propiedad | Modelo mixto documentado y precedencia por familia propuesta | Diseño de referencia; revisión recurso por recurso pendiente |
 | Contexto backend | Contrato conceptual, reglas de resolución y propagación documentados | Diseño de referencia |
 | Seguridad | Amenazas IDOR, scope leakage, RLS, cache, jobs y privilegios documentadas | Diseño de referencia |
 | Migración | Expand/contract, backfill, verificación y rollback documentados | Plan; requiere acceso a datos reales |
 | Pruebas | 15 escenarios de aceptación multisucursal definidos | Especificadas; no ejecutadas |
-| Producción/VM/backup | Sin acceso ni evidencia verificable en esta revisión | Bloqueado |
-| CI de PR | No hay workflow de validación de PR en el commit base inspeccionado; no se ha cambiado | Pendiente |
+| Producción/VM/backup | Runbook de inspección read-only y recuperación aislada preparado; no se accedió al entorno ni se ejecutó restauración | Pendiente de ejecución/evidencia |
+| CI de PR | Se verificó que el único workflow es deploy.yml (push a main con job de despliegue); arquitectura de CI independiente documentada, workflow aún no creado | Pendiente de implementación |
 | Decisiones de negocio D0-01 y D0-02 | Respondidas por el propietario e incorporadas al modelo lógico | Respondidas |
 | Decisión D0-03 | Modelo central/local y control de inventario por ubicación más total consolidado del almacén definidos | Respondida |
 | Decisión D0-04 | Catálogo maestro corporativo y surtido/precio/disponibilidad por sucursal definidos | Respondida |
 | Decisión D0-05 | Asignación de usuarios a varias sucursales y selección/cambio de sucursal activa definidos | Respondida |
-| Decisión D0-06 | Modelo de roles corporativos y operativos por sucursal aceptado; falta cerrar la matriz detallada de acciones/permisos | Respondida (modelo base) |
+| Decisión D0-06 | Modelo corporativo/operativo aceptado; matriz RBAC granular de referencia documentada para revisión y aprobación | Respondida (modelo base) |
 | Decisión D0-07 | Cada sucursal podrá operar múltiples cajas registradoras y terminales POS simultáneamente; reglas de sesiones y relación caja-terminal pendientes | Respondida (alcance confirmado) |
 | Decisión D0-08 | Cada entidad legal y sucursal puede configurar moneda y zona horaria propias; precedencia entre ámbitos, moneda funcional, conversión y reglas de corte pendientes | Respondida (alcance internacional confirmado) |
 | Decisión D0-09 | Tres políticas configurables por producto o sucursal y administradas por usuarios autorizados; permisos y precedencia pendientes | Respondida (políticas aceptadas) |
