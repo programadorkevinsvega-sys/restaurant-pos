@@ -2,7 +2,7 @@
 
 > **Estado:** En análisis. Este documento no declara cerrada la Fase 0 ni autoriza cambios de esquema o comportamiento.
 > **Base auditada:** `main` en `8b92115223f724f98ee2e41f6c68c95bde57d586`.
-> **Modelo comercial confirmado:** una organización/cadena de restaurantes con múltiples sucursales; no un SaaS multi-tenant para restaurantes independientes.
+> **Modelo comercial confirmado:** una organización/cadena de restaurantes con múltiples sucursales y una o varias entidades legales (NIT). Una sucursal puede operar para una o varias entidades legales; cada operación fiscal/financiera debe identificar la entidad legal responsable. No es un SaaS multi-tenant para restaurantes independientes.
 > **Alcance de esta auditoría:** lectura estática de código, SQL versionado, contratos HTTP, frontend, pruebas, configuración y workflow disponible en GitHub.
 
 ## 1. Resumen ejecutivo
@@ -133,13 +133,15 @@ Esta sección es una propuesta de diseño, no un esquema aprobado ni una instruc
 
 ```text
 Organización / Cadena
-├── Entidad legal (una o varias; pendiente de decisión)
-│   └── Sucursal(es) asignadas a esa entidad (relación pendiente)
+├── Entidades legales (una o varias; cada una con su NIT)
 ├── Sucursales
+│   ├── Relación con una o varias entidades legales
 │   ├── Cajas / terminales
 │   ├── Mesas / áreas
 │   └── Almacenes de sucursal
 └── Almacenes centrales (si la operación los requiere)
+
+Relación Sucursal ↔ Entidad legal: N:M mediante asignaciones explícitas.
 ```
 
 Principios propuestos:
@@ -225,8 +227,8 @@ La creación de sucursales adicionales y la activación de nuevas capacidades de
 
 | ID | Decisión | Por qué importa |
 |---|---|---|
-| D0-01 | ¿Cuántas entidades legales existen y pueden cambiar en el futuro? | Define contabilidad, impuestos, facturación y relación sucursal-entidad |
-| D0-02 | ¿Una sucursal pertenece a una sola entidad legal o puede operar con más de una? | Define cardinalidad y asignación fiscal |
+| D0-01 | **Respondida:** la organización podrá tener varias entidades legales, cada una con su propio NIT. | Define contabilidad, impuestos y facturación por entidad legal |
+| D0-02 | **Respondida:** ambas modalidades serán válidas; una sucursal podrá operar con una sola entidad legal o con varias. Se modelará la relación como N:M. | Define cardinalidad y asignación fiscal por operación |
 | D0-03 | ¿Habrá almacenes centrales, almacenes por sucursal y ubicaciones internas? | Define inventario, transferencias y abastecimiento |
 | D0-04 | ¿El catálogo maestro es corporativo? ¿Qué campos/precios/disponibilidad pueden variar por sucursal? | Evita duplicar productos y define overrides |
 | D0-05 | ¿Un usuario puede estar asignado a varias sucursales y cambiar de sucursal activa? | Define asignaciones y sesión/contexto |
@@ -319,10 +321,13 @@ Cardinalidades base propuestas:
 - Organization 1:N LegalEntity.
 - Organization 1:N Branch.
 - Organization 1:N Warehouse.
-- Branch 1:N Warehouse (solo almacenes locales); Warehouse.branch_id nullable para almacenes centrales, sujeto a aprobación D0-03.
-- Branch 1:N Terminal y CashRegister.
+- **LegalEntity N:M Branch mediante `BranchLegalEntity`**; cada asignación debe tener estado/vigencia y permitir validar qué entidad legal puede operar en cada sucursal. Una sucursal podrá tener una o varias asignaciones activas.
+- Branch 1:N Warehouse (solo almacenes locales); `Warehouse.branch_id` nullable para almacenes centrales, sujeto a aprobación D0-03.
+- Branch 1:N Terminal y CashRegister; la entidad legal responsable de cada operación de caja debe quedar identificada en sus transacciones, sin asumir todavía que una caja física pertenece exclusivamente a un único NIT.
 - User N:M Organization/LegalEntity/Branch/Warehouse mediante asignaciones explícitas.
-- Branch N:1 LegalEntity como recomendación inicial de menor complejidad; si una sucursal puede operar con varias entidades legales, se requerirá una entidad asociativa con vigencia y reglas de asignación. No elegir cardinalidad definitiva hasta D0-02.
+- Toda venta, factura, pago, asiento o registro financiero/fiscal debe quedar asociado a una única entidad legal responsable. El backend valida que esa entidad legal esté vinculada y habilitada para la sucursal al momento de la operación.
+
+Esta decisión no define todavía si una misma comanda/carrito puede incluir productos facturados por distintas entidades legales; ese caso requiere una regla comercial y fiscal específica antes de implementarse.
 
 No se recomienda guardar una única sucursal activa como atributo permanente del usuario: el contexto activo pertenece a la sesión/solicitud y debe poder cambiarse después de autorización.
 
@@ -341,7 +346,7 @@ La matriz es una clasificación arquitectónica inicial para revisar; los casos 
 | Receta y versión | Corporativo con posible override | Organization / Branch | Costeo por sucursal/fecha |
 | Proveedor | Corporativo | Organization | Condiciones comerciales pueden variar |
 | Existencia y movimiento | Almacén | Warehouse | No se guarda stock como cifra editable sin movimientos |
-| Pedido/comanda | Sucursal | Branch | Snapshot de precio, impuesto y datos relevantes al vender |
+| Pedido/comanda | Sucursal + entidad legal responsable | Branch + LegalEntity | Cada operación de venta identifica el NIT emisor/responsable; snapshot de precio, impuesto y datos relevantes |
 | Partida de pedido | Pedido | Order | No debe borrarse al eliminar/archivar producto |
 | Mesa/área/plano | Sucursal | Branch | Número único dentro de sucursal, no global |
 | Reserva/lista de espera | Sucursal | Branch | Mesa debe pertenecer a la misma sucursal |
@@ -355,7 +360,7 @@ La matriz es una clasificación arquitectónica inicial para revisar; los casos 
 
 ### 12.3 Contrato del contexto de ejecución
 
-El backend debe construir un objeto de contexto inmutable después de autenticar y autorizar la selección de ámbito. Forma conceptual:
+El backend debe construir un objeto de contexto inmutable después de autenticar y autorizar la selección de ámbito. Como una sucursal puede estar vinculada a varias entidades legales, las operaciones fiscales/financieras deben resolver una `legalEntityId` concreta y validar la asignación activa sucursal-entidad legal antes de continuar. Forma conceptual:
 
 ```ts
 type ExecutionContext = {
@@ -374,12 +379,13 @@ type ExecutionContext = {
 Reglas obligatorias:
 1. La identidad proviene de la sesión autenticada, nunca del body.
 2. El cliente puede solicitar un `branchId`; el backend comprueba existencia, estado, pertenencia y asignación del usuario antes de construir el contexto.
-3. El caso de uso recibe el contexto explícitamente; no lee variables globales mutables.
-4. Cada método de repositorio que acceda a datos acotados recibe el contexto o identificadores ya validados y documentados.
-5. Las escrituras validan todas las relaciones en una única transacción.
-6. La ausencia de contexto en un caso de uso que lo requiere produce rechazo explícito; nunca se interpreta como "todas las sucursales".
-7. El acceso corporativo consolidado exige permiso explícito de alcance corporativo.
-8. Los trabajos asíncronos persisten el ámbito y actor de origen en el mensaje; no dependen de la sesión HTTP desaparecida.
+3. Si el caso de uso tiene impacto fiscal/financiero, debe resolver una `legalEntityId` explícita y comprobar que existe una asignación activa para esa sucursal; nunca elegir un NIT implícitamente.
+4. El caso de uso recibe el contexto explícitamente; no lee variables globales mutables.
+5. Cada método de repositorio que acceda a datos acotados recibe el contexto o identificadores ya validados y documentados.
+6. Las escrituras validan todas las relaciones en una única transacción.
+7. La ausencia de contexto en un caso de uso que lo requiere produce rechazo explícito; nunca se interpreta como "todas las sucursales" o "todas las entidades legales".
+8. El acceso corporativo consolidado exige permiso explícito de alcance corporativo.
+9. Los trabajos asíncronos persisten el ámbito y actor de origen en el mensaje; no dependen de la sesión HTTP desaparecida.
 
 ### 12.4 Autorización y amenazas
 
@@ -475,6 +481,8 @@ Antes de habilitar el modelo:
 
 | Entregable | Resultado de esta revisión | Estado |
 |---|---|---|
+| Decisión D0-01 — varias entidades legales por organización | Confirmada por el propietario: una organización podrá tener varias empresas/NIT | Respondida |
+| Decisión D0-02 — relación sucursal-entidad legal | Confirmada por el propietario: se admiten sucursales vinculadas a una o varias entidades legales (N:M) | Respondida |
 | Auditoría estática de código y migraciones versionadas | Revisados composición backend, autenticación, migraciones 001/003/004/005 y módulos actuales en el commit base | Realizado estáticamente |
 | Brechas multisucursal | Identificadas en persistencia, autorización, funciones SQL, caché, frontend y pruebas | Realizado |
 | Modelo lógico de referencia | Entidades, relaciones y cardinalidades candidatas documentadas | Propuesto; requiere aprobación D0 |
@@ -485,14 +493,14 @@ Antes de habilitar el modelo:
 | Pruebas | 15 escenarios de aceptación multisucursal definidos | Especificadas; no ejecutadas |
 | Producción/VM/backup | Sin acceso ni evidencia verificable en esta revisión | Bloqueado |
 | CI de PR | No hay workflow de validación de PR en el commit base inspeccionado; no se ha cambiado | Pendiente |
-| Decisiones de negocio D0-01 a D0-10 | No suministradas/aprobadas por el propietario | Bloqueante |
+| Decisiones de negocio D0-01 y D0-02 | Respondidas por el propietario; incorporadas al modelo lógico. D0-03 a D0-10 siguen pendientes | Parcial |
 
 ## 14. Dictamen de Fase 0
 
 La Fase 0 queda **completada en su componente de análisis estático y diseño técnico de referencia**, pero **no puede declararse cerrada integralmente**.
 
 Bloqueantes para cierre formal:
-1. Aprobación de decisiones D0-01 a D0-10 por el propietario del negocio.
+1. Resolución de decisiones D0-03 a D0-10 por el propietario del negocio y validación de consistencia del modelo completo.
 2. Auditoría de esquema, datos, roles, grants, policies, volúmenes y backups en la base productiva.
 3. Verificación de backup restaurable y plan de migración basado en conteos reales.
 4. Validación del pipeline de PR que no despliegue producción.
