@@ -1,0 +1,141 @@
+name: Pull Request CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
+    branches:
+      - docs/roadmap-ampliacion-seguridad-finanzas
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pull-request-ci-${ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Backend, frontend and build checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_API_URL: https://api.example.invalid/api
+      NEXT_PUBLIC_SENTRY_DSN: https://public@example.ingest.sentry.io/1
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            backend/pnpm-lock.yaml
+            frontend/pnpm-lock.yaml
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12.15.0
+
+      - name: Install backend dependencies
+        run: pnpm --dir backend install --frozen-lockfile
+
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Check backend syntax and unit tests
+        run: pnpm --dir backend check
+
+      - name: Check frontend types
+        run: pnpm --dir frontend typecheck
+
+      - name: Lint frontend
+        run: pnpm --dir frontend lint
+
+      - name: Build frontend with non-production configuration
+        run: pnpm --dir frontend build
+
+  postgres-integration:
+    name: PostgreSQL migrations and runtime integration (PG ${ matrix.postgres }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "17"]
+    services:
+      postgres:
+        image: postgres:${ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres-ci-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGPASSWORD: postgres-ci-only
+      MIGRATIONS_DATABASE_URL: postgresql://restaurant_pos_migrator:migrator-ci-only@127.0.0.1:5432/restaurant_pos_test
+      DATABASE_URL: postgresql://restaurant_pos_app:runtime-ci-only@127.0.0.1:5432/restaurant_pos_test
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12.15.0
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y postgresql-client
+
+      - name: Install backend dependencies
+        run: pnpm --dir backend install --frozen-lockfile
+
+      - name: Create isolated test roles and database
+        run: |
+          psql --host=127.0.0.1 --port=5432 --username=postgres --dbname=postgres \
+            --no-psqlrc --set=ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE restaurant_pos_migrator
+            LOGIN PASSWORD 'migrator-ci-only'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+          CREATE ROLE restaurant_pos_app
+            LOGIN PASSWORD 'runtime-ci-only'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+          CREATE DATABASE restaurant_pos_test OWNER restaurant_pos_migrator;
+          GRANT CONNECT ON DATABASE restaurant_pos_test TO restaurant_pos_app;
+          SQL
+
+      - name: Apply migrations from an empty database
+        run: pnpm --dir backend migrate
+
+      - name: Verify migration runner is idempotent
+        run: pnpm --dir backend migrate
+
+      - name: Verify PostgreSQL schema with restricted runtime credentials
+        run: pnpm --dir backend test
