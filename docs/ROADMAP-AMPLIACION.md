@@ -16,7 +16,7 @@ La organización empresarial es el límite de propiedad de los datos. Las sucurs
 - **Organización/Grupo:** propietaria de la instalación, políticas y configuración corporativa.
 - **Entidad legal:** entidad que contrata, factura, declara impuestos y mantiene libros contables. Una organización puede tener varias, cada una con su propio NIT.
 - **Sucursal:** local operativo con dirección, zona horaria, horarios, configuración, mesas, cajas, personal y existencias. Puede estar vinculada a una o varias entidades legales mediante asignaciones explícitas.
-- **Almacén/ubicación:** almacenes centrales, almacenes de sucursal y ubicaciones internas, según la operación real.
+- **Almacén:** coexistirán almacenes centrales propiedad de la organización y almacenes locales propiedad de cada sucursal. La necesidad y granularidad de ubicaciones internas dentro de cada almacén siguen pendientes de definición.
 - **Usuario:** identidad única con asignaciones explícitas de organización, entidad legal, sucursal y permisos.
 - **Recursos compartidos:** catálogo, recetas, proveedores, listas de precios y políticas pueden tener alcance corporativo o de sucursal; cada recurso debe declarar su ámbito.
 
@@ -1017,7 +1017,7 @@ No implementar reglas arbitrarias para llenar vacíos. Registrar decisión, resp
 
 | Área | Decisiones requeridas |
 |---|---|
-| Organización | D0-01 respondida: una organización puede tener varias entidades legales/NIT. D0-02 respondida: una sucursal puede operar con una o varias entidades legales (relación N:M). Pendiente: número inicial, sucursales, almacenes centrales y modelo de propiedad detallado |
+| Organización | D0-01 respondida: una organización puede tener varias entidades legales/NIT. D0-02 respondida: una sucursal puede operar con una o varias entidades legales (relación N:M). D0-03 parcialmente respondida: coexistirán almacenes centrales y almacenes locales por sucursal; falta decidir ubicaciones internas. Pendiente: cantidades iniciales y reglas detalladas de propiedad |
 | Catálogo | Qué recursos son corporativos y cuáles pueden variar por sucursal |
 | Inventario | Método de costeo, FEFO/FIFO, stock de seguridad, tolerancias y aprobaciones |
 | Recetas | Rendimientos, mermas estándar, sustituciones y actualización de costos |
@@ -1108,7 +1108,8 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 - **Completado:** inventario estático inicial de arquitectura, módulos, migraciones, autenticación, autorización, funciones SQL, caché, frontend y pruebas.
 - **Completado:** matriz inicial de brechas, modelo lógico candidato, matriz de propiedad propuesta, contrato de contexto, amenazas, estrategia expand/contract y 15 escenarios de aceptación multisucursal.
 - **Respondidas:** D0-01 (una organización puede tener varias entidades legales/NIT) y D0-02 (una sucursal puede operar con una o varias entidades legales; relación N:M).
-- **Pendiente:** decisiones D0-03 a D0-10 del propietario del negocio.
+- **Parcialmente respondida:** D0-03 confirma almacenes centrales y almacenes propios por sucursal; falta decidir si se requieren ubicaciones internas.
+- **Pendiente:** decisiones D0-04 a D0-10 del propietario del negocio y el detalle restante de D0-03.
 - **Pendiente:** inspección de esquema/datos/roles/backups reales de producción y verificación de restauración.
 - **Pendiente:** CI de PR que valide sin desplegar producción.
 - **No autorizado todavía:** migraciones, backfill, cambios de autorización o despliegue multisucursal.
