@@ -28,6 +28,7 @@ interface LegalEntityFormState {
   address_locality: string
   address_region: string
   address_postal_code: string
+  address_country_code: string
 }
 
 const initialForm: LegalEntityFormState = {
@@ -43,6 +44,7 @@ const initialForm: LegalEntityFormState = {
   address_locality: "",
   address_region: "",
   address_postal_code: "",
+  address_country_code: "",
 }
 
 function toFormState(entity: LegalEntity): LegalEntityFormState {
@@ -60,6 +62,7 @@ function toFormState(entity: LegalEntity): LegalEntityFormState {
     address_locality: address?.locality ?? "",
     address_region: address?.administrative_area ?? "",
     address_postal_code: address?.postal_code ?? "",
+    address_country_code: address?.country_code ?? "",
   }
 }
 
@@ -70,7 +73,7 @@ function toInput(form: LegalEntityFormState): LegalEntityInput {
     locality: form.address_locality.trim() || null,
     administrative_area: form.address_region.trim() || null,
     postal_code: form.address_postal_code.trim() || null,
-    country_code: form.tax_country_code.trim().toUpperCase() || null,
+    country_code: form.address_country_code.trim().toUpperCase() || null,
   }
   const hasAddress = [
     form.address_line_1,
@@ -78,6 +81,7 @@ function toInput(form: LegalEntityFormState): LegalEntityInput {
     form.address_locality,
     form.address_region,
     form.address_postal_code,
+    form.address_country_code,
   ].some((value) => value.trim().length > 0)
 
   return {
@@ -277,6 +281,7 @@ export function LegalEntityManagementCard({
                 <Input aria-label="Ciudad registrada" placeholder="Ciudad o localidad" maxLength={120} value={form.address_locality} onChange={(event) => updateField("address_locality", event.target.value)} disabled={busy} />
                 <Input aria-label="Región registrada" placeholder="Departamento o región" maxLength={120} value={form.address_region} onChange={(event) => updateField("address_region", event.target.value)} disabled={busy} />
                 <Input aria-label="Código postal registrado" placeholder="Código postal" maxLength={32} value={form.address_postal_code} onChange={(event) => updateField("address_postal_code", event.target.value)} disabled={busy} />
+                <Input aria-label="País del domicilio registrado" placeholder="País domicilio (ISO, por ejemplo CO)" maxLength={2} pattern="[A-Za-z]{2}" value={form.address_country_code} onChange={(event) => updateField("address_country_code", event.target.value.toUpperCase())} disabled={busy} />
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
