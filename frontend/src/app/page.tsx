@@ -19,6 +19,8 @@ import { HttpError, type AuthenticatedUser } from "@/shared/infrastructure/http-
 import type { Category, NewProduct, Product } from "@/modules/catalog/domain/models"
 import type { CartItem, OrderType } from "@/modules/orders/domain/models"
 import type { OrganizationProfile, OrganizationProfileInput, OrganizationProfileUpdate } from "@/modules/organization/domain/models"
+import type { LegalEntity, LegalEntityInput } from "@/modules/legal-entities/domain/models"
+import type { Branch, BranchInput, BranchUpdate } from "@/modules/branches/domain/models"
 import type {
   BestSellingProduct,
   DeliveryOrder,
@@ -47,6 +49,11 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   const [canUpdateOrganization, setCanUpdateOrganization] = useState(false)
   const [organizationLoading, setOrganizationLoading] = useState(false)
   const [organizationLoadError, setOrganizationLoadError] = useState<string | null>(null)
+  const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([])
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [canManageCorporateStructure, setCanManageCorporateStructure] = useState(false)
+  const [corporateStructureLoading, setCorporateStructureLoading] = useState(false)
+  const [corporateStructureLoadError, setCorporateStructureLoadError] = useState<string | null>(null)
   const [operationError, setOperationError] = useState("")
   const [reloadIndex, setReloadIndex] = useState(0)
 
@@ -92,6 +99,20 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     setTables(result)
   }, [])
 
+  const refreshCorporateStructure = useCallback(async (signal?: AbortSignal) => {
+    const [entityResult, branchResult] = await Promise.all([
+      posApplication.legalEntities.list(signal),
+      posApplication.branches.list(signal),
+    ])
+    if (signal?.aborted) return
+    setLegalEntities(entityResult.legal_entities)
+    setBranches(branchResult.branches)
+    setCanManageCorporateStructure(
+      entityResult.permissions.can_manage && branchResult.permissions.can_manage,
+    )
+    setCorporateStructureLoadError(null)
+  }, [])
+
   useEffect(() => {
     const controller = new AbortController()
     const attemptNumber = reloadIndex + 1
@@ -117,27 +138,38 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         }
         if (activeSection === "settings") {
           setOrganizationLoading(true)
+          setCorporateStructureLoading(true)
           setOrganizationLoadError(null)
+          setCorporateStructureLoadError(null)
           try {
             setSettings(await posApplication.settings.get(controller.signal))
             try {
               const result = await posApplication.organization.get(controller.signal)
               setOrganization(result.organization)
               setCanUpdateOrganization(result.permissions.can_update)
+              await refreshCorporateStructure(controller.signal)
             } catch (error) {
               if (error instanceof HttpError && error.status === 404) {
                 setOrganization(null)
                 setCanUpdateOrganization(false)
+                setLegalEntities([])
+                setBranches([])
+                setCanManageCorporateStructure(false)
               } else {
+                const message = error instanceof Error ? error.message : "No se pudo cargar la estructura corporativa."
+                setCorporateStructureLoadError(message)
                 throw error
               }
             }
           } catch (error) {
-            const message = error instanceof Error ? error.message : "No se pudo cargar el perfil corporativo."
+            const message = error instanceof Error ? error.message : "No se pudo cargar la configuración corporativa."
             setOrganizationLoadError(message)
             throw error
           } finally {
-            if (!controller.signal.aborted) setOrganizationLoading(false)
+            if (!controller.signal.aborted) {
+              setOrganizationLoading(false)
+              setCorporateStructureLoading(false)
+            }
           }
         }
       } catch (error) {
@@ -154,7 +186,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
 
     void loadSection()
     return () => controller.abort()
-  }, [activeSection, reloadIndex])
+  }, [activeSection, reloadIndex, refreshCorporateStructure])
 
   const visibleProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
@@ -273,6 +305,12 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     setOrganization(result.organization)
     setCanUpdateOrganization(result.permissions.can_update)
     setOrganizationLoadError(null)
+    setCorporateStructureLoading(true)
+    try {
+      await refreshCorporateStructure()
+    } finally {
+      setCorporateStructureLoading(false)
+    }
     toast({ title: "Organización creada", description: "Los datos corporativos quedaron registrados." })
   }
 
@@ -282,6 +320,42 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     setCanUpdateOrganization(result.permissions.can_update)
     setOrganizationLoadError(null)
     toast({ title: "Datos corporativos guardados" })
+  }
+
+  const handleCreateLegalEntity = async (input: LegalEntityInput) => {
+    await posApplication.legalEntities.create(input)
+    await refreshCorporateStructure()
+    toast({ title: "Entidad legal registrada" })
+  }
+
+  const handleUpdateLegalEntity = async (id: string, input: LegalEntityInput) => {
+    await posApplication.legalEntities.update(id, input)
+    await refreshCorporateStructure()
+    toast({ title: "Entidad legal actualizada" })
+  }
+
+  const handleCreateBranch = async (input: BranchInput) => {
+    await posApplication.branches.create(input)
+    await refreshCorporateStructure()
+    toast({ title: "Sucursal registrada" })
+  }
+
+  const handleUpdateBranch = async (id: string, input: BranchUpdate) => {
+    await posApplication.branches.update(id, input)
+    await refreshCorporateStructure()
+    toast({ title: "Sucursal actualizada" })
+  }
+
+  const handleAssignBranchLegalEntity = async (branchId: string, legalEntityId: string) => {
+    await posApplication.branches.assignLegalEntity(branchId, legalEntityId)
+    await refreshCorporateStructure()
+    toast({ title: "Entidad legal asociada a la sucursal" })
+  }
+
+  const handleRemoveBranchLegalEntity = async (branchId: string, legalEntityId: string) => {
+    await posApplication.branches.removeLegalEntity(branchId, legalEntityId)
+    await refreshCorporateStructure()
+    toast({ title: "Asociación legal retirada" })
   }
 
   const handleCreateCategory = async (name: string) => {
@@ -340,6 +414,17 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         organizationLoadError={organizationLoadError}
         onBootstrapOrganization={handleBootstrapOrganization}
         onUpdateOrganization={handleUpdateOrganization}
+        legalEntities={legalEntities}
+        branches={branches}
+        corporateStructureLoading={corporateStructureLoading}
+        corporateStructureLoadError={corporateStructureLoadError}
+        canManageCorporateStructure={canManageCorporateStructure}
+        onCreateLegalEntity={handleCreateLegalEntity}
+        onUpdateLegalEntity={handleUpdateLegalEntity}
+        onCreateBranch={handleCreateBranch}
+        onUpdateBranch={handleUpdateBranch}
+        onAssignBranchLegalEntity={handleAssignBranchLegalEntity}
+        onRemoveBranchLegalEntity={handleRemoveBranchLegalEntity}
       />
     )
   }
