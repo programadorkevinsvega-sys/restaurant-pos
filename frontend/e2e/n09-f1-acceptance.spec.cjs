@@ -124,7 +124,7 @@ test("N09-F1.6: las mesas y reservas se consultan desde las pantallas operativas
 })
 
 test("N09-F1: la navegación presenta las secciones principales sin errores de renderizado", async ({ page }) => {
-  for (const label of ["Menú", "Mesas", "Nuevo producto", "Reservaciones", "Entregas", "Contabilidad", "Configuración"]) {
+  for (const label of ["Punto de venta", "Catálogo", "Mesas", "Reservaciones", "Entregas", "Contabilidad", "Configuración"]) {
     await expect(page.getByRole("button", { name: label })).toBeVisible()
   }
   await expect(page.getByLabel("Sucursal activa")).toHaveValue(
@@ -135,10 +135,10 @@ test("N09-F1: la navegación presenta las secciones principales sin errores de r
 test("N09-F2.1: el catálogo maestro permite excluir y reactivar un producto por sucursal", async ({ page }, testInfo) => {
   const productLabel = "Disponible en sucursal: Producto E2E"
   const productOrderButton = page.getByRole("button", { name: "Agregar Producto E2E al pedido" })
-  await page.getByRole("button", { name: "Configuración" }).click()
-  await page.getByRole("tab", { name: "Menú" }).click()
+  await page.getByRole("button", { name: "Catálogo" }).click()
+  await page.getByRole("button", { name: "Surtido por sucursal" }).click()
 
-  const branchSelect = page.getByLabel("Sucursal del catálogo corporativo")
+  const branchSelect = page.getByLabel("Sucursal")
   await expect(branchSelect).toHaveValue(
     process.env.E2E_BRANCH_ID || "44444444-4444-4444-8444-444444444444",
   )
@@ -150,24 +150,65 @@ test("N09-F2.1: el catálogo maestro permite excluir y reactivar un producto por
   try {
     await checkbox.uncheck()
     await expect(page.getByText("Excluido de esta sucursal")).toBeVisible()
-    await page.getByRole("button", { name: "Menú", exact: true }).click()
+    await page.getByRole("button", { name: "Punto de venta", exact: true }).click()
     await expect(productOrderButton).toHaveCount(0)
     await testInfo.attach("catalogo-excluido-en-la-sucursal", {
       body: await page.screenshot({ fullPage: true, animations: "disabled" }),
       contentType: "image/png",
     })
   } finally {
-    await page.getByRole("button", { name: "Configuración" }).click()
-    await page.getByRole("tab", { name: "Menú" }).click()
+    await page.getByRole("button", { name: "Catálogo" }).click()
+    await page.getByRole("button", { name: "Surtido por sucursal" }).click()
     checkbox = page.getByRole("checkbox", { name: productLabel })
     await expect(checkbox).toBeVisible()
     if (!(await checkbox.isChecked())) await checkbox.check()
     await expect(page.getByText("Heredado y habilitado")).toBeVisible()
   }
-  await page.getByRole("button", { name: "Menú", exact: true }).click()
+  await page.getByRole("button", { name: "Punto de venta", exact: true }).click()
   await expect(productOrderButton).toBeVisible()
   await testInfo.attach("catalogo-reactivado-en-la-sucursal", {
     body: await page.screenshot({ fullPage: true, animations: "disabled" }),
     contentType: "image/png",
   })
+})
+
+
+test("N09-F2.1: productos y categorías tienen CRUD corporativo con baja lógica", async ({ page }) => {
+  const suffix = String(Date.now())
+  const originalProductName = `Producto CRUD ${suffix}`
+  const updatedProductName = `Producto editado ${suffix}`
+  const originalCategoryName = `Categoría CRUD ${suffix}`
+  const updatedCategoryName = `Categoría editada ${suffix}`
+  page.on("dialog", (dialog) => dialog.accept())
+
+  await page.getByRole("button", { name: "Catálogo" }).click()
+  await page.getByLabel("Nombre").fill(originalProductName)
+  await page.getByLabel("Categoría").selectOption("55555555-5555-4555-8555-555555555555")
+  await page.getByLabel("Descripción").fill("Producto creado por aceptación automatizada")
+  await page.getByLabel("Precio maestro").fill("18000")
+  await page.getByRole("button", { name: "Crear producto" }).click()
+  await expect(page.getByText(originalProductName, { exact: true })).toBeVisible()
+
+  const productCard = page.getByText(originalProductName, { exact: true }).locator("xpath=../..")
+  await productCard.getByRole("button", { name: "Editar" }).click()
+  await page.getByLabel("Nombre").fill(updatedProductName)
+  await page.getByRole("button", { name: "Guardar cambios" }).click()
+  await expect(page.getByText(updatedProductName, { exact: true })).toBeVisible()
+
+  const updatedCard = page.getByText(updatedProductName, { exact: true }).locator("xpath=../..")
+  await updatedCard.getByRole("button", { name: "Dar de baja" }).click()
+  await expect(updatedCard.getByText("Inactivo")).toBeVisible()
+
+  await page.getByRole("button", { name: "Categorías" }).click()
+  await page.getByPlaceholder("Nombre de categoría").fill(originalCategoryName)
+  await page.getByRole("button", { name: "Crear" }).click()
+  const categoryRow = page.getByText(originalCategoryName, { exact: true }).locator("xpath=../..")
+  await expect(categoryRow).toBeVisible()
+  await categoryRow.getByRole("button", { name: "Editar" }).click()
+  await page.getByDisplayValue(originalCategoryName).last().fill(updatedCategoryName)
+  await page.getByRole("button", { name: "Guardar categoría" }).click()
+  await expect(page.getByText(updatedCategoryName, { exact: true })).toBeVisible()
+  const updatedCategoryRow = page.getByText(updatedCategoryName, { exact: true }).locator("xpath=../..")
+  await updatedCategoryRow.getByRole("button", { name: "Dar de baja" }).click()
+  await expect(updatedCategoryRow.getByText("Inactiva")).toBeVisible()
 })

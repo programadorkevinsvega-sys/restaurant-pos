@@ -192,3 +192,70 @@ test("administrative branch catalog routes validate scope and pass the actor", a
     ])
   })
 })
+
+
+test("corporate catalog CRUD routes validate payloads and pass authenticated actors", async () => {
+  const calls = []
+  const catalog = {
+    listCorporateProducts: async () => [],
+    listCorporateCategories: async () => [],
+    updateProduct: async (id, input, actor) => {
+      calls.push(["update-product", id, input, actor.userId])
+      return { id, ...input }
+    },
+    deactivateProduct: async (id, actor) => {
+      calls.push(["deactivate-product", id, actor.userId])
+      return { success: true, deactivated: true }
+    },
+    updateCategory: async (id, input, actor) => {
+      calls.push(["update-category", id, input, actor.userId])
+      return { id, ...input }
+    },
+    deactivateCategory: async (id, actor) => {
+      calls.push(["deactivate-category", id, actor.userId])
+      return { success: true, deactivated: true }
+    },
+  }
+  const app = createApp()
+  app.use("/api/admin", createAdminCatalogRoutes(catalog, authenticate, () => {}, (request, response, next) => next()))
+  app.use(errorHandler)
+
+  await withServer(app, async (baseUrl) => {
+    const headers = { "X-Test-User": owner.userId, "Content-Type": "application/json" }
+    const productInput = {
+      name: "Gaseosa", description: "500 ml", price: 25000, image_url: null,
+      discount_percentage: 0, type: "Veg", category_id: categoryId,
+    }
+    const updated = await fetch(`${baseUrl}/api/admin/products/${productId}`, {
+      method: "PATCH", headers, body: JSON.stringify(productInput),
+    })
+    assert.equal(updated.status, 200)
+    assert.equal((await updated.json()).name, "Gaseosa")
+
+    const invalid = await fetch(`${baseUrl}/api/admin/products/${productId}`, {
+      method: "PATCH", headers, body: JSON.stringify({ ...productInput, type: "invalid" }),
+    })
+    assert.equal(invalid.status, 400)
+
+    const archived = await fetch(`${baseUrl}/api/admin/products/${productId}`, {
+      method: "DELETE", headers,
+    })
+    assert.equal(archived.status, 200)
+    assert.deepEqual(await archived.json(), { success: true, deactivated: true })
+
+    const categoryUpdate = await fetch(`${baseUrl}/api/admin/categories/${categoryId}`, {
+      method: "PATCH", headers, body: JSON.stringify({ name: "Bebidas frías", icon: "Coffee" }),
+    })
+    assert.equal(categoryUpdate.status, 200)
+
+    const categoryArchive = await fetch(`${baseUrl}/api/admin/categories/${categoryId}`, {
+      method: "DELETE", headers,
+    })
+    assert.equal(categoryArchive.status, 200)
+
+    assert.deepEqual(calls.map((call) => call[0]), [
+      "update-product", "deactivate-product", "update-category", "deactivate-category",
+    ])
+    assert.ok(calls.every((call) => call.at(-1) === owner.userId))
+  })
+})

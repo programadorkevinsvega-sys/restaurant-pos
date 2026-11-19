@@ -10,13 +10,13 @@ import { FoodGrid } from "@/components/food-grid"
 import { Footer } from "@/components/footer"
 import { Header } from "@/components/header"
 import { OperationsPanel } from "@/components/operations/operations-panel"
-import { ProductForm } from "@/components/admin/product-form"
+import { CatalogManagementPanel } from "@/components/catalog/catalog-management-panel"
 import { SidebarNav, type AppSection } from "@/components/sidebar-nav"
 import { TableManagement } from "@/components/tables/table-management"
 import { toast } from "@/hooks/use-toast"
 import { posApplication } from "@/modules/pos/infrastructure/container"
 import { HttpError, type AuthenticatedUser } from "@/shared/infrastructure/http-client"
-import type { BranchCatalogProduct, Category, NewProduct, Product } from "@/modules/catalog/domain/models"
+import type { BranchCatalogProduct, Category, Product } from "@/modules/catalog/domain/models"
 import type { CartItem, OrderSummary, OrderType } from "@/modules/orders/domain/models"
 import type {
   OrganizationHistoryFilters,
@@ -79,6 +79,10 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   const [corporateStructureLoadError, setCorporateStructureLoadError] = useState<string | null>(null)
   const [operationError, setOperationError] = useState("")
   const [reloadIndex, setReloadIndex] = useState(0)
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([])
+  const [catalogCategories, setCatalogCategories] = useState<Category[]>([])
+  const [catalogBranchProducts, setCatalogBranchProducts] = useState<BranchCatalogProduct[]>([])
+  const [selectedCatalogBranchId, setSelectedCatalogBranchId] = useState("")
 
   useEffect(() => {
     const controller = new AbortController()
@@ -177,6 +181,35 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     )
     setCorporateStructureLoadError(null)
   }, [])
+
+  useEffect(() => {
+    if (activeSection !== "catalog") return
+    const controller = new AbortController()
+    setCorporateStructureLoading(true)
+    void (async () => {
+      try {
+        await refreshCorporateStructure(controller.signal)
+        const branchResult = await posApplication.branches.list(controller.signal)
+        const [masterProducts, masterCategories] = await Promise.all([
+          posApplication.corporateCatalog.listProducts(),
+          posApplication.corporateCatalog.listCategories(),
+        ])
+        if (controller.signal.aborted) return
+        setBranches(branchResult.branches)
+        setCatalogProducts(masterProducts)
+        setCatalogCategories(masterCategories)
+        const selected = selectedCatalogBranchId && branchResult.branches.some((branch) => branch.id === selectedCatalogBranchId)
+          ? selectedCatalogBranchId : branchResult.branches[0]?.id ?? ""
+        setSelectedCatalogBranchId(selected)
+        setCatalogBranchProducts(selected ? await posApplication.corporateCatalog.listBranchProducts(selected) : [])
+      } catch (error) {
+        if (!controller.signal.aborted) setCorporateStructureLoadError(error instanceof Error ? error.message : "No se pudo cargar el catálogo corporativo.")
+      } finally {
+        if (!controller.signal.aborted) setCorporateStructureLoading(false)
+      }
+    })()
+    return () => controller.abort()
+  }, [activeSection, refreshCorporateStructure, selectedCatalogBranchId])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -366,20 +399,15 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     }
   }, [cartItems])
 
-  const handleCreateProduct = async (product: NewProduct) => {
-    try {
-      await posApplication.createProduct.execute(product)
-      setActiveCategory("all")
-      setActiveSection("menu")
-      toast({ title: "Producto creado", description: `${product.name} se agregó al menú.` })
-    } catch (error) {
-      toast({
-        title: "No se pudo crear el producto",
-        description: error instanceof Error ? error.message : "Error desconocido.",
-        variant: "destructive",
-      })
-    }
-  }
+  const refreshCatalogManagement = useCallback(async (branchId = selectedCatalogBranchId) => {
+    const [nextProducts, nextCategories] = await Promise.all([
+      posApplication.corporateCatalog.listProducts(),
+      posApplication.corporateCatalog.listCategories(),
+    ])
+    setCatalogProducts(nextProducts)
+    setCatalogCategories(nextCategories)
+    if (branchId) setCatalogBranchProducts(await posApplication.corporateCatalog.listBranchProducts(branchId))
+  }, [selectedCatalogBranchId])
 
   const handleCreateTable = async (number: string, capacity: number) => {
     try {
@@ -547,48 +575,12 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     toast({ title: "Asignación de sucursal retirada" })
   }
 
-  const handleListBranchCatalogProducts = useCallback(
-    (branchId: string): Promise<BranchCatalogProduct[]> =>
-      posApplication.corporateCatalog.listBranchProducts(branchId),
-    [],
-  )
-
-  const handleSetBranchCatalogProductEnabled = useCallback(async (
-    branchId: string,
-    productId: string,
-    enabled: boolean,
-  ) => {
-    await posApplication.corporateCatalog.setBranchProductEnabled(branchId, productId, enabled)
-    if (activeBranchId === branchId) {
-      const [nextCategories, nextProducts] = await Promise.all([
-        posApplication.listCatalog.getCategories(),
-        posApplication.listCatalog.getProducts(activeCategory === "all" ? undefined : activeCategory),
-      ])
-      setCategories(nextCategories)
-      setProducts(nextProducts)
-      if (!enabled) {
-        setCartItems((current) => current.filter((item) => item.product.id !== productId))
-      }
-    }
-    toast({
-      title: enabled ? "Producto habilitado" : "Producto excluido de la sucursal",
-      description: "El catálogo de la sucursal quedó actualizado.",
-    })
-  }, [activeBranchId, activeCategory])
-
-  const handleCreateCategory = async (name: string) => {
-    const category = await posApplication.createCategory.execute(name)
-    setCategories((current) => [...current, category].sort((a, b) => a.name.localeCompare(b.name)))
-    toast({ title: "Categoría creada" })
-  }
-
   const renderSection = () => {
     if (activeSection === "menu") {
       return (
         <main className="min-w-0 flex-1 space-y-4 overflow-auto p-4">
           <CategoryFilter
-            categories={categories}
-            activeCategory={activeCategory}
+                activeCategory={activeCategory}
             onSelectCategory={(categoryId) => {
               setIsLoading(true)
               setActiveCategory(categoryId)
@@ -600,6 +592,33 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         </main>
       )
     }
+    if (activeSection === "catalog") {
+      return (
+        <CatalogManagementPanel
+          branches={branches}
+          canManage={canManageCorporateStructure}
+          loading={corporateStructureLoading}
+          products={catalogProducts}
+          categories={catalogCategories}
+          branchProducts={catalogBranchProducts}
+          selectedBranchId={selectedCatalogBranchId}
+          onSelectBranch={async (id) => {
+            setSelectedCatalogBranchId(id)
+            setCatalogBranchProducts(await posApplication.corporateCatalog.listBranchProducts(id))
+          }}
+          onCreateProduct={async (input) => { await posApplication.corporateCatalog.createProduct(input); await refreshCatalogManagement() }}
+          onUpdateProduct={async (id, input) => { await posApplication.corporateCatalog.updateProduct(id, input); await refreshCatalogManagement() }}
+          onDeactivateProduct={async (id) => { await posApplication.corporateCatalog.deactivateProduct(id); await refreshCatalogManagement() }}
+          onCreateCategory={async (name) => { await posApplication.corporateCatalog.createCategory({ name, icon: "Grid" }); await refreshCatalogManagement() }}
+          onUpdateCategory={async (id, name) => { await posApplication.corporateCatalog.updateCategory(id, { name, icon: "Grid" }); await refreshCatalogManagement() }}
+          onDeactivateCategory={async (id) => { await posApplication.corporateCatalog.deactivateCategory(id); await refreshCatalogManagement() }}
+          onSetProductEnabled={async (branchId, productId, enabled) => {
+            await posApplication.corporateCatalog.setBranchProductEnabled(branchId, productId, enabled)
+            await refreshCatalogManagement(branchId)
+          }}
+        />
+      )
+    }
     if (activeSection === "tables") {
       return (
         <TableManagement
@@ -609,13 +628,6 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
           onCreate={handleCreateTable}
           onUpdateTable={handleUpdateTableStatus}
         />
-      )
-    }
-    if (activeSection === "add-product") {
-      return (
-        <main className="flex-1 overflow-auto p-6">
-          <ProductForm categories={categories} onSubmit={handleCreateProduct} onCancel={() => setActiveSection("menu")} />
-        </main>
       )
     }
     return (
@@ -634,9 +646,6 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         canWriteOperationalData={availableBranches.some((branch) => branch.id === activeBranchId && branch.status === "active")}
         onAssignDriver={handleAssignDriver}
         onUpdateSettings={handleUpdateSettings}
-        onCreateCategory={handleCreateCategory}
-        onListBranchCatalogProducts={handleListBranchCatalogProducts}
-        onSetBranchCatalogProductEnabled={handleSetBranchCatalogProductEnabled}
         organization={organization}
         organizationLoading={organizationLoading}
         canUpdateOrganization={canUpdateOrganization}
@@ -680,7 +689,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Header query={query} onQueryChange={setQuery} onLogout={onLogout} branches={availableBranches} activeBranchId={activeBranchId} onActiveBranchChange={handleActiveBranchChange} />
-        {operationError && activeSection !== "menu" && activeSection !== "add-product" && (
+        {operationError && activeSection !== "menu" && (
           <div role="alert" className="mx-4 mt-3 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             <span>{operationError}</span>
             <Button variant="outline" size="sm" onClick={() => setReloadIndex((current) => current + 1)}>Reintentar</Button>

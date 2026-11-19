@@ -1024,6 +1024,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "011_branch_scoped_tables_and_reservations.sql",
         "012_organization_change_history.sql",
         "013_corporate_catalog_branch_assortment.sql",
+        "014_corporate_catalog_crud_and_order_snapshots.sql",
       ],
     )
 
@@ -1255,6 +1256,25 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(persistedOrder.rows[0].branch_id, branchId)
     assert.equal(persistedOrder.rows[0].legal_entity_id, legalEntityIds[0])
     assert.equal(persistedOrder.rows[0].created_by_user_id, organizationStaffId)
+
+    const orderItemSnapshot = await runtime.query(
+      "SELECT product_name_at_order, product_image_url_at_order FROM public.order_items WHERE order_id = $1",
+      [orderId],
+    )
+    assert.equal(orderItemSnapshot.rows[0].product_name_at_order, "CI integration product")
+    await migrator.query("UPDATE public.products SET name = 'Renamed corporate product' WHERE id = $1", [productId])
+    const preservedOrderItemSnapshot = await runtime.query(
+      "SELECT product_name_at_order FROM public.order_items WHERE order_id = $1",
+      [orderId],
+    )
+    assert.equal(preservedOrderItemSnapshot.rows[0].product_name_at_order, "CI integration product")
+    await assert.rejects(
+      migrator.query(
+        "UPDATE public.order_items SET product_name_at_order = 'tampered' WHERE order_id = $1",
+        [orderId],
+      ),
+      (error) => error.code === "23514",
+    )
 
     await assert.rejects(
       migrator.query(
@@ -1593,6 +1613,28 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       ),
       /Invalid order type/,
     )
+
+    await assert.rejects(
+      runtime.query("UPDATE public.categories SET is_active = false WHERE id = $1", [categoryId]),
+      (error) => error.code === "23514" && error.message.includes("CATEGORY_HAS_ACTIVE_PRODUCTS"),
+    )
+
+    await runtime.query("UPDATE public.products SET is_active = false WHERE id = $1", [productId])
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Inactive product", "Integration test", "Para llevar",
+          JSON.stringify([{ id: productId, quantity: 1 }]), null, null,
+          branchId, legalEntityIds[0], organizationStaffId],
+      ),
+      (error) => error.code === "23514" && error.message.includes("PRODUCT_NOT_ACTIVE"),
+    )
+    await runtime.query("UPDATE public.categories SET is_active = false WHERE id = $1", [categoryId])
+    const preservedSnapshotAfterDeactivation = await runtime.query(
+      "SELECT product_name_at_order FROM public.order_items WHERE order_id = $1",
+      [orderId],
+    )
+    assert.equal(preservedSnapshotAfterDeactivation.rows[0].product_name_at_order, "CI integration product")
   } finally {
     // The integration database is isolated and starts empty. Remove organization
     // audit fixtures before deleting the referenced branch/organization rows.

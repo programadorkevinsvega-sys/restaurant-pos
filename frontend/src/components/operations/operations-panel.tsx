@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { BranchCatalogProduct, Category } from "@/modules/catalog/domain/models"
-import { CorporateCatalogManagementCard } from "@/components/catalog/corporate-catalog-management-card"
 import type {
   BestSellingProduct,
   DeliveryOrder,
@@ -51,16 +49,12 @@ interface OperationsPanelProps {
   salesReport: SalesReport | null
   bestSellingProducts: BestSellingProduct[]
   settings: RestaurantSettings
-  categories: Category[]
   onCreateReservation: (reservation: Omit<Reservation, "id" | "status">) => Promise<void>
   onUpdateReservationStatus: (id: string, status: Reservation["status"]) => Promise<void>
   onListReservations: (filters: ReservationFilters) => Promise<void>
   canWriteOperationalData: boolean
   onAssignDriver: (orderId: string, name: string, phone: string, eta: string) => Promise<void>
   onUpdateSettings: (settings: RestaurantSettings) => Promise<void>
-  onCreateCategory: (name: string) => Promise<void>
-  onListBranchCatalogProducts: (branchId: string) => Promise<BranchCatalogProduct[]>
-  onSetBranchCatalogProductEnabled: (branchId: string, productId: string, enabled: boolean) => Promise<void>
   organization: OrganizationProfile | null
   organizationLoading: boolean
   canUpdateOrganization: boolean
@@ -115,10 +109,9 @@ function getErrorMessage(error: unknown) {
 
 export function OperationsPanel(props: OperationsPanelProps) {
   const {
-    section, tables, reservations, deliveries, salesReport, bestSellingProducts, settings, categories,
+    section, tables, reservations, deliveries, salesReport, bestSellingProducts, settings,
     onCreateReservation, onUpdateReservationStatus, onListReservations, canWriteOperationalData,
-    onAssignDriver, onUpdateSettings, onCreateCategory,
-    onListBranchCatalogProducts, onSetBranchCatalogProductEnabled,
+    onAssignDriver, onUpdateSettings,
     organization, organizationLoading, canUpdateOrganization, canBootstrapOrganization, organizationLoadError,
     onBootstrapOrganization, onUpdateOrganization, onListOrganizationHistory,
     legalEntities, branches, branchUsersByBranch, branchLifecycleEventsByBranch, corporateStructureLoading, corporateStructureLoadError,
@@ -128,7 +121,6 @@ export function OperationsPanel(props: OperationsPanelProps) {
     onListBranchCalendar, onSaveBranchCalendarException, onDeleteBranchCalendarException,
   } = props
   const [busy, setBusy] = useState(false)
-  const [categoryName, setCategoryName] = useState("")
   const [message, setMessage] = useState("")
 
   const run = async (operation: () => Promise<void>) => {
@@ -226,7 +218,6 @@ export function OperationsPanel(props: OperationsPanelProps) {
           <TabsTrigger value="organization" className="min-w-fit flex-1">Organización</TabsTrigger>
           <TabsTrigger value="legal-entities" className="min-w-fit flex-1">Entidades legales</TabsTrigger>
           <TabsTrigger value="branches" className="min-w-fit flex-1">Sucursales</TabsTrigger>
-          <TabsTrigger value="menu" className="min-w-fit flex-1">Menú</TabsTrigger>
           <TabsTrigger value="preferences" className="min-w-fit flex-1">Preferencias</TabsTrigger>
           <TabsTrigger value="history" className="min-w-fit flex-1">Historial</TabsTrigger>
         </TabsList>
@@ -296,49 +287,6 @@ export function OperationsPanel(props: OperationsPanelProps) {
             onListCalendar={onListBranchCalendar}
             onSaveCalendarException={onSaveBranchCalendarException}
             onDeleteCalendarException={onDeleteBranchCalendarException}
-          />
-        </TabsContent>
-
-        <TabsContent value="menu" className="mt-0 space-y-4">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Menú y categorías</h2>
-            <p className="text-sm text-muted-foreground">
-              Organiza las categorías utilizadas para clasificar los productos del menú.
-            </p>
-          </div>
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Categorías de menú</CardTitle></CardHeader>
-            <CardContent>
-              <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(event) => {
-                event.preventDefault()
-                void run(async () => { await onCreateCategory(categoryName); setCategoryName("") })
-              }}>
-                <Input
-                  required
-                  value={categoryName}
-                  onChange={(event) => setCategoryName(event.target.value)}
-                  placeholder="Nombre de categoría"
-                />
-                <Button type="submit" disabled={busy}>Agregar categoría</Button>
-              </form>
-              <ul className="mt-4 flex flex-wrap gap-2">
-                {categories.map((category) => (
-                  <li className="rounded-full bg-muted px-3 py-1 text-sm" key={category.id}>
-                    {category.name}
-                  </li>
-                ))}
-              </ul>
-              {categories.length === 0 && (
-                <p className="mt-4 text-sm text-muted-foreground">Todavía no hay categorías registradas.</p>
-              )}
-            </CardContent>
-          </Card>
-          <CorporateCatalogManagementCard
-            branches={branches}
-            loading={corporateStructureLoading}
-            canManage={canManageCorporateStructure}
-            onListProducts={onListBranchCatalogProducts}
-            onSetProductEnabled={onSetBranchCatalogProductEnabled}
           />
         </TabsContent>
 

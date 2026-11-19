@@ -6,9 +6,8 @@ export class CreateCategory {
 
   execute(name: string) {
     const normalizedName = name.trim()
-    if (!normalizedName) {
-      throw new Error("El nombre de la categoría es obligatorio.")
-    }
-    return traceOperation("catalog.create_category", () => this.catalog.createCategory(normalizedName))
+    if (!normalizedName) throw new Error("El nombre de la categoría es obligatorio.")
+    return traceOperation("catalog.create_category", () =>
+      this.catalog.createCategory({ name: normalizedName, icon: "Grid" }))
   }
 }
