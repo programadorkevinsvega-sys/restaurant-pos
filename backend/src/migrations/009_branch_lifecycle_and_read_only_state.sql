@@ -13,6 +13,9 @@ ALTER TABLE public.branches
       (status IN ('active', 'suspended') AND closed_at IS NULL AND closed_by_user_id IS NULL)
     );
 
+UPDATE public.branches
+SET status_changed_at = created_at;
+
 COMMENT ON COLUMN public.branches.status IS
   'Estado operativo: active, suspended o closed. Las sucursales no activas conservan consulta histórica.';
 COMMENT ON COLUMN public.branches.closed_at IS
@@ -115,12 +118,12 @@ BEGIN
     RETURN 'BRANCH_NOT_FOUND';
   END IF;
 
-  IF v_previous_status = 'closed' THEN
-    RETURN 'BRANCH_CLOSED';
-  END IF;
-
   IF v_previous_status = p_new_status THEN
     RETURN 'UNCHANGED';
+  END IF;
+
+  IF v_previous_status = 'closed' THEN
+    RETURN 'BRANCH_CLOSED';
   END IF;
 
   UPDATE public.branches
