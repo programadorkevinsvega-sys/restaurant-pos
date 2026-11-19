@@ -18,6 +18,10 @@ import {
 } from "@/modules/operations/infrastructure/http-operations-repository"
 import { ManageOrganizationProfile } from "@/modules/organization/application/manage-organization-profile"
 import { HttpOrganizationRepository } from "@/modules/organization/infrastructure/http-organization-repository"
+import { ManageLegalEntities } from "@/modules/legal-entities/application/manage-legal-entities"
+import { HttpLegalEntityRepository } from "@/modules/legal-entities/infrastructure/http-legal-entity-repository"
+import { ManageBranches } from "@/modules/branches/application/manage-branches"
+import { HttpBranchRepository } from "@/modules/branches/infrastructure/http-branch-repository"
 import { HttpClient } from "@/shared/infrastructure/http-client"
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL
@@ -42,4 +46,6 @@ export const posApplication = {
   accounting: new ReadAccountingReports(new HttpAccountingRepository(http)),
   settings: new ManageSettings(new HttpSettingsRepository(http)),
   organization: new ManageOrganizationProfile(new HttpOrganizationRepository(http)),
+  legalEntities: new ManageLegalEntities(new HttpLegalEntityRepository(http)),
+  branches: new ManageBranches(new HttpBranchRepository(http)),
 }
