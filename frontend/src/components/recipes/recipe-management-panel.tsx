@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,6 +9,7 @@ import type { ManageRecipes } from "@/modules/recipes/application/manage-recipes
 import type { Ingredient, IngredientInput, RecipeInput } from "@/modules/recipes/domain/models"
 
 type RecipeView = "ingredients" | "recipes"
+type RecipeComponentDraft = RecipeInput["ingredients"][number] & { key: string }
 
 interface RecipeManagementPanelProps {
   products: Product[]
@@ -31,7 +32,7 @@ export function RecipeManagementPanel({
   const [editingIngredient, setEditingIngredient] = useState<string | null>(null)
   const [productId, setProductId] = useState("")
   const [instructions, setInstructions] = useState("")
-  const [components, setComponents] = useState<RecipeInput["ingredients"]>([])
+  const [components, setComponents] = useState<RecipeComponentDraft[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
@@ -53,7 +54,7 @@ export function RecipeManagementPanel({
     Number(line.quantity) > 0,
   )
 
-  const loadIngredients = async () => {
+  const loadIngredients = useCallback(async () => {
     setLoadingIngredients(true)
     try {
       setIngredients(await application.listIngredients())
@@ -63,11 +64,11 @@ export function RecipeManagementPanel({
     } finally {
       setLoadingIngredients(false)
     }
-  }
+  }, [application])
 
   useEffect(() => {
     void loadIngredients()
-  }, [application])
+  }, [loadIngredients])
 
   useEffect(() => {
     let active = true
@@ -82,7 +83,8 @@ export function RecipeManagementPanel({
       .then((recipe) => {
         if (!active) return
         setInstructions(recipe?.preparation_instructions ?? "")
-        setComponents(recipe?.ingredients.map((line) => ({
+        setComponents(recipe?.ingredients.map((line, index) => ({
+          key: line.ingredient_id + "-" + index,
           ingredient_id: line.ingredient_id,
           quantity: line.quantity,
         })) ?? [])
@@ -189,18 +191,20 @@ export function RecipeManagementPanel({
           <Card>
             <CardHeader><CardTitle>{editingIngredient ? "Editar ingrediente" : "Crear ingrediente corporativo"}</CardTitle></CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2">
-              <label className="grid gap-1 text-sm">
+              <label htmlFor="ingredient-name" className="grid gap-1 text-sm">
                 Nombre del ingrediente
                 <Input
+                  id="ingredient-name"
                   value={ingredientForm.name}
                   maxLength={120}
                   disabled={!canManage || loading || busy}
                   onChange={(event) => setIngredientForm({ ...ingredientForm, name: event.target.value })}
                 />
               </label>
-              <label className="grid gap-1 text-sm">
+              <label htmlFor="ingredient-unit-code" className="grid gap-1 text-sm">
                 Código de unidad
                 <Input
+                  id="ingredient-unit-code"
                   value={ingredientForm.unit_code}
                   maxLength={16}
                   placeholder="g, kg, ml, unidad"
@@ -208,9 +212,10 @@ export function RecipeManagementPanel({
                   onChange={(event) => setIngredientForm({ ...ingredientForm, unit_code: event.target.value.toLowerCase() })}
                 />
               </label>
-              <label className="grid gap-1 text-sm md:col-span-2">
+              <label htmlFor="ingredient-description" className="grid gap-1 text-sm md:col-span-2">
                 Descripción
                 <Input
+                  id="ingredient-description"
                   value={ingredientForm.description ?? ""}
                   maxLength={1000}
                   disabled={!canManage || loading || busy}
@@ -305,13 +310,13 @@ export function RecipeManagementPanel({
                     type="button"
                     variant="outline"
                     disabled={!canManage || !productId || loadingRecipe || busy || activeIngredients.length === 0}
-                    onClick={() => setComponents((current) => [...current, { ingredient_id: "", quantity: "1" }])}
+                    onClick={() => setComponents((current) => [...current, { key: crypto.randomUUID(), ingredient_id: "", quantity: "1" }])}
                   >
                     Agregar ingrediente
                   </Button>
                 </div>
                 {components.map((line, index) => (
-                  <div key={index} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[minmax(0,1fr)_140px_auto] sm:items-end">
+                  <div key={line.key} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[minmax(0,1fr)_140px_auto] sm:items-end">
                     <label className="grid gap-1 text-sm">
                       Ingrediente {index + 1}
                       <select
@@ -325,9 +330,10 @@ export function RecipeManagementPanel({
                         {activeIngredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} ({ingredient.unit_code})</option>)}
                       </select>
                     </label>
-                    <label className="grid gap-1 text-sm">
+                    <label htmlFor={"recipe-component-quantity-" + line.key} className="grid gap-1 text-sm">
                       Cantidad {index + 1}
                       <Input
+                        id={"recipe-component-quantity-" + line.key}
                         aria-label={"Cantidad de componente " + (index + 1)}
                         type="number"
                         min="0.000001"
