@@ -40,11 +40,73 @@ function formatDate(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
 }
 
-function stateSummary(value: Record<string, unknown> | null) {
-  if (!value) return "—"
-  return Object.entries(value)
-    .map(([key, current]) => `${key}: ${typeof current === "string" ? current : JSON.stringify(current)}`)
-    .join(" · ")
+const historyFieldLabels: Record<string, string> = {
+  name: "Nombre",
+  commercial_name: "Nombre comercial",
+  contact_email: "Correo de contacto",
+  contact_phone: "Teléfono de contacto",
+  website_url: "Sitio web",
+  headquarters_address: "Domicilio corporativo",
+  line_1: "Dirección",
+  line_2: "Complemento",
+  locality: "Ciudad o localidad",
+  administrative_area: "Departamento o región",
+  postal_code: "Código postal",
+  country_code: "País",
+  legal_name: "Razón social",
+  tax_country_code: "País de identificación",
+  tax_identifier_type: "Tipo de identificación tributaria",
+  tax_identifier: "Identificación tributaria (enmascarada)",
+  registered_address: "Domicilio registrado",
+  code: "Código de sucursal",
+  status: "Estado",
+  branch_id: "Sucursal",
+  legal_entity_id: "Entidad legal",
+  branch_code: "Código de sucursal",
+  operational_address: "Dirección operativa",
+  time_zone: "Zona horaria",
+  currency_code: "Moneda declarada",
+  weekly_hours: "Horario semanal",
+  local_date: "Fecha local",
+  kind: "Tipo de excepción",
+  reason: "Motivo",
+  opens_at: "Hora de apertura",
+  closes_at: "Hora de cierre",
+  closes_next_day: "Cierra al día siguiente",
+  weekday: "Día de la semana",
+}
+
+function humanizeHistoryField(key: string) {
+  return historyFieldLabels[key] ?? key.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase())
+}
+
+function formatHistoryValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "Sin dato"
+  if (typeof value === "boolean") return value ? "Sí" : "No"
+  if (Array.isArray(value)) return value.map((item) => formatHistoryValue(item)).join(" · ")
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, nested]) => `${humanizeHistoryField(key)}: ${formatHistoryValue(nested)}`)
+      .join(" · ")
+  }
+  return String(value)
+}
+
+function SnapshotDetails({ value }: { value: Record<string, unknown> | null }) {
+  if (!value) return <p className="text-sm text-muted-foreground">Sin información anterior o posterior.</p>
+  const entries = Object.entries(value)
+  if (entries.length === 0) return <p className="text-sm text-muted-foreground">Sin cambios registrados.</p>
+
+  return (
+    <dl className="grid gap-2">
+      {entries.map(([key, current]) => (
+        <div key={key} className="grid gap-0.5">
+          <dt className="text-xs font-medium text-muted-foreground">{humanizeHistoryField(key)}</dt>
+          <dd className="break-words text-sm">{formatHistoryValue(current)}</dd>
+        </div>
+      ))}
+    </dl>
+  )
 }
 
 function HistoryEventCard({
@@ -79,16 +141,16 @@ function HistoryEventCard({
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <div className="min-w-0">
               <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Anterior</p>
-              <p className="break-words">{stateSummary(event.before_state)}</p>
+              <SnapshotDetails value={event.before_state} />
             </div>
             <div className="min-w-0">
               <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Nuevo</p>
-              <p className="break-words">{stateSummary(event.after_state)}</p>
+              <SnapshotDetails value={event.after_state} />
             </div>
           </div>
           {Object.keys(event.metadata).length > 0 && (
             <p className="mt-3 break-words text-xs text-muted-foreground">
-              {stateSummary(event.metadata)}
+              <SnapshotDetails value={event.metadata} />
             </p>
           )}
         </details>
