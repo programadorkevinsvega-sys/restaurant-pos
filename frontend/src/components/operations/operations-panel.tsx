@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { Category } from "@/modules/catalog/domain/models"
 import type {
   BestSellingProduct,
@@ -233,68 +234,168 @@ export function OperationsPanel(props: OperationsPanelProps) {
 
   return (
     <section className="flex-1 space-y-6 overflow-auto p-6">
-      <div><h1 className="text-2xl font-bold">Configuración</h1><p className="text-sm text-muted-foreground">Ajustes del restaurante guardados en el backend.</p></div>
+      <header className="space-y-1">
+        <h1 className="text-2xl font-bold">Configuración</h1>
+        <p className="text-sm text-muted-foreground">
+          Administra la organización, su estructura y los parámetros operativos desde grupos independientes.
+        </p>
+      </header>
+
       {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
-      <OrganizationProfileCard
-        organization={organization}
-        loading={organizationLoading}
-        canUpdate={canUpdateOrganization}
-        canBootstrap={canBootstrapOrganization}
-        loadError={organizationLoadError}
-        onBootstrap={onBootstrapOrganization}
-        onUpdate={onUpdateOrganization}
-      />
-      {corporateStructureLoadError && (
-        <p role="alert" className="text-sm text-destructive">{corporateStructureLoadError}</p>
-      )}
-      <LegalEntityManagementCard
-        legalEntities={legalEntities}
-        loading={corporateStructureLoading}
-        canManage={canManageCorporateStructure}
-        onCreate={onCreateLegalEntity}
-        onUpdate={onUpdateLegalEntity}
-      />
-      <BranchManagementCard
-        branches={branches}
-        legalEntities={legalEntities}
-        usersByBranch={branchUsersByBranch}
-        lifecycleEventsByBranch={branchLifecycleEventsByBranch}
-        loading={corporateStructureLoading}
-        canManage={canManageCorporateStructure}
-        onCreate={onCreateBranch}
-        onUpdate={onUpdateBranch}
-        onChangeStatus={onChangeBranchStatus}
-        onAssign={onAssignBranchLegalEntity}
-        onRemove={onRemoveBranchLegalEntity}
-        onAssignUser={onAssignBranchUser}
-        onRemoveUser={onRemoveBranchUser}
-        onSaveLocalConfiguration={onSaveBranchLocalConfiguration}
-        onListCalendar={onListBranchCalendar}
-        onSaveCalendarException={onSaveBranchCalendarException}
-        onDeleteCalendarException={onDeleteBranchCalendarException}
-      />
-      <Card><CardHeader><CardTitle className="text-lg">Categorías de menú</CardTitle></CardHeader><CardContent>
-        <form className="flex gap-2" onSubmit={(event) => {
-          event.preventDefault()
-          void run(async () => { await onCreateCategory(categoryName); setCategoryName("") })
-        }}>
-          <Input required value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="Nombre de categoría" />
-          <Button type="submit" disabled={busy}>Agregar</Button>
-        </form>
-        <ul className="mt-4 flex flex-wrap gap-2">{categories.map((category) => <li className="rounded-full bg-muted px-3 py-1 text-sm" key={category.id}>{category.name}</li>)}</ul>
-      </CardContent></Card>
-      <Card><CardHeader><CardTitle className="text-lg">Preferencias</CardTitle></CardHeader><CardContent>
-        <form className="space-y-3" onSubmit={(event) => {
-          event.preventDefault()
-          const form = new FormData(event.currentTarget)
-          const nextSettings = Object.fromEntries([...form.entries()].map(([key, value]) => [key, String(value)]))
-          void run(() => onUpdateSettings(nextSettings))
-        }}>
-          {Object.entries(settings).map(([key, value]) => <label htmlFor={`setting-${key}`} key={key} className="grid gap-1 text-sm font-medium">{key}<Input id={`setting-${key}`} name={key} defaultValue={value} /></label>)}
-          {Object.keys(settings).length === 0 && <p className="text-sm text-muted-foreground">No hay preferencias configuradas por el backend.</p>}
-          {Object.keys(settings).length > 0 && <Button type="submit" disabled={busy}>Guardar preferencias</Button>}
-        </form>
-      </CardContent></Card>
+
+      <Tabs defaultValue="organization" className="w-full space-y-5">
+        <TabsList
+          aria-label="Grupos de configuración"
+          className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-lg border bg-muted/50 p-1"
+        >
+          <TabsTrigger value="organization" className="min-w-fit flex-1">Organización</TabsTrigger>
+          <TabsTrigger value="legal-entities" className="min-w-fit flex-1">Entidades legales</TabsTrigger>
+          <TabsTrigger value="branches" className="min-w-fit flex-1">Sucursales</TabsTrigger>
+          <TabsTrigger value="menu" className="min-w-fit flex-1">Menú</TabsTrigger>
+          <TabsTrigger value="preferences" className="min-w-fit flex-1">Preferencias</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="organization" className="mt-0 space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold">Organización</h2>
+            <p className="text-sm text-muted-foreground">
+              Datos corporativos generales de la cadena. No son los datos fiscales de sus entidades legales.
+            </p>
+          </div>
+          <OrganizationProfileCard
+            organization={organization}
+            loading={organizationLoading}
+            canUpdate={canUpdateOrganization}
+            canBootstrap={canBootstrapOrganization}
+            loadError={organizationLoadError}
+            onBootstrap={onBootstrapOrganization}
+            onUpdate={onUpdateOrganization}
+          />
+        </TabsContent>
+
+        <TabsContent value="legal-entities" className="mt-0 space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold">Entidades legales</h2>
+            <p className="text-sm text-muted-foreground">
+              Administra las empresas y sus identificadores fiscales. Una sucursal puede operar con una o varias entidades legales.
+            </p>
+          </div>
+          {corporateStructureLoadError && (
+            <p role="alert" className="text-sm text-destructive">{corporateStructureLoadError}</p>
+          )}
+          <LegalEntityManagementCard
+            legalEntities={legalEntities}
+            loading={corporateStructureLoading}
+            canManage={canManageCorporateStructure}
+            onCreate={onCreateLegalEntity}
+            onUpdate={onUpdateLegalEntity}
+          />
+        </TabsContent>
+
+        <TabsContent value="branches" className="mt-0 space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold">Sucursales</h2>
+            <p className="text-sm text-muted-foreground">
+              Gestiona cada local, sus entidades habilitadas, usuarios, ciclo de vida, dirección, moneda, zona horaria y calendario operativo.
+            </p>
+          </div>
+          {corporateStructureLoadError && (
+            <p role="alert" className="text-sm text-destructive">{corporateStructureLoadError}</p>
+          )}
+          <BranchManagementCard
+            branches={branches}
+            legalEntities={legalEntities}
+            usersByBranch={branchUsersByBranch}
+            lifecycleEventsByBranch={branchLifecycleEventsByBranch}
+            loading={corporateStructureLoading}
+            canManage={canManageCorporateStructure}
+            onCreate={onCreateBranch}
+            onUpdate={onUpdateBranch}
+            onChangeStatus={onChangeBranchStatus}
+            onAssign={onAssignBranchLegalEntity}
+            onRemove={onRemoveBranchLegalEntity}
+            onAssignUser={onAssignBranchUser}
+            onRemoveUser={onRemoveBranchUser}
+            onSaveLocalConfiguration={onSaveBranchLocalConfiguration}
+            onListCalendar={onListBranchCalendar}
+            onSaveCalendarException={onSaveBranchCalendarException}
+            onDeleteCalendarException={onDeleteBranchCalendarException}
+          />
+        </TabsContent>
+
+        <TabsContent value="menu" className="mt-0 space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold">Menú y categorías</h2>
+            <p className="text-sm text-muted-foreground">
+              Organiza las categorías utilizadas para clasificar los productos del menú.
+            </p>
+          </div>
+          <Card>
+            <CardHeader><CardTitle className="text-lg">Categorías de menú</CardTitle></CardHeader>
+            <CardContent>
+              <form className="flex flex-col gap-2 sm:flex-row" onSubmit={(event) => {
+                event.preventDefault()
+                void run(async () => { await onCreateCategory(categoryName); setCategoryName("") })
+              }}>
+                <Input
+                  required
+                  value={categoryName}
+                  onChange={(event) => setCategoryName(event.target.value)}
+                  placeholder="Nombre de categoría"
+                />
+                <Button type="submit" disabled={busy}>Agregar categoría</Button>
+              </form>
+              <ul className="mt-4 flex flex-wrap gap-2">
+                {categories.map((category) => (
+                  <li className="rounded-full bg-muted px-3 py-1 text-sm" key={category.id}>
+                    {category.name}
+                  </li>
+                ))}
+              </ul>
+              {categories.length === 0 && (
+                <p className="mt-4 text-sm text-muted-foreground">Todavía no hay categorías registradas.</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="preferences" className="mt-0 space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold">Preferencias</h2>
+            <p className="text-sm text-muted-foreground">
+              Parámetros generales que el backend expone para la instalación del restaurante.
+            </p>
+          </div>
+          <Card>
+            <CardHeader><CardTitle className="text-lg">Preferencias generales</CardTitle></CardHeader>
+            <CardContent>
+              <form className="space-y-3" onSubmit={(event) => {
+                event.preventDefault()
+                const form = new FormData(event.currentTarget)
+                const nextSettings = Object.fromEntries(
+                  [...form.entries()].map(([key, value]) => [key, String(value)]),
+                )
+                void run(() => onUpdateSettings(nextSettings))
+              }}>
+                {Object.entries(settings).map(([key, value]) => (
+                  <label htmlFor={`setting-${key}`} key={key} className="grid gap-1 text-sm font-medium">
+                    {key}
+                    <Input id={`setting-${key}`} name={key} defaultValue={value} />
+                  </label>
+                ))}
+                {Object.keys(settings).length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No hay preferencias configuradas por el backend.
+                  </p>
+                )}
+                {Object.keys(settings).length > 0 && (
+                  <Button type="submit" disabled={busy}>Guardar preferencias</Button>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </section>
   )
 }
