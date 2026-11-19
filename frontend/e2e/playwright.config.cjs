@@ -7,6 +7,7 @@ if (!nodeModules) {
 }
 const requirePlaywright = createRequire(path.join(nodeModules, "package.json"))
 const { defineConfig, devices } = requirePlaywright("@playwright/test")
+const desktop = devices["Desktop Chrome"]
 
 module.exports = defineConfig({
   testDir: __dirname,
@@ -28,6 +29,21 @@ module.exports = defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
     actionTimeout: 10_000,
-    ...devices["Desktop Chrome"],
   },
+  projects: [
+    {
+      name: "desktop-chromium",
+      use: { ...desktop },
+    },
+    {
+      name: "mobile-chromium",
+      use: {
+        ...desktop,
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 3,
+      },
+    },
+  ],
 })

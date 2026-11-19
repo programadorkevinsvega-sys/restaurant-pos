@@ -2,7 +2,7 @@
 
 ## Propósito
 
-Esta suite comprueba la navegación real en Chromium, completa flujos de usuario contra el backend desplegado en un entorno CI aislado y adjunta capturas de cada requisito cubierto. No sustituye las pruebas unitarias, las pruebas PostgreSQL ni la aceptación visual por una persona responsable.
+Esta suite comprueba la navegación real en Chromium, completa flujos de usuario contra el backend desplegado en un entorno CI aislado y ejecuta cada caso en escritorio (1280×720) y móvil (390×844). Adjunta capturas y métricas de layout por requisito y viewport. No sustituye las pruebas unitarias, las pruebas PostgreSQL ni la aceptación visual por una persona responsable.
 
 ## Ejecución
 
@@ -27,14 +27,15 @@ Estas credenciales y fixtures solo existen en el PostgreSQL desechable del workf
 | N09-F1.4 | Dirección, zona horaria, moneda y calendario | Captura adjunta al test | Verificar guardar, consultar y eliminar excepción |
 | N09-F1.5 | Historial, actor y snapshots | Captura adjunta al test | Verificar filtros, paginación y enmascaramiento |
 | N09-F1.6 | Mesas y creación/consulta de reserva | Captura adjunta al test | Verificar aislamiento, lectura histórica y permisos |
+| N09-F2.1 | Catálogo maestro y disponibilidad por sucursal | Captura adjunta al test | Verificar exclusión local, restauración, aislamiento entre sucursales y bloqueo de pedidos con producto excluido |
 
 ## Evidencia visual
 
-Cada caso adjunta una captura completa de la pantalla obtenida después de ejecutar el flujo. El job publica `playwright-report` y `test-results` como artefactos aun cuando falle la suite.
+Cada caso adjunta una captura completa de la pantalla obtenida después de ejecutar el flujo en ambos viewports, más métricas de ancho/alto de documento y viewport. La suite falla si el documento o el body producen overflow horizontal fuera del viewport. El job publica `playwright-report` y `test-results` como artefactos aun cuando falle la suite.
 
 Una captura demuestra qué se renderizó durante la ejecución; por sí sola no demuestra calidad visual. La aceptación de cada requisito requiere que la persona revisora confirme, sobre esas capturas y la aplicación de destino:
 1. La información y acciones requeridas están presentes.
-2. No hay campos cortados, superpuestos, ilegibles ni fuera del viewport.
+2. No hay campos cortados, superpuestos, ilegibles ni fuera del viewport; la comprobación automática de overflow horizontal pasa tanto en escritorio como en móvil.
 3. Estados de carga, vacío, error, solo lectura y éxito son comprensibles.
 4. Los permisos y acciones disponibles corresponden al actor y sucursal activos.
 5. El flujo se puede completar sin usar endpoints manuales ni modificar datos fuera de la interfaz.
@@ -49,4 +50,4 @@ Una captura demuestra qué se renderizó durante la ejecución; por sí sola no 
 
 ## Alcance actual
 
-La primera suite automatiza recorridos positivos de navegador y adjunta evidencia de N09-F1.1–F1.6. Los casos de cierre terminal, autorización negativa, aislamiento entre sucursales, errores, estados vacíos y regresión de formularios se mantienen como criterios adicionales que no quedan cubiertos por una captura positiva y deben agregarse antes de declarar F1 aceptada. Las pruebas específicas de N09-F2.1–F2.5 se incorporarán al mismo esquema junto con la implementación real de cada subfase; no se crean pruebas verdes para pantallas o comportamientos que todavía no existen.
+La primera suite automatiza recorridos positivos de navegador y adjunta evidencia de N09-F1.1–F1.6. Los casos de cierre terminal, autorización negativa, aislamiento entre sucursales, errores, estados vacíos y regresión de formularios se mantienen como criterios adicionales que no quedan cubiertos por una captura positiva y deben agregarse antes de declarar F1 aceptada. F2.1 ya cuenta con un caso E2E inicial para excluir y reactivar un producto en una sucursal y verificar que desaparece del menú operativo; debe pasar CI y ampliarse con casos negativos de autorización/aislamiento antes de aceptar la subfase. Las pruebas de F2.2–F2.5 se incorporarán al mismo esquema junto con la implementación real de cada subfase; no se crean pruebas verdes para pantallas o comportamientos que todavía no existen.
