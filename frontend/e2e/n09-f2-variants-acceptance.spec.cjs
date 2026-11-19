@@ -109,6 +109,23 @@ async function ensureBranchActive(page) {
   await expect(page.getByText(/Estado: Activa/)).toBeVisible()
 }
 
+async function ensureProductEnabledForBranch(page) {
+  await page.getByRole("button", { name: "Catálogo", exact: true }).click()
+  await page.getByRole("button", { name: "Surtido por sucursal", exact: true }).click()
+  const checkbox = page.getByRole("checkbox", { name: "Disponible en sucursal: Producto E2E" })
+  await expect(checkbox).toBeVisible()
+  if (!(await checkbox.isChecked())) {
+    const responsePromise = page.waitForResponse((response) =>
+      response.url().endsWith("/api/admin/catalog/branches/" + branchId + "/products/" + productId) &&
+      response.request().method() === "PUT",
+    )
+    await checkbox.check()
+    const response = await responsePromise
+    expect(response.status()).toBe(200)
+  }
+  await expect(checkbox).toBeChecked()
+}
+
 async function setOptionInherited(page, optionName, reason) {
   const row = page.getByText(optionName, { exact: true }).locator("xpath=../..")
   if (await row.count()) {
@@ -139,6 +156,7 @@ test.afterEach(async ({ page }, testInfo) => {
 
 test("N09-F2.2 incremento 2: configurar variantes, restringir por sucursal y conservar snapshot en el pedido", async ({ page }) => {
   await ensureBranchActive(page)
+  await ensureProductEnabledForBranch(page)
   await page.getByRole("button", { name: "Variantes", exact: true }).click()
   await expect(page.getByRole("heading", { name: "Variantes y modificadores" })).toBeVisible()
   const productSelect = page.getByLabel("Producto del catálogo maestro")
@@ -196,7 +214,7 @@ test("N09-F2.2 incremento 2: configurar variantes, restringir por sucursal y con
   await dialog.getByLabel(presentationName + ": " + mediumName).check()
   await dialog.getByLabel(modifierName + ": " + cheeseName).check()
   await dialog.getByRole("button", { name: "Agregar al pedido" }).click()
-  await expect(page.getByText(mediumName + " · " + cheeseName, { exact: true })).toBeVisible()
+  await expect(page.getByText(cheeseName + " · " + mediumName, { exact: true })).toBeVisible()
 
   const orderResponsePromise = page.waitForResponse((response) =>
     response.url().endsWith("/api/orders") && response.request().method() === "POST",

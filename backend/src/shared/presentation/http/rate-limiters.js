@@ -33,6 +33,12 @@ export function globalRateLimitFor(environment) {
   return environment === "test" ? 5000 : 300
 }
 
+export function writeRateLimitFor(environment) {
+  // E2E scenarios exercise complete workflows and share one disposable test server.
+  // Production and development retain the 30-write budget per minute.
+  return environment === "test" ? 5000 : 30
+}
+
 export async function createRateLimiters(config, logger) {
   let client
 
@@ -75,7 +81,7 @@ export async function createRateLimiters(config, logger) {
 
   return {
     global: createLimiter("global", globalRateLimitFor(config.NODE_ENV), 15 * 60 * 1000),
-    writes: createLimiter("writes", 30, 60 * 1000),
+    writes: createLimiter("writes", writeRateLimitFor(config.NODE_ENV), 60 * 1000),
     login: createLimiter("login", 5, 15 * 60 * 1000),
     redisClient: client,
     close: async () => {

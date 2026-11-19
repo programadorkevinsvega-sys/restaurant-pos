@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { ipKeyGenerator } from "express-rate-limit"
-import { createRateLimitKeyGenerator, globalRateLimitFor } from "../src/shared/presentation/http/rate-limiters.js"
+import { createRateLimitKeyGenerator, globalRateLimitFor, writeRateLimitFor } from "../src/shared/presentation/http/rate-limiters.js"
 
 function request({ remoteAddress, requestIp, cloudflareIp }) {
   return {
@@ -57,4 +57,10 @@ test("the elevated global request budget is restricted to test mode", () => {
   assert.equal(globalRateLimitFor("test"), 5000)
   assert.equal(globalRateLimitFor("development"), 300)
   assert.equal(globalRateLimitFor("production"), 300)
+})
+
+test("the elevated write budget is restricted to test mode", () => {
+  assert.equal(writeRateLimitFor("test"), 5000)
+  assert.equal(writeRateLimitFor("development"), 30)
+  assert.equal(writeRateLimitFor("production"), 30)
 })
