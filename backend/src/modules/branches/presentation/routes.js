@@ -21,6 +21,52 @@ export const updateBranchSchema = z.object({
   name: z.string().trim().min(2).max(160),
 }).strict()
 
+
+const localTimeSchema = z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/)
+const branchPeriodSchema = z.object({
+  opens_at: localTimeSchema,
+  closes_at: localTimeSchema,
+  closes_next_day: z.boolean(),
+}).strict()
+const branchOperationalAddressSchema = z.object({
+  line_1: z.string().trim().min(1).max(180),
+  line_2: z.string().trim().max(120).nullable().optional(),
+  locality: z.string().trim().min(1).max(120),
+  administrative_area: z.string().trim().max(120).nullable().optional(),
+  postal_code: z.string().trim().max(120).nullable().optional(),
+  country_code: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/),
+}).strict()
+
+export const branchLocalConfigurationSchema = z.object({
+  operational_address: branchOperationalAddressSchema.nullable(),
+  time_zone: z.string().trim().min(1).max(100).nullable(),
+  currency_code: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).nullable(),
+  weekly_hours: z.array(branchPeriodSchema.extend({
+    weekday: z.number().int().min(1).max(7),
+  }).strict()).max(35),
+}).strict()
+
+export const branchCalendarExceptionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("closed"),
+    periods: z.array(branchPeriodSchema).max(0),
+    reason: z.string().trim().min(1).max(500),
+  }).strict(),
+  z.object({
+    kind: z.literal("special_hours"),
+    periods: z.array(branchPeriodSchema).min(1).max(5),
+    reason: z.string().trim().min(1).max(500),
+  }).strict(),
+])
+
+export const branchCalendarRangeSchema = z.object({
+  from: z.iso.date(),
+  to: z.iso.date(),
+}).strict().refine(
+  ({ from, to }) => Date.parse(to) >= Date.parse(from)
+    && Date.parse(to) - Date.parse(from) <= 366 * 24 * 60 * 60 * 1000,
+  "El rango del calendario no puede superar 367 días.",
+)
 export const branchStatusSchema = z.object({
   status: z.enum(["active", "suspended", "closed"]),
 }).strict()
@@ -47,6 +93,69 @@ export function createBranchRoutes(branches, authenticate, writesLimiter) {
     validateRequest({ body: branchSchema }),
     asyncHandler(async (request, response) => {
       response.status(201).json({ branch: await branches.create(request.validated.body, request.auth) })
+    }),
+  )
+
+
+  router.put(
+    "/:branchId/configuration",
+    authenticate,
+    writesLimiter,
+    validateRequest({ params: branchIdParams, body: branchLocalConfigurationSchema }),
+    asyncHandler(async (request, response) => {
+      response.json({
+        branch: await branches.updateLocalConfiguration(
+          request.validated.params.branchId,
+          request.validated.body,
+          request.auth,
+        ),
+      })
+    }),
+  )
+
+  router.get(
+    "/:branchId/calendar",
+    authenticate,
+    validateRequest({ params: branchIdParams, query: branchCalendarRangeSchema }),
+    asyncHandler(async (request, response) => {
+      response.json(await branches.listCalendarExceptions(
+        request.validated.params.branchId,
+        request.validated.query.from,
+        request.validated.query.to,
+        request.auth,
+      ))
+    }),
+  )
+
+  router.put(
+    "/:branchId/calendar/:localDate",
+    authenticate,
+    writesLimiter,
+    validateRequest({
+      params: branchIdParams.extend({ localDate: z.iso.date() }),
+      body: branchCalendarExceptionSchema,
+    }),
+    asyncHandler(async (request, response) => {
+      response.json(await branches.upsertCalendarException(
+        request.validated.params.branchId,
+        request.validated.params.localDate,
+        request.validated.body,
+        request.auth,
+      ))
+    }),
+  )
+
+  router.delete(
+    "/:branchId/calendar/:localDate",
+    authenticate,
+    writesLimiter,
+    validateRequest({ params: branchIdParams.extend({ localDate: z.iso.date() }) }),
+    asyncHandler(async (request, response) => {
+      response.json(await branches.deleteCalendarException(
+        request.validated.params.branchId,
+        request.validated.params.localDate,
+        request.auth,
+      ))
     }),
   )
 

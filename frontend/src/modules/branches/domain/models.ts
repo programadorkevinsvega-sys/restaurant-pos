@@ -9,10 +9,60 @@ export interface BranchLegalEntity {
 
 export type BranchStatus = "active" | "suspended" | "closed"
 
+export interface BranchOperationalAddress {
+  line_1: string
+  line_2?: string | null
+  locality: string
+  administrative_area?: string | null
+  postal_code?: string | null
+  country_code: string
+}
+
+export interface BranchOpeningPeriod {
+  opens_at: string
+  closes_at: string
+  closes_next_day: boolean
+}
+
+export interface BranchWeeklyHour extends BranchOpeningPeriod {
+  weekday: number
+}
+
+export interface BranchLocalConfiguration {
+  operational_address: BranchOperationalAddress | null
+  time_zone: string | null
+  currency_code: string | null
+  weekly_hours: BranchWeeklyHour[]
+}
+
+export interface BranchCalendarException {
+  id: string
+  local_date: string
+  kind: "closed" | "special_hours"
+  periods: BranchOpeningPeriod[]
+  reason: string
+  created_at: string
+  updated_at: string
+}
+
+export interface BranchCalendarResult {
+  exceptions: BranchCalendarException[]
+}
+
+export interface BranchCalendarExceptionInput {
+  kind: "closed" | "special_hours"
+  periods: BranchOpeningPeriod[]
+  reason: string
+}
+
 export interface Branch {
   id: string
   code: string
   name: string
+  operational_address: BranchOperationalAddress | null
+  time_zone: string | null
+  currency_code: string | null
+  weekly_hours: BranchWeeklyHour[]
   status: BranchStatus
   status_changed_at: string
   closed_at: string | null

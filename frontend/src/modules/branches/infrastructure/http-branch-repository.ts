@@ -1,5 +1,17 @@
 import type { HttpClient } from "@/shared/infrastructure/http-client"
-import type { AvailableBranchesResult, Branch, BranchInput, BranchLifecycleResult, BranchStatus, BranchesResult, BranchUpdate, BranchUsersResult } from "../domain/models"
+import type {
+  AvailableBranchesResult,
+  Branch,
+  BranchCalendarExceptionInput,
+  BranchCalendarResult,
+  BranchInput,
+  BranchLifecycleResult,
+  BranchLocalConfiguration,
+  BranchStatus,
+  BranchesResult,
+  BranchUpdate,
+  BranchUsersResult,
+} from "../domain/models"
 import type { BranchRepository } from "../domain/branch-repository"
 
 export class HttpBranchRepository implements BranchRepository {
@@ -31,6 +43,35 @@ export class HttpBranchRepository implements BranchRepository {
       { status },
     )
     return result.branch
+  }
+
+  async updateLocalConfiguration(id: string, input: BranchLocalConfiguration) {
+    const result = await this.http.put<{ branch: Branch }>(
+      `/branches/${encodeURIComponent(id)}/configuration`,
+      input,
+    )
+    return result.branch
+  }
+
+  listCalendar(branchId: string, from: string, to: string, signal?: AbortSignal) {
+    const query = new URLSearchParams({ from, to })
+    return this.http.get<BranchCalendarResult>(
+      `/branches/${encodeURIComponent(branchId)}/calendar?${query.toString()}`,
+      signal,
+    )
+  }
+
+  async upsertCalendarException(branchId: string, localDate: string, input: BranchCalendarExceptionInput) {
+    await this.http.put(
+      `/branches/${encodeURIComponent(branchId)}/calendar/${encodeURIComponent(localDate)}`,
+      input,
+    )
+  }
+
+  async deleteCalendarException(branchId: string, localDate: string) {
+    await this.http.delete(
+      `/branches/${encodeURIComponent(branchId)}/calendar/${encodeURIComponent(localDate)}`,
+    )
   }
 
   listLifecycleEvents(branchId: string, signal?: AbortSignal) {

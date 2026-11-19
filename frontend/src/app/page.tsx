@@ -20,7 +20,17 @@ import type { Category, NewProduct, Product } from "@/modules/catalog/domain/mod
 import type { CartItem, OrderType } from "@/modules/orders/domain/models"
 import type { OrganizationProfile, OrganizationProfileInput, OrganizationProfileUpdate } from "@/modules/organization/domain/models"
 import type { LegalEntity, LegalEntityInput } from "@/modules/legal-entities/domain/models"
-import type { Branch, BranchInput, BranchLifecycleEvent, BranchStatus, BranchUpdate, BranchUser, OperationalBranch } from "@/modules/branches/domain/models"
+import type {
+  Branch,
+  BranchCalendarExceptionInput,
+  BranchInput,
+  BranchLifecycleEvent,
+  BranchLocalConfiguration,
+  BranchStatus,
+  BranchUpdate,
+  BranchUser,
+  OperationalBranch,
+} from "@/modules/branches/domain/models"
 import type {
   BestSellingProduct,
   DeliveryOrder,
@@ -420,6 +430,31 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     })
   }
 
+  const handleSaveBranchLocalConfiguration = async (branchId: string, input: BranchLocalConfiguration) => {
+    await posApplication.branches.updateLocalConfiguration(branchId, input)
+    await refreshCorporateStructure()
+    toast({ title: "Configuración local guardada" })
+  }
+
+  const handleListBranchCalendar = async (branchId: string, from: string, to: string) => {
+    const result = await posApplication.branches.listCalendar(branchId, from, to)
+    return result.exceptions
+  }
+
+  const handleSaveBranchCalendarException = async (
+    branchId: string,
+    localDateValue: string,
+    input: BranchCalendarExceptionInput,
+  ) => {
+    await posApplication.branches.upsertCalendarException(branchId, localDateValue, input)
+    toast({ title: "Excepción de calendario guardada" })
+  }
+
+  const handleDeleteBranchCalendarException = async (branchId: string, localDateValue: string) => {
+    await posApplication.branches.deleteCalendarException(branchId, localDateValue)
+    toast({ title: "Excepción de calendario eliminada" })
+  }
+
   const handleAssignBranchLegalEntity = async (branchId: string, legalEntityId: string) => {
     await posApplication.branches.assignLegalEntity(branchId, legalEntityId)
     await refreshCorporateStructure()
@@ -520,6 +555,10 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         onRemoveBranchLegalEntity={handleRemoveBranchLegalEntity}
         onAssignBranchUser={handleAssignBranchUser}
         onRemoveBranchUser={handleRemoveBranchUser}
+        onSaveBranchLocalConfiguration={handleSaveBranchLocalConfiguration}
+        onListBranchCalendar={handleListBranchCalendar}
+        onSaveBranchCalendarException={handleSaveBranchCalendarException}
+        onDeleteBranchCalendarException={handleDeleteBranchCalendarException}
       />
     )
   }
