@@ -76,7 +76,10 @@ export function createOperationsRoutes(operations, authenticate, authorize, writ
   delivery.get("/", asyncHandler(async (request, response) => {
     const parsed = z.object({ status: orderStatus.optional() }).safeParse(request.query)
     if (!parsed.success) throw new AppError(400, "VALIDATION_ERROR", "El estado de entrega no es válido.")
-    response.json(await operations.listDeliveries(parsed.data.status))
+    if (!request.auth.activeBranchId) {
+      throw new AppError(409, "ACTIVE_BRANCH_REQUIRED", "Selecciona una sucursal activa antes de consultar entregas.")
+    }
+    response.json(await operations.listDeliveries(parsed.data.status, request.auth))
   }))
   delivery.post(
     "/assign",
@@ -87,9 +90,12 @@ export function createOperationsRoutes(operations, authenticate, authorize, writ
       driver_phone: z.string().trim().max(32).optional().nullable(),
       estimated_time: z.coerce.number().int().min(1).max(1440).optional().nullable(),
     }) }),
-    asyncHandler(async (request, response) => response.json(
-      await operations.assignDriver(request.validated.body),
-    )),
+    asyncHandler(async (request, response) => {
+      if (!request.auth.activeBranchId) {
+        throw new AppError(409, "ACTIVE_BRANCH_REQUIRED", "Selecciona una sucursal activa antes de asignar entregas.")
+      }
+      response.json(await operations.assignDriver(request.validated.body, request.auth))
+    }),
   )
 
   const admin = Router()
