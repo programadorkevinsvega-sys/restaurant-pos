@@ -8,7 +8,7 @@ Esta suite comprueba la navegación real en Chromium, completa flujos de usuario
 
 El workflow `.github/workflows/ci-pr.yml` crea una base PostgreSQL efímera, aplica todas las migraciones, carga fixtures exclusivos de E2E, inicia API y frontend y ejecuta Playwright con Chromium.
 
-La suite instala una versión fijada de `@playwright/test` solo dentro del job. No añade dependencias de ejecución al producto ni altera los lockfiles de backend/frontend.
+La suite instala una versión fijada de `@playwright/test` solo dentro del job (actualmente fijada en `1.65.1`). No añade dependencias de ejecución al producto ni altera los lockfiles de backend/frontend.
 
 Credenciales de prueba:
 - Usuario: `e2e.owner@chili.test`
