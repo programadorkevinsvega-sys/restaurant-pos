@@ -89,6 +89,12 @@ export class PostgresBranchRepository {
       JOIN public.branches AS b
         ON b.organization_id = assignment.organization_id
         AND b.id = assignment.branch_id
+      JOIN public.organizations AS organization
+        ON organization.id = b.organization_id
+        AND organization.installation_slot = 1
+      JOIN public.app_users AS assigned_user
+        ON assigned_user.id = assignment.user_id
+        AND assigned_user.is_active = true
       LEFT JOIN public.branch_legal_entities AS ble
         ON ble.organization_id = b.organization_id
         AND ble.branch_id = b.id
