@@ -1343,6 +1343,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "branch:branch.lifecycle.changed",
       "branch:configuration.updated",
       "branch:calendar.upserted",
+      "branch:calendar.deleted",
     ]) {
       assert.ok(historyKinds.includes(expected), `Missing history event ${expected}`)
     }
