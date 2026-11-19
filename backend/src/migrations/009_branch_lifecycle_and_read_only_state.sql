@@ -158,7 +158,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog
-AS $
+AS $$
 DECLARE
   v_branch_id uuid;
   v_organization_id uuid;
@@ -200,7 +200,7 @@ BEGIN
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.guard_branch_order_writes() FROM PUBLIC;
 
@@ -311,7 +311,7 @@ CREATE FUNCTION public.guard_branch_identity_writes()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = pg_catalog
-AS $
+AS $$
 BEGIN
   IF OLD.status <> 'active'
      AND (NEW.code IS DISTINCT FROM OLD.code OR NEW.name IS DISTINCT FROM OLD.name) THEN
@@ -320,7 +320,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.guard_branch_identity_writes() FROM PUBLIC;
 
@@ -334,7 +334,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog
-AS $
+AS $$
 DECLARE
   v_branch_id uuid;
   v_organization_id uuid;
@@ -367,7 +367,7 @@ BEGIN
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.guard_branch_legal_entity_writes() FROM PUBLIC;
 
