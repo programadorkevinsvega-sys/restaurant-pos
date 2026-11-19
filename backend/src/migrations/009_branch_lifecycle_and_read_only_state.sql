@@ -213,6 +213,10 @@ BEGIN
     v_order_id := OLD.order_id;
   ELSE
     v_order_id := NEW.order_id;
+    IF TG_OP = 'UPDATE' AND NEW.order_id IS DISTINCT FROM OLD.order_id THEN
+      RAISE EXCEPTION 'ORDER_DETAIL_PARENT_IMMUTABLE'
+        USING ERRCODE = '23514';
+    END IF;
   END IF;
 
   SELECT b.status INTO v_status
@@ -226,7 +230,8 @@ BEGIN
   -- Historical rows without branch attribution remain governed by their
   -- existing rules; no branch is inferred for them.
   IF NOT FOUND THEN
-    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+    IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+    RETURN NEW;
   END IF;
 
   IF v_status <> 'active' THEN
