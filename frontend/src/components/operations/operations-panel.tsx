@@ -232,7 +232,6 @@ export function OperationsPanel(props: OperationsPanelProps) {
       )}
       <LegalEntityManagementCard
         legalEntities={legalEntities}
-        usersByBranch={branchUsersByBranch}
         loading={corporateStructureLoading}
         canManage={canManageCorporateStructure}
         onCreate={onCreateLegalEntity}
@@ -241,6 +240,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
       <BranchManagementCard
         branches={branches}
         legalEntities={legalEntities}
+        usersByBranch={branchUsersByBranch}
         loading={corporateStructureLoading}
         canManage={canManageCorporateStructure}
         onCreate={onCreateBranch}
