@@ -2,7 +2,7 @@
 
 ## Propósito
 
-Esta suite comprueba la navegación real en Chromium, completa flujos de usuario contra el backend desplegado en un entorno CI aislado y adjunta capturas de cada requisito cubierto. No sustituye las pruebas unitarias, las pruebas PostgreSQL ni la aceptación visual por una persona responsable.
+Esta suite comprueba la navegación real en Chromium, completa flujos de usuario contra el backend desplegado en un entorno CI aislado y ejecuta cada caso en escritorio (1280×720) y móvil (390×844). Adjunta capturas y métricas de layout por requisito y viewport. No sustituye las pruebas unitarias, las pruebas PostgreSQL ni la aceptación visual por una persona responsable.
 
 ## Ejecución
 
@@ -31,11 +31,11 @@ Estas credenciales y fixtures solo existen en el PostgreSQL desechable del workf
 
 ## Evidencia visual
 
-Cada caso adjunta una captura completa de la pantalla obtenida después de ejecutar el flujo. El job publica `playwright-report` y `test-results` como artefactos aun cuando falle la suite.
+Cada caso adjunta una captura completa de la pantalla obtenida después de ejecutar el flujo en ambos viewports, más métricas de ancho/alto de documento y viewport. La suite falla si el documento o el body producen overflow horizontal fuera del viewport. El job publica `playwright-report` y `test-results` como artefactos aun cuando falle la suite.
 
 Una captura demuestra qué se renderizó durante la ejecución; por sí sola no demuestra calidad visual. La aceptación de cada requisito requiere que la persona revisora confirme, sobre esas capturas y la aplicación de destino:
 1. La información y acciones requeridas están presentes.
-2. No hay campos cortados, superpuestos, ilegibles ni fuera del viewport.
+2. No hay campos cortados, superpuestos, ilegibles ni fuera del viewport; la comprobación automática de overflow horizontal pasa tanto en escritorio como en móvil.
 3. Estados de carga, vacío, error, solo lectura y éxito son comprensibles.
 4. Los permisos y acciones disponibles corresponden al actor y sucursal activos.
 5. El flujo se puede completar sin usar endpoints manuales ni modificar datos fuera de la interfaz.
