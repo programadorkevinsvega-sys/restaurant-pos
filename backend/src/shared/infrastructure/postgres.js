@@ -22,6 +22,13 @@ export async function queryPostgres(client, query, values = []) {
     return await client.query(query, values)
   } catch (error) {
     logger.error({ code: error.code ?? "UNKNOWN" }, "PostgreSQL operation failed")
+    if (error.code === "55000" && String(error.message).includes("BRANCH_NOT_ACTIVE")) {
+      throw new AppError(
+        409,
+        "BRANCH_NOT_ACTIVE",
+        "La sucursal está suspendida o cerrada. Sus pedidos y detalles permanecen disponibles solo para consulta.",
+      )
+    }
     throw new AppError(500, "PERSISTENCE_ERROR", "No se pudo completar la operación.")
   }
 }
