@@ -132,3 +132,132 @@ jobs:
 
       - name: Verify PostgreSQL schema with restricted runtime credentials
         run: pnpm --dir backend test
+
+  browser-e2e:
+    name: Chromium E2E and visual acceptance evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres-ci-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGPASSWORD: postgres-ci-only
+      MIGRATIONS_DATABASE_URL: postgresql://restaurant_pos_migrator:migrator-ci-only@127.0.0.1:5432/restaurant_pos_e2e
+      E2E_DATABASE_URL: postgresql://restaurant_pos_migrator:migrator-ci-only@127.0.0.1:5432/restaurant_pos_e2e
+      DATABASE_URL: postgresql://restaurant_pos_app:runtime-ci-only@127.0.0.1:5432/restaurant_pos_e2e
+      E2E_EMAIL: e2e.owner@chili.test
+      E2E_PASSWORD: Chili-E2E-CI-Password-2026!
+      E2E_BRANCH_ID: 44444444-4444-4444-8444-444444444444
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:3001/api
+      AUTH_CSRF_SECRET: browser-e2e-only-secret-not-used-in-production-2026
+      CORS_ORIGINS: http://127.0.0.1:3002
+      AUTH_COOKIE_SAME_SITE: Lax
+      NODE_ENV: test
+      PORT: 3001
+      PG_POOL_MAX: 8
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12.15.0
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y postgresql-client
+
+      - name: Install backend dependencies
+        run: pnpm --dir backend install --frozen-lockfile
+
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Create isolated E2E database
+        run: |
+          psql --host=127.0.0.1 --port=5432 --username=postgres --dbname=postgres \
+            --no-psqlrc --set=ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE restaurant_pos_migrator
+            LOGIN PASSWORD 'migrator-ci-only'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+          CREATE ROLE restaurant_pos_app
+            LOGIN PASSWORD 'runtime-ci-only'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+          CREATE DATABASE restaurant_pos_e2e OWNER restaurant_pos_migrator;
+          GRANT CONNECT ON DATABASE restaurant_pos_e2e TO restaurant_pos_app;
+          SQL
+
+      - name: Apply migrations and seed browser-only fixtures
+        run: |
+          pnpm --dir backend migrate
+          node backend/scripts/seed-e2e.js
+
+      - name: Build frontend for the E2E environment
+        run: pnpm --dir frontend build
+
+      - name: Start API
+        run: |
+          pnpm --dir backend start > "$RUNNER_TEMP/backend-e2e.log" 2>&1 &
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:3001/api/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/backend-e2e.log"
+          exit 1
+
+      - name: Start frontend
+        run: |
+          pnpm --dir frontend start -- --hostname 127.0.0.1 --port 3002 > "$RUNNER_TEMP/frontend-e2e.log" 2>&1 &
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:3002/ >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/frontend-e2e.log"
+          exit 1
+
+      - name: Install pinned Playwright runner outside product dependencies
+        run: npm install --prefix "$RUNNER_TEMP/playwright" --no-save --package-lock=false @playwright/test@1.58.2
+
+      - name: Install Chromium
+        run: "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps chromium
+
+      - name: Run browser flows and capture visual evidence
+        env:
+          PLAYWRIGHT_NODE_MODULES: ${{ runner.temp }}/playwright/node_modules
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3002
+        run: "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" test --config=frontend/e2e/playwright.config.cjs
+
+      - name: Upload browser report, screenshots and traces
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: n09-browser-acceptance-${{ github.run_id }}
+          path: |
+            frontend/e2e/playwright-report/
+            frontend/e2e/test-results/
+          if-no-files-found: warn
+          retention-days: 14
