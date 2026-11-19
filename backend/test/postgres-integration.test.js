@@ -761,6 +761,14 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
 
     await assert.rejects(
       runtime.query(
+        "DELETE FROM public.orders WHERE id = $1",
+        [orderId],
+      ),
+      (error) => error.code === "55000" && error.message.includes("BRANCH_NOT_ACTIVE"),
+    )
+
+    await assert.rejects(
+      runtime.query(
         "UPDATE public.order_items SET quantity = quantity + 1 WHERE order_id = $1",
         [orderId],
       ),
