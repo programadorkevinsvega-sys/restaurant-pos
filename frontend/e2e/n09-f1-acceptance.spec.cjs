@@ -5,6 +5,13 @@ const requirePlaywright = createRequire(path.join(process.env.PLAYWRIGHT_NODE_MO
 const { test, expect } = requirePlaywright("@playwright/test")
 const { captureVisualEvidence } = require("./support/session.cjs")
 
+test.beforeEach(async ({ page }) => {
+  await page.goto("/")
+  await expect(page.getByLabel("Sucursal activa")).toHaveValue(
+    process.env.E2E_BRANCH_ID || "44444444-4444-4444-8444-444444444444",
+  )
+})
+
 test.afterEach(async ({ page }, testInfo) => {
   if (!page.isClosed()) await captureVisualEvidence(page, testInfo)
 })
