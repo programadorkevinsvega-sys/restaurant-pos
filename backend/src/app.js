@@ -105,7 +105,7 @@ export async function createApp(config = loadConfig()) {
   const branches = new BranchUseCases(new PostgresBranchRepository(pool))
   app.use("/api/branches", createBranchRoutes(branches, requireUser, limiters.writes))
 
-  const catalogRoutes = createCatalogRoutes(catalog, requireUser, requireRole)
+  const catalogRoutes = createCatalogRoutes(catalog, requireUser, limiters.writes)
   app.use("/api/categories", catalogRoutes.categories)
   app.use("/api/products", catalogRoutes.products)
   app.use("/api/admin", createAdminCatalogRoutes(catalog, requireUser, requireRole, limiters.writes))

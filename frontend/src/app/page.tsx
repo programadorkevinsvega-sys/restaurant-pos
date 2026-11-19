@@ -271,12 +271,33 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
 
   const refreshAvailableBranches = async () => {
     const result = await posApplication.branches.listAvailable()
-    setAvailableBranches(result.branches)
-    const nextBranchId = activeBranchId && result.branches.some((item) => item.id === activeBranchId)
-      ? activeBranchId
+    const currentBranch = availableBranches.find((branch) => branch.id === activeBranchId)
+    const nextBranch = result.branches.find((branch) => branch.id === activeBranchId)
+    const nextBranchId = nextBranch
+      ? nextBranch.id
       : result.branches.length === 1 ? result.branches[0].id : null
+    const contextChanged = nextBranchId !== activeBranchId
+    const currentBranchBecameReadOnly = Boolean(
+      currentBranch?.status === "active" && nextBranch && nextBranch.status !== "active",
+    )
+
+    setAvailableBranches(result.branches)
     setActiveBranchId(nextBranchId)
     posApplication.setActiveBranchId(nextBranchId)
+
+    if (contextChanged || currentBranchBecameReadOnly) {
+      setActiveCategory("all")
+      setCategories([])
+      setProducts([])
+      setCartItems([])
+      setTables([])
+      setOrders([])
+      setReservations([])
+      setDeliveries([])
+      setIsLoading(Boolean(nextBranchId))
+      setOperationError("")
+      setReloadIndex((current) => current + 1)
+    }
   }
 
   const handleActiveBranchChange = (branchId: string) => {

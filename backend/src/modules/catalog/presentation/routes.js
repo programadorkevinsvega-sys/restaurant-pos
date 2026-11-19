@@ -25,7 +25,7 @@ function requireActiveBranch(request) {
   }
 }
 
-export function createCatalogRoutes(catalog, authenticate) {
+export function createCatalogRoutes(catalog, authenticate, writesLimiter) {
   const categories = Router()
   categories.use(authenticate)
   categories.get("/", asyncHandler(async (request, response) => {
@@ -34,6 +34,7 @@ export function createCatalogRoutes(catalog, authenticate) {
   }))
   categories.post(
     "/",
+    writesLimiter,
     validateRequest({ body: categorySchema }),
     asyncHandler(async (request, response) => {
       response.status(201).json(await catalog.createCategory(request.validated.body, request.auth))
@@ -58,6 +59,7 @@ export function createCatalogRoutes(catalog, authenticate) {
   }))
   products.post(
     "/",
+    writesLimiter,
     validateRequest({ body: productSchema }),
     asyncHandler(async (request, response) => {
       response.status(201).json(await catalog.createProduct(request.validated.body, request.auth))

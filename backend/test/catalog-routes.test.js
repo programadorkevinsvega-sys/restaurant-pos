@@ -56,7 +56,7 @@ test("operational catalog reads require authentication and an assigned active br
       return { id: productId, name: "Agua" }
     },
   }
-  const routes = createCatalogRoutes(catalog, authenticate)
+  const routes = createCatalogRoutes(catalog, authenticate, (request, response, next) => next())
   const app = createApp()
   app.use("/api/categories", routes.categories)
   app.use("/api/products", routes.products)
@@ -99,7 +99,7 @@ test("corporate category creation passes the authenticated actor to the owner-gu
       received = { input, actor }
       return { id: categoryId, ...input }
     },
-  }, authenticate)
+  }, authenticate, (request, response, next) => next())
   const app = createApp()
   app.use("/api/categories", routes.categories)
   app.use(errorHandler)
