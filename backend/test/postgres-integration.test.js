@@ -1025,6 +1025,8 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "012_organization_change_history.sql",
         "013_corporate_catalog_branch_assortment.sql",
         "014_corporate_catalog_crud_and_order_snapshots.sql",
+        "015_recipes_and_ingredients.sql",
+        "016_recipe_component_integrity.sql",
       ],
     )
 
