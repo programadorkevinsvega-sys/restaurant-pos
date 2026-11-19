@@ -48,4 +48,5 @@ export const posApplication = {
   organization: new ManageOrganizationProfile(new HttpOrganizationRepository(http)),
   legalEntities: new ManageLegalEntities(new HttpLegalEntityRepository(http)),
   branches: new ManageBranches(new HttpBranchRepository(http)),
+  setActiveBranchId: (branchId: string | null) => http.setActiveBranchId(branchId),
 }
