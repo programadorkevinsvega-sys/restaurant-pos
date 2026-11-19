@@ -20,7 +20,7 @@ test("delivery mutations reject missing active branch before persistence", async
     assignDriver: async () => { called = true },
   })
 
-  await assert.rejects(operations.assignDriver({ order_id: "order-id" }, {
+  assert.throws(() => operations.assignDriver({ order_id: "order-id" }, {
     userId: "staff-id",
     activeBranchId: null,
   }), {
