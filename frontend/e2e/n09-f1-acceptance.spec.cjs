@@ -242,7 +242,7 @@ test("N09-F2.1: productos y categorías tienen CRUD corporativo con baja lógica
 
   const updatedCard = page.getByText(updatedProductName, { exact: true }).locator("xpath=../..")
   await updatedCard.getByRole("button", { name: "Dar de baja" }).click()
-  await expect(page.getByText(updatedProductName, { exact: true })).toContainText("Inactivo")
+  await expect(updatedCard).toContainText("Inactivo")
 
   await page.getByRole("button", { name: "Categorías" }).click()
   await page.getByPlaceholder("Nombre de categoría").fill(originalCategoryName)
