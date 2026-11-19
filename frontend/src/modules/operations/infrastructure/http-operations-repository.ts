@@ -11,6 +11,8 @@ import type {
   RestaurantSettings,
   RestaurantTable,
   SalesReport,
+  ReservationFilters,
+  TableStatus,
 } from "../domain/models"
 
 export class HttpTablesRepository implements TablesRepository {
@@ -24,16 +26,23 @@ export class HttpTablesRepository implements TablesRepository {
     return this.http.post<RestaurantTable>("/tables", table)
   }
 
-  updateStatus(id: string, status: string) {
-    return this.http.put<RestaurantTable>(`/tables/${encodeURIComponent(id)}/status`, { status })
+  updateStatus(id: string, status: TableStatus, currentOrderId?: string | null) {
+    return this.http.put<RestaurantTable>(`/tables/${encodeURIComponent(id)}/status`, {
+      status,
+      ...(currentOrderId === undefined ? {} : { current_order_id: currentOrderId }),
+    })
   }
 }
 
 export class HttpReservationsRepository implements ReservationsRepository {
   constructor(private readonly http: HttpClient) {}
 
-  getAll(signal?: AbortSignal) {
-    return this.http.get<Reservation[]>("/reservations", signal)
+  getAll(filters: ReservationFilters = {}, signal?: AbortSignal) {
+    const query = new URLSearchParams()
+    if (filters.date) query.set("date", filters.date)
+    if (filters.status) query.set("status", filters.status)
+    const suffix = query.toString()
+    return this.http.get<Reservation[]>(`/reservations${suffix ? `?${suffix}` : ""}`, signal)
   }
 
   create(reservation: Omit<Reservation, "id" | "status">) {

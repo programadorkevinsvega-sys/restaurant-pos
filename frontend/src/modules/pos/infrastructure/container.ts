@@ -3,6 +3,7 @@ import { CreateCategory } from "@/modules/catalog/application/create-category"
 import { ListCatalog } from "@/modules/catalog/application/list-catalog"
 import { HttpCatalogRepository } from "@/modules/catalog/infrastructure/http-catalog-repository"
 import { CreateOrder } from "@/modules/orders/application/create-order"
+import { ListOrders } from "@/modules/orders/application/list-orders"
 import { HttpOrderRepository } from "@/modules/orders/infrastructure/http-order-repository"
 import { ManageTables } from "@/modules/operations/application/manage-tables"
 import { ManageReservations } from "@/modules/operations/application/manage-reservations"
@@ -30,6 +31,7 @@ if (!apiUrl) {
 }
 const http = new HttpClient(apiUrl)
 const catalogRepository = new HttpCatalogRepository(http)
+const orderRepository = new HttpOrderRepository(http)
 export const posApplication = {
   auth: {
     login: (email: string, password: string) => http.login(email, password),
@@ -39,7 +41,8 @@ export const posApplication = {
   listCatalog: new ListCatalog(catalogRepository),
   createProduct: new CreateProduct(catalogRepository),
   createCategory: new CreateCategory(catalogRepository),
-  createOrder: new CreateOrder(new HttpOrderRepository(http)),
+  createOrder: new CreateOrder(orderRepository),
+  listOrders: new ListOrders(orderRepository),
   tables: new ManageTables(new HttpTablesRepository(http)),
   reservations: new ManageReservations(new HttpReservationsRepository(http)),
   deliveries: new ManageDeliveries(new HttpDeliveriesRepository(http)),

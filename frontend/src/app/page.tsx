@@ -17,7 +17,7 @@ import { toast } from "@/hooks/use-toast"
 import { posApplication } from "@/modules/pos/infrastructure/container"
 import { HttpError, type AuthenticatedUser } from "@/shared/infrastructure/http-client"
 import type { Category, NewProduct, Product } from "@/modules/catalog/domain/models"
-import type { CartItem, OrderType } from "@/modules/orders/domain/models"
+import type { CartItem, OrderSummary, OrderType } from "@/modules/orders/domain/models"
 import type {
   OrganizationHistoryFilters,
   OrganizationHistoryPage,
@@ -41,8 +41,10 @@ import type {
   BestSellingProduct,
   DeliveryOrder,
   Reservation,
+  ReservationFilters,
   RestaurantSettings,
   RestaurantTable,
+  TableStatus,
   SalesReport,
 } from "@/modules/operations/domain/models"
 
@@ -56,6 +58,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   const [isLoading, setIsLoading] = useState(true)
   const [isPlacingOrder, setIsPlacingOrder] = useState(false)
   const [tables, setTables] = useState<RestaurantTable[]>([])
+  const [orders, setOrders] = useState<OrderSummary[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [deliveries, setDeliveries] = useState<DeliveryOrder[]>([])
   const [salesReport, setSalesReport] = useState<SalesReport | null>(null)
@@ -171,11 +174,21 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     const loadSection = async () => {
       try {
         setOperationError("")
-        if (activeSection === "tables" || activeSection === "reservations") {
-          setTables(await posApplication.tables.getAll(controller.signal))
+        if (activeSection === "tables") {
+          const [tableRows, orderRows] = await Promise.all([
+            posApplication.tables.getAll(controller.signal),
+            posApplication.listOrders.execute({ limit: 100 }, controller.signal),
+          ])
+          setTables(tableRows)
+          setOrders(orderRows)
         }
         if (activeSection === "reservations") {
-          setReservations(await posApplication.reservations.getAll(controller.signal))
+          const [tableRows, reservationRows] = await Promise.all([
+            posApplication.tables.getAll(controller.signal),
+            posApplication.reservations.getAll({}, controller.signal),
+          ])
+          setTables(tableRows)
+          setReservations(reservationRows)
         }
         if (activeSection === "delivery") {
           setDeliveries(await posApplication.deliveries.getAll(controller.signal))
@@ -342,11 +355,12 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     }
   }
 
-  const handleUpdateTableStatus = async (id: string, status: string) => {
+  const handleUpdateTableStatus = async (id: string, status: TableStatus, currentOrderId?: string | null) => {
     try {
-      await posApplication.tables.updateStatus(id, status)
+      await posApplication.tables.updateStatus(id, status, currentOrderId)
       await refreshTables()
-      toast({ title: "Estado de mesa actualizado" })
+      setOrders(await posApplication.listOrders.execute({ limit: 100 }))
+      toast({ title: "Mesa actualizada" })
     } catch (error) {
       toast({ title: "No se pudo actualizar la mesa", description: error instanceof Error ? error.message : "Error desconocido.", variant: "destructive" })
       throw error
@@ -359,9 +373,13 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     toast({ title: "Reservación creada" })
   }
 
-  const handleUpdateReservationStatus = async (id: string, status: string) => {
+  const handleUpdateReservationStatus = async (id: string, status: Reservation["status"]) => {
     await posApplication.reservations.updateStatus(id, status)
     setReservations(await posApplication.reservations.getAll())
+  }
+
+  const handleListReservations = async (filters: ReservationFilters) => {
+    setReservations(await posApplication.reservations.getAll(filters))
   }
 
   const handleAssignDriver = async (orderId: string, name: string, phone: string, eta: string) => {
@@ -518,7 +536,15 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
       )
     }
     if (activeSection === "tables") {
-      return <TableManagement tables={tables} onCreate={handleCreateTable} onUpdateStatus={handleUpdateTableStatus} />
+      return (
+        <TableManagement
+          tables={tables}
+          orders={orders}
+          canWrite={availableBranches.some((branch) => branch.id === activeBranchId && branch.status === "active")}
+          onCreate={handleCreateTable}
+          onUpdateTable={handleUpdateTableStatus}
+        />
+      )
     }
     if (activeSection === "add-product") {
       return (
@@ -539,6 +565,8 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         categories={categories}
         onCreateReservation={handleCreateReservation}
         onUpdateReservationStatus={handleUpdateReservationStatus}
+        onListReservations={handleListReservations}
+        canWriteOperationalData={availableBranches.some((branch) => branch.id === activeBranchId && branch.status === "active")}
         onAssignDriver={handleAssignDriver}
         onUpdateSettings={handleUpdateSettings}
         onCreateCategory={handleCreateCategory}

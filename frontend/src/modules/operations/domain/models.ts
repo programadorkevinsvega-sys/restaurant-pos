@@ -1,8 +1,17 @@
+export type TableStatus = "available" | "occupied" | "reserved" | "maintenance"
+
+export type ReservationStatus = "confirmed" | "seated" | "completed" | "cancelled" | "no_show"
+
+export interface ReservationFilters {
+  date?: string
+  status?: ReservationStatus
+}
+
 export interface RestaurantTable {
   id: string
   number: string | number
   capacity: number
-  status: "available" | "occupied" | "reserved" | string
+  status: TableStatus
   current_order?: {
     id: string
     total_amount: number
@@ -20,7 +29,7 @@ export interface Reservation {
   reservation_date: string
   party_size: number
   notes?: string | null
-  status: string
+  status: ReservationStatus
   table?: Pick<RestaurantTable, "id" | "number" | "capacity">
 }
 

@@ -1,10 +1,12 @@
 # N09-F1.5 — Historial de cambios organizacionales
 
-## Estado
+## Estado de integración
 
-En desarrollo en la rama `feat/n09-f1-5-historial-organizacional`.
-
-Esta fase no se considera completada hasta que la migración, el backend, la interfaz, las pruebas PostgreSQL 16/17, el build frontend y la documentación hayan pasado en el HEAD final del PR. La migración 012 no se ha aplicado en producción y no se ha realizado despliegue.
+- PR #17 fusionado en `main` mediante merge commit `a71e35de0077ce67784eb0b65df79afaaf0c7694`.
+- CI #57 (`44460578759`) aprobó backend/frontend/build y PostgreSQL 16/17 sobre el HEAD final del PR.
+- Despliegue productivo #44461054650: verificación/build y despliegue a la VM completados correctamente.
+- La migración 012 se aplicó mediante el despliegue automatizado. No se realizó backfill de eventos organizacionales anteriores que carecían de actor o snapshots fiables.
+- La alineación de permisos de la pestaña y la presentación legible de snapshots se incluyen en la corrección de cobertura frontend N09-F1.1–F1.6.
 
 ## Objetivo
 
@@ -65,7 +67,7 @@ Las bitácoras de ciclo de vida y configuración local anteriores se conservan y
 
 ## Interfaz
 
-La pestaña **Historial** aparece dentro de Configuración. Permite filtrar por tipo de recurso y sucursal, consultar actor/fecha/acción, abrir los estados anterior/nuevo y cargar la página siguiente. La interfaz no concede permisos: el backend y PostgreSQL validan al propietario en cada lectura.
+La pestaña **Historial** aparece dentro de Configuración. Permite filtrar por tipo de recurso y sucursal, consultar actor/fecha/acción, abrir los estados anterior/nuevo con nombres legibles y cargar la página siguiente. La interfaz solo refleja `permissions.can_update`; el backend y PostgreSQL validan al propietario en cada lectura.
 
 ## Fuera de alcance
 

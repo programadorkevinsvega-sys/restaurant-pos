@@ -1,12 +1,12 @@
 import type { ReservationsRepository } from "../domain/reservations-repository"
-import type { Reservation } from "../domain/models"
+import type { Reservation, ReservationFilters } from "../domain/models"
 import { traceOperation } from "../../../shared/infrastructure/tracing"
 
 export class ManageReservations {
   constructor(private readonly reservations: ReservationsRepository) {}
 
-  getAll(signal?: AbortSignal) {
-    return traceOperation("reservations.list", () => this.reservations.getAll(signal))
+  getAll(filters: ReservationFilters = {}, signal?: AbortSignal) {
+    return traceOperation("reservations.list", () => this.reservations.getAll(filters, signal))
   }
 
   create(reservation: Omit<Reservation, "id" | "status">) {

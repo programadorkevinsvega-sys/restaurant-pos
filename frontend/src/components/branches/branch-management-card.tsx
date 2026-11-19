@@ -149,6 +149,9 @@ export function BranchManagementCard({
                         Estado: {statusLabel}
                         {branch.closed_at ? ` · Cerrada el ${new Date(branch.closed_at).toLocaleString()}` : ""}
                       </p>
+                      <p className="text-xs text-muted-foreground">
+                        Último cambio de estado: {new Date(branch.status_changed_at).toLocaleString()}
+                      </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                     {canManage && branch.status === "active" && (

@@ -158,6 +158,28 @@ export function LegalEntityManagementCard({
                   <p className="text-xs text-muted-foreground">
                     Asociada a {entity.branch_count} {entity.branch_count === 1 ? "sucursal" : "sucursales"}
                   </p>
+                  <details className="mt-2 text-sm">
+                    <summary className="cursor-pointer text-muted-foreground">Ver datos de contacto y domicilio</summary>
+                    <div className="mt-2 space-y-1 rounded-md bg-muted/30 p-3">
+                      <p><span className="font-medium">Correo:</span> {entity.contact_email || "No registrado"}</p>
+                      <p><span className="font-medium">Teléfono:</span> {entity.contact_phone || "No registrado"}</p>
+                      <p className="font-medium">Domicilio registrado</p>
+                      {entity.registered_address ? (
+                        <p className="text-muted-foreground">
+                          {[
+                            entity.registered_address.line_1,
+                            entity.registered_address.line_2,
+                            entity.registered_address.locality,
+                            entity.registered_address.administrative_area,
+                            entity.registered_address.postal_code,
+                            entity.registered_address.country_code,
+                          ].filter(Boolean).join(", ")}
+                        </p>
+                      ) : (
+                        <p className="text-muted-foreground">No registrado</p>
+                      )}
+                    </div>
+                  </details>
                 </div>
                 {canManage && (
                   <Button

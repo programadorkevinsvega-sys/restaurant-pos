@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,6 +10,7 @@ import type {
   BestSellingProduct,
   DeliveryOrder,
   Reservation,
+  ReservationFilters,
   RestaurantSettings,
   RestaurantTable,
   SalesReport,
@@ -26,6 +27,7 @@ import type {
 import { LegalEntityManagementCard } from "@/components/legal-entities/legal-entity-management-card"
 import { BranchManagementCard } from "@/components/branches/branch-management-card"
 import { OrganizationHistoryPanel } from "@/components/organization/organization-history-panel"
+import { ReservationsManagementPanel } from "@/components/operations/reservations-management-panel"
 import type { LegalEntity, LegalEntityInput } from "@/modules/legal-entities/domain/models"
 import type {
   Branch,
@@ -50,7 +52,9 @@ interface OperationsPanelProps {
   settings: RestaurantSettings
   categories: Category[]
   onCreateReservation: (reservation: Omit<Reservation, "id" | "status">) => Promise<void>
-  onUpdateReservationStatus: (id: string, status: string) => Promise<void>
+  onUpdateReservationStatus: (id: string, status: Reservation["status"]) => Promise<void>
+  onListReservations: (filters: ReservationFilters) => Promise<void>
+  canWriteOperationalData: boolean
   onAssignDriver: (orderId: string, name: string, phone: string, eta: string) => Promise<void>
   onUpdateSettings: (settings: RestaurantSettings) => Promise<void>
   onCreateCategory: (name: string) => Promise<void>
@@ -109,7 +113,8 @@ function getErrorMessage(error: unknown) {
 export function OperationsPanel(props: OperationsPanelProps) {
   const {
     section, tables, reservations, deliveries, salesReport, bestSellingProducts, settings, categories,
-    onCreateReservation, onUpdateReservationStatus, onAssignDriver, onUpdateSettings, onCreateCategory,
+    onCreateReservation, onUpdateReservationStatus, onListReservations, canWriteOperationalData,
+    onAssignDriver, onUpdateSettings, onCreateCategory,
     organization, organizationLoading, canUpdateOrganization, canBootstrapOrganization, organizationLoadError,
     onBootstrapOrganization, onUpdateOrganization, onListOrganizationHistory,
     legalEntities, branches, branchUsersByBranch, branchLifecycleEventsByBranch, corporateStructureLoading, corporateStructureLoadError,
@@ -135,57 +140,15 @@ export function OperationsPanel(props: OperationsPanelProps) {
   }
 
   if (section === "reservations") {
-    const handleReservation = (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      const formElement = event.currentTarget
-      const form = new FormData(formElement)
-      const rawDate = String(form.get("reservation_date"))
-      void run(async () => {
-        await onCreateReservation({
-          customer_name: String(form.get("customer_name")),
-          customer_phone: String(form.get("customer_phone")),
-          table_id: String(form.get("table_id")),
-          reservation_date: new Date(rawDate).toISOString(),
-          party_size: Number(form.get("party_size")),
-          notes: String(form.get("notes") ?? ""),
-        })
-        formElement.reset()
-      })
-    }
-
     return (
-      <section className="flex-1 space-y-6 overflow-auto p-6">
-        <div><h1 className="text-2xl font-bold">Reservaciones</h1><p className="text-sm text-muted-foreground">Administra reservas y asignación de mesas.</p></div>
-        {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Nueva reservación</CardTitle></CardHeader>
-          <CardContent>
-            <form className="grid gap-3 sm:grid-cols-2" onSubmit={handleReservation}>
-              <Input required name="customer_name" placeholder="Nombre del cliente" />
-              <Input name="customer_phone" placeholder="Teléfono" />
-              <select required name="table_id" className="h-10 rounded-md border bg-background px-3">
-                <option value="">Seleccionar mesa</option>
-                {tables.map((table) => <option key={table.id} value={table.id}>Mesa {table.number} ({table.capacity} personas)</option>)}
-              </select>
-              <Input required name="party_size" type="number" min="1" placeholder="Personas" />
-              <Input required name="reservation_date" type="datetime-local" />
-              <Input name="notes" placeholder="Notas (opcional)" />
-              <Button type="submit" disabled={busy || tables.length === 0} className="sm:col-span-2">Crear reservación</Button>
-            </form>
-          </CardContent>
-        </Card>
-        <div className="grid gap-3">
-          {reservations.map((reservation) => (
-            <Card key={reservation.id}><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div><p className="font-medium">{reservation.customer_name} · {reservation.party_size} personas</p>
-                <p className="text-sm text-muted-foreground">Mesa {reservation.table?.number ?? "—"} · {new Date(reservation.reservation_date).toLocaleString()}</p>
-                <p className="text-xs">{reservation.status}</p></div>
-              <Button variant="outline" disabled={busy || reservation.status === "cancelled"} onClick={() => void run(() => onUpdateReservationStatus(reservation.id, "cancelled"))}>Cancelar</Button>
-            </CardContent></Card>
-          ))}
-          {reservations.length === 0 && <p className="text-sm text-muted-foreground">No hay reservaciones.</p>}
-        </div>
-      </section>
+      <ReservationsManagementPanel
+        reservations={reservations}
+        tables={tables}
+        canWrite={canWriteOperationalData}
+        onCreate={onCreateReservation}
+        onUpdateStatus={onUpdateReservationStatus}
+        onList={onListReservations}
+      />
     )
   }
 

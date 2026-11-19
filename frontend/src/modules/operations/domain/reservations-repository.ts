@@ -1,7 +1,7 @@
-import type { Reservation } from "./models"
+import type { Reservation, ReservationFilters } from "./models"
 
 export interface ReservationsRepository {
-  getAll(signal?: AbortSignal): Promise<Reservation[]>
+  getAll(filters?: ReservationFilters, signal?: AbortSignal): Promise<Reservation[]>
   create(reservation: Omit<Reservation, "id" | "status">): Promise<Reservation>
   updateStatus(id: string, status: string): Promise<Reservation>
 }
