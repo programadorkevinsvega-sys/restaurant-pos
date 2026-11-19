@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { BranchUseCases } from "../src/modules/branches/application/branch-use-cases.js"
-import { branchSchema, updateBranchSchema } from "../src/modules/branches/presentation/routes.js"
+import { branchSchema, branchStatusSchema, updateBranchSchema } from "../src/modules/branches/presentation/routes.js"
 
 const owner = { userId: "organization-owner", role: "staff" }
 const legacyAdmin = { userId: "legacy-admin", role: "admin" }
@@ -10,6 +10,9 @@ const branch = {
   id: "branch-id",
   code: "BOG-01",
   name: "Chili Bogotá Centro",
+  status: "active",
+  status_changed_at: new Date("2026-11-18T00:00:00.000Z"),
+  closed_at: null,
   legal_entities: [{ id: legalEntityIds[0], legal_name: "Chili Colombia S.A.S." }],
   created_at: new Date("2026-11-18T00:00:00.000Z"),
   updated_at: new Date("2026-11-18T00:00:00.000Z"),
@@ -26,6 +29,11 @@ function createRepository(overrides = {}) {
     findBranchById: async () => branch,
     createBranch: async (input) => ({ ...branch, ...input, code: input.code.toUpperCase() }),
     updateBranch: async (id, input) => id === branch.id ? { ...branch, ...input } : null,
+    changeBranchStatus: async (id, status) => ({
+      outcome: "CHANGED",
+      branch: { ...branch, id, status, closed_at: status === "closed" ? new Date() : null },
+    }),
+    listLifecycleEvents: async () => [],
     assignLegalEntity: async () => branch,
     removeLegalEntity: async () => "REMOVED",
     ...overrides,
@@ -209,4 +217,53 @@ test("legacy administrators cannot assign users without corporate ownership", as
     code: "ORGANIZATION_OWNER_REQUIRED",
   })
   assert.equal(called, false)
+})
+
+
+test("branch status schema accepts only active, suspended, and closed", () => {
+  for (const status of ["active", "suspended", "closed"]) {
+    assert.equal(branchStatusSchema.safeParse({ status }).success, true)
+  }
+  assert.equal(branchStatusSchema.safeParse({ status: "deleted" }).success, false)
+  assert.equal(branchStatusSchema.safeParse({ status: "closed", force: true }).success, false)
+})
+
+test("organization owner can suspend a branch and receives its persisted status", async () => {
+  const useCases = new BranchUseCases(createRepository())
+  const result = await useCases.changeStatus(branch.id, "suspended", owner)
+  assert.equal(result.status, "suspended")
+})
+
+test("a closed branch cannot be reactivated", async () => {
+  const useCases = new BranchUseCases(createRepository({
+    changeBranchStatus: async () => "BRANCH_CLOSED",
+  }))
+  await assert.rejects(
+    useCases.changeStatus(branch.id, "active", owner),
+    { status: 409, code: "BRANCH_CLOSED_PERMANENTLY" },
+  )
+})
+
+test("non-owner cannot change branch lifecycle", async () => {
+  let called = false
+  const useCases = new BranchUseCases(createRepository({
+    changeBranchStatus: async () => { called = true; return "CHANGED" },
+  }))
+  await assert.rejects(
+    useCases.changeStatus(branch.id, "suspended", legacyAdmin),
+    { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
+  )
+  assert.equal(called, false)
+})
+
+test("branch lifecycle history is available only to the corporate owner", async () => {
+  const useCases = new BranchUseCases(createRepository({
+    listLifecycleEvents: async () => [{ new_status: "active" }],
+  }))
+  const result = await useCases.listLifecycleEvents(branch.id, owner)
+  assert.equal(result.events[0].new_status, "active")
+  await assert.rejects(
+    useCases.listLifecycleEvents(branch.id, legacyAdmin),
+    { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
+  )
 })
