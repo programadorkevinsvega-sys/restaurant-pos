@@ -158,6 +158,88 @@ export class BranchUseCases {
     })
   }
 
+
+  updateLocalConfiguration(id, input, actor) {
+    return traceOperation("branches.update_local_configuration", async () => {
+      await this.requireOrganizationOwner(actor)
+      const result = await this.repository.updateBranchLocalConfiguration(id, input, actor.userId)
+      if (result === "BRANCH_NOT_FOUND") {
+        throw new AppError(404, "BRANCH_NOT_FOUND", "No se encontró la sucursal indicada.")
+      }
+      if (result === "BRANCH_NOT_ACTIVE") {
+        throw new AppError(409, "BRANCH_NOT_ACTIVE", "La configuración solo puede cambiarse cuando la sucursal está activa.")
+      }
+      const validationErrors = {
+        INVALID_ADDRESS: ["INVALID_BRANCH_ADDRESS", "La dirección operativa no es válida."],
+        INVALID_TIME_ZONE: ["INVALID_BRANCH_TIME_ZONE", "La zona horaria debe ser un identificador IANA válido."],
+        INVALID_CURRENCY: ["INVALID_BRANCH_CURRENCY", "La moneda debe tener un código alfabético de tres letras."],
+        INVALID_WEEKLY_HOURS: ["INVALID_BRANCH_WEEKLY_HOURS", "Los horarios semanales contienen intervalos inválidos o superpuestos."],
+        TIME_ZONE_REQUIRED: ["BRANCH_TIME_ZONE_REQUIRED", "Configura la zona horaria antes de guardar horarios semanales."],
+      }
+      if (validationErrors[result]) {
+        const [code, message] = validationErrors[result]
+        throw new AppError(400, code, message)
+      }
+      if (!result?.branch) {
+        throw new AppError(409, "BRANCH_CONFIGURATION_CONFLICT", "No se pudo guardar la configuración local de la sucursal.")
+      }
+      return toBranchDto(result.branch)
+    })
+  }
+
+  listCalendarExceptions(id, from, to, actor) {
+    return traceOperation("branches.list_calendar", async () => {
+      await this.requireOrganizationOwner(actor)
+      if (!await this.repository.findBranchById(id)) {
+        throw new AppError(404, "BRANCH_NOT_FOUND", "No se encontró la sucursal indicada.")
+      }
+      return { exceptions: await this.repository.listCalendarExceptions(id, from, to) }
+    })
+  }
+
+  upsertCalendarException(id, localDate, input, actor) {
+    return traceOperation("branches.upsert_calendar_exception", async () => {
+      await this.requireOrganizationOwner(actor)
+      const outcome = await this.repository.upsertCalendarException(id, localDate, input, actor.userId)
+      const errors = {
+        BRANCH_NOT_FOUND: [404, "BRANCH_NOT_FOUND", "No se encontró la sucursal indicada."],
+        BRANCH_NOT_ACTIVE: [409, "BRANCH_NOT_ACTIVE", "El calendario solo puede modificarse en una sucursal activa."],
+        TIME_ZONE_REQUIRED: [409, "BRANCH_TIME_ZONE_REQUIRED", "Configura la zona horaria de la sucursal antes de gestionar el calendario."],
+        INVALID_CALENDAR_EXCEPTION: [400, "INVALID_CALENDAR_EXCEPTION", "El tipo de excepción de calendario no es válido."],
+        INVALID_REASON: [400, "INVALID_CALENDAR_REASON", "Indica un motivo de entre 1 y 500 caracteres."],
+        INVALID_PERIODS: [400, "INVALID_CALENDAR_PERIODS", "Los intervalos del calendario no son válidos o se superponen."],
+      }
+      if (errors[outcome]) {
+        const [status, code, message] = errors[outcome]
+        throw new AppError(status, code, message)
+      }
+      if (outcome !== "SAVED") {
+        throw new AppError(409, "BRANCH_CALENDAR_CONFLICT", "No se pudo guardar la excepción del calendario.")
+      }
+      return { saved: true }
+    })
+  }
+
+  deleteCalendarException(id, localDate, actor) {
+    return traceOperation("branches.delete_calendar_exception", async () => {
+      await this.requireOrganizationOwner(actor)
+      const outcome = await this.repository.deleteCalendarException(id, localDate, actor.userId)
+      const errors = {
+        BRANCH_NOT_FOUND: [404, "BRANCH_NOT_FOUND", "No se encontró la sucursal indicada."],
+        BRANCH_NOT_ACTIVE: [409, "BRANCH_NOT_ACTIVE", "El calendario solo puede modificarse en una sucursal activa."],
+        CALENDAR_EXCEPTION_NOT_FOUND: [404, "CALENDAR_EXCEPTION_NOT_FOUND", "No existe una excepción para esa fecha."],
+      }
+      if (errors[outcome]) {
+        const [status, code, message] = errors[outcome]
+        throw new AppError(status, code, message)
+      }
+      if (outcome !== "DELETED") {
+        throw new AppError(409, "BRANCH_CALENDAR_CONFLICT", "No se pudo eliminar la excepción del calendario.")
+      }
+      return { deleted: true }
+    })
+  }
+
   changeStatus(id, status, actor) {
     return traceOperation("branches.change_status", async () => {
       await this.requireOrganizationOwner(actor)

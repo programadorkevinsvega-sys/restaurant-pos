@@ -503,7 +503,8 @@ Los módulos se identifican con códigos estables. Cada fase contiene subfases n
 - El PR #11 integró el contexto operativo de pedidos: asignación básica de usuarios a una o varias sucursales (N09-F3.2), selector de sucursal activa, selección explícita de entidad legal por pedido y validación transaccional en PostgreSQL. Se fusionó en `main` mediante el commit `3ce453f7d9e8173eef828f73f200c0dc63d6d4cd`; CI #36 aprobó backend, frontend y PostgreSQL 16/17.
 - Los pedidos nuevos quedan ligados a organización, sucursal, entidad legal y actor autenticado. Los históricos conservan su contexto nulo, sin backfill ni atribución fiscal inferida.
 - La consulta/actualización de pedidos y la consulta/asignación de entregas están delimitadas por sucursal y usuario. N09-F1.3 añade el control del estado de la sucursal y su modo de solo lectura.
-- N09-F3.3 (permisos granulares por ámbito), F1.4 (dirección y configuración local), F1.5 (historial organizacional general) e integración de mesas, reservas y contabilidad siguen pendientes.
+- N09-F1.4 (dirección y configuración local) está implementada y validada por CI #46 (ejecución `44444253303`, commit `b43b69b64317fb61e19335d066f8b094470801e9`): backend/frontend/build y PostgreSQL 16/17 aprobados. El PR #13 sigue abierto y sin fusionar; la fase no está integrada ni desplegada.
+- N09-F3.3 (permisos granulares por ámbito), N09-F1.5 (historial organizacional general) e integración multisucursal de mesas, reservas y contabilidad siguen pendientes.
 - Mesas y reservas todavía no tienen atribución por sucursal. No se asignan retroactivamente a una sede; su aislamiento requiere una fase propia.
 - La facturación electrónica, impuestos por entidad y contabilidad separada por entidad legal siguen sujetas al diseño y aprobación fiscal/contable correspondientes.
 

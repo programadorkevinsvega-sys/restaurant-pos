@@ -1,7 +1,13 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { BranchUseCases } from "../src/modules/branches/application/branch-use-cases.js"
-import { branchSchema, branchStatusSchema, updateBranchSchema } from "../src/modules/branches/presentation/routes.js"
+import {
+  branchCalendarExceptionSchema,
+  branchLocalConfigurationSchema,
+  branchSchema,
+  branchStatusSchema,
+  updateBranchSchema,
+} from "../src/modules/branches/presentation/routes.js"
 
 const owner = { userId: "organization-owner", role: "staff" }
 const legacyAdmin = { userId: "legacy-admin", role: "admin" }
@@ -34,6 +40,10 @@ function createRepository(overrides = {}) {
       branch: { ...branch, id, status, closed_at: status === "closed" ? new Date() : null },
     }),
     listLifecycleEvents: async () => [],
+    updateBranchLocalConfiguration: async (id, input) => ({ outcome: "UPDATED", branch: { ...branch, id, ...input } }),
+    listCalendarExceptions: async () => [],
+    upsertCalendarException: async () => "SAVED",
+    deleteCalendarException: async () => "DELETED",
     assignLegalEntity: async () => branch,
     removeLegalEntity: async () => "REMOVED",
     ...overrides,
@@ -265,5 +275,181 @@ test("branch lifecycle history is available only to the corporate owner", async 
   await assert.rejects(
     useCases.listLifecycleEvents(branch.id, legacyAdmin),
     { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
+  )
+})
+
+
+test("branch local configuration schema validates address and parameter field shapes", () => {
+  const parsed = branchLocalConfigurationSchema.safeParse({
+    operational_address: {
+      line_1: "Carrera 10 # 20-30",
+      line_2: null,
+      locality: "Medellín",
+      administrative_area: "Antioquia",
+      postal_code: "050001",
+      country_code: "CO",
+    },
+    time_zone: "America/Bogota",
+    currency_code: "COP",
+    weekly_hours: [
+      { weekday: 1, opens_at: "09:00", closes_at: "13:00", closes_next_day: false },
+      { weekday: 1, opens_at: "14:00", closes_at: "22:00", closes_next_day: false },
+      { weekday: 7, opens_at: "22:00", closes_at: "02:00", closes_next_day: true },
+    ],
+  })
+  assert.equal(parsed.success, true)
+  assert.equal(branchLocalConfigurationSchema.safeParse({
+    operational_address: null,
+    time_zone: "",
+    currency_code: "COP",
+    weekly_hours: [{ weekday: 1, opens_at: "29:00", closes_at: "18:00", closes_next_day: false }],
+  }).success, false)
+  assert.equal(branchLocalConfigurationSchema.safeParse({
+    operational_address: null,
+    time_zone: null,
+    currency_code: "CO",
+    weekly_hours: [],
+  }).success, false)
+  assert.equal(branchLocalConfigurationSchema.safeParse({
+    operational_address: null,
+    time_zone: null,
+    currency_code: null,
+    weekly_hours: [],
+    inherited: true,
+  }).success, false)
+})
+
+test("branch calendar schema distinguishes closure from special opening hours", () => {
+  assert.equal(branchCalendarExceptionSchema.safeParse({
+    kind: "closed",
+    periods: [],
+    reason: "Festivo local",
+  }).success, true)
+  assert.equal(branchCalendarExceptionSchema.safeParse({
+    kind: "special_hours",
+    periods: [{ opens_at: "10:00", closes_at: "14:00", closes_next_day: false }],
+    reason: "Jornada especial",
+  }).success, true)
+  assert.equal(branchCalendarExceptionSchema.safeParse({
+    kind: "closed",
+    periods: [{ opens_at: "10:00", closes_at: "14:00", closes_next_day: false }],
+    reason: "Festivo local",
+  }).success, false)
+  assert.equal(branchCalendarExceptionSchema.safeParse({
+    kind: "special_hours",
+    periods: [],
+    reason: "",
+  }).success, false)
+})
+
+test("organization owner can update branch-local configuration", async () => {
+  const address = { line_1: "Carrera 10", locality: "Medellín", country_code: "CO" }
+  const useCases = new BranchUseCases(createRepository())
+  const result = await useCases.updateLocalConfiguration(branch.id, {
+    operational_address: address,
+    time_zone: "America/Bogota",
+    currency_code: "COP",
+    weekly_hours: [],
+  }, owner)
+  assert.deepEqual(result.operational_address, address)
+  assert.equal(result.time_zone, "America/Bogota")
+  assert.equal(result.currency_code, "COP")
+})
+
+test("non-owner cannot update branch-local configuration", async () => {
+  let called = false
+  const useCases = new BranchUseCases(createRepository({
+    updateBranchLocalConfiguration: async () => { called = true; return "UPDATED" },
+  }))
+  await assert.rejects(
+    useCases.updateLocalConfiguration(branch.id, {
+      operational_address: null,
+      time_zone: null,
+      currency_code: null,
+      weekly_hours: [],
+    }, legacyAdmin),
+    { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
+  )
+  assert.equal(called, false)
+})
+
+test("inactive branch cannot change local configuration", async () => {
+  const useCases = new BranchUseCases(createRepository({
+    updateBranchLocalConfiguration: async () => "BRANCH_NOT_ACTIVE",
+  }))
+  await assert.rejects(
+    useCases.updateLocalConfiguration(branch.id, {
+      operational_address: null,
+      time_zone: null,
+      currency_code: null,
+      weekly_hours: [],
+    }, owner),
+    { status: 409, code: "BRANCH_NOT_ACTIVE" },
+  )
+})
+
+test("branch calendar reads are scoped to the corporate owner", async () => {
+  const useCases = new BranchUseCases(createRepository({
+    listCalendarExceptions: async (id, from, to) => [{
+      id: "exception-1",
+      local_date: "2027-01-01",
+      kind: "closed",
+      periods: [],
+      reason: "Festivo",
+      from,
+      to,
+    }],
+  }))
+  const result = await useCases.listCalendarExceptions(branch.id, "2027-01-01", "2027-03-31", owner)
+  assert.equal(result.exceptions[0].local_date, "2027-01-01")
+  await assert.rejects(
+    useCases.listCalendarExceptions(branch.id, "2027-01-01", "2027-03-31", legacyAdmin),
+    { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
+  )
+})
+
+test("calendar exception creation requires an active branch and configured timezone", async () => {
+  const useCases = new BranchUseCases(createRepository())
+  const result = await useCases.upsertCalendarException(branch.id, "2027-01-01", {
+    kind: "closed",
+    periods: [],
+    reason: "Festivo local",
+  }, owner)
+  assert.deepEqual(result, { saved: true })
+
+  const noTimezone = new BranchUseCases(createRepository({
+    upsertCalendarException: async () => "TIME_ZONE_REQUIRED",
+  }))
+  await assert.rejects(
+    noTimezone.upsertCalendarException(branch.id, "2027-01-01", {
+      kind: "closed",
+      periods: [],
+      reason: "Festivo local",
+    }, owner),
+    { status: 409, code: "BRANCH_TIME_ZONE_REQUIRED" },
+  )
+})
+
+test("calendar exceptions cannot be changed by a non-owner or on an inactive branch", async () => {
+  let called = false
+  const useCases = new BranchUseCases(createRepository({
+    upsertCalendarException: async () => { called = true; return "BRANCH_NOT_ACTIVE" },
+  }))
+  await assert.rejects(
+    useCases.upsertCalendarException(branch.id, "2027-01-01", {
+      kind: "closed",
+      periods: [],
+      reason: "Festivo local",
+    }, legacyAdmin),
+    { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
+  )
+  assert.equal(called, false)
+  await assert.rejects(
+    useCases.upsertCalendarException(branch.id, "2027-01-01", {
+      kind: "closed",
+      periods: [],
+      reason: "Festivo local",
+    }, owner),
+    { status: 409, code: "BRANCH_NOT_ACTIVE" },
   )
 })

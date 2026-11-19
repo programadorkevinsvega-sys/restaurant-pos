@@ -5,7 +5,18 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { Branch, BranchInput, BranchLifecycleEvent, BranchStatus, BranchUpdate, BranchUser } from "@/modules/branches/domain/models"
+import type {
+  Branch,
+  BranchCalendarException,
+  BranchCalendarExceptionInput,
+  BranchInput,
+  BranchLifecycleEvent,
+  BranchLocalConfiguration,
+  BranchStatus,
+  BranchUpdate,
+  BranchUser,
+} from "@/modules/branches/domain/models"
+import { BranchLocalConfigurationEditor } from "./branch-local-configuration-editor"
 import type { LegalEntity } from "@/modules/legal-entities/domain/models"
 
 interface BranchManagementCardProps {
@@ -22,6 +33,10 @@ interface BranchManagementCardProps {
   onRemove: (branchId: string, legalEntityId: string) => Promise<void>
   onAssignUser: (branchId: string, userId: string) => Promise<void>
   onRemoveUser: (branchId: string, userId: string) => Promise<void>
+  onSaveLocalConfiguration: (branchId: string, input: BranchLocalConfiguration) => Promise<void>
+  onListCalendar: (branchId: string, from: string, to: string) => Promise<BranchCalendarException[]>
+  onSaveCalendarException: (branchId: string, localDate: string, input: BranchCalendarExceptionInput) => Promise<void>
+  onDeleteCalendarException: (branchId: string, localDate: string) => Promise<void>
 }
 
 export function BranchManagementCard({
@@ -38,6 +53,10 @@ export function BranchManagementCard({
   onRemove,
   onAssignUser,
   onRemoveUser,
+  onSaveLocalConfiguration,
+  onListCalendar,
+  onSaveCalendarException,
+  onDeleteCalendarException,
 }: BranchManagementCardProps) {
   const [code, setCode] = useState("")
   const [name, setName] = useState("")
@@ -190,6 +209,14 @@ export function BranchManagementCard({
                     )}
                     </div>
                   </div>
+                  <BranchLocalConfigurationEditor
+                    branch={branch}
+                    canManage={canManage}
+                    onSaveConfiguration={onSaveLocalConfiguration}
+                    onListCalendar={onListCalendar}
+                    onSaveCalendarException={onSaveCalendarException}
+                    onDeleteCalendarException={onDeleteCalendarException}
+                  />
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Entidades legales habilitadas

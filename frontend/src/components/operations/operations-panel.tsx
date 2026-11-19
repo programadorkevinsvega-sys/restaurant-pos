@@ -19,7 +19,17 @@ import type { OrganizationProfile, OrganizationProfileInput, OrganizationProfile
 import { LegalEntityManagementCard } from "@/components/legal-entities/legal-entity-management-card"
 import { BranchManagementCard } from "@/components/branches/branch-management-card"
 import type { LegalEntity, LegalEntityInput } from "@/modules/legal-entities/domain/models"
-import type { Branch, BranchInput, BranchLifecycleEvent, BranchStatus, BranchUpdate, BranchUser } from "@/modules/branches/domain/models"
+import type {
+  Branch,
+  BranchCalendarException,
+  BranchCalendarExceptionInput,
+  BranchInput,
+  BranchLifecycleEvent,
+  BranchLocalConfiguration,
+  BranchStatus,
+  BranchUpdate,
+  BranchUser,
+} from "@/modules/branches/domain/models"
 import { HttpError } from "@/shared/infrastructure/http-client"
 
 interface OperationsPanelProps {
@@ -59,6 +69,10 @@ interface OperationsPanelProps {
   onRemoveBranchLegalEntity: (branchId: string, legalEntityId: string) => Promise<void>
   onAssignBranchUser: (branchId: string, userId: string) => Promise<void>
   onRemoveBranchUser: (branchId: string, userId: string) => Promise<void>
+  onSaveBranchLocalConfiguration: (branchId: string, input: BranchLocalConfiguration) => Promise<void>
+  onListBranchCalendar: (branchId: string, from: string, to: string) => Promise<BranchCalendarException[]>
+  onSaveBranchCalendarException: (branchId: string, localDate: string, input: BranchCalendarExceptionInput) => Promise<void>
+  onDeleteBranchCalendarException: (branchId: string, localDate: string) => Promise<void>
 }
 
 const reservationFieldLabels: Record<string, string> = {
@@ -92,7 +106,8 @@ export function OperationsPanel(props: OperationsPanelProps) {
     legalEntities, branches, branchUsersByBranch, branchLifecycleEventsByBranch, corporateStructureLoading, corporateStructureLoadError,
     canManageCorporateStructure, onCreateLegalEntity, onUpdateLegalEntity,
     onCreateBranch, onUpdateBranch, onChangeBranchStatus, onAssignBranchLegalEntity, onRemoveBranchLegalEntity,
-    onAssignBranchUser, onRemoveBranchUser,
+    onAssignBranchUser, onRemoveBranchUser, onSaveBranchLocalConfiguration,
+    onListBranchCalendar, onSaveBranchCalendarException, onDeleteBranchCalendarException,
   } = props
   const [busy, setBusy] = useState(false)
   const [categoryName, setCategoryName] = useState("")
@@ -253,6 +268,10 @@ export function OperationsPanel(props: OperationsPanelProps) {
         onRemove={onRemoveBranchLegalEntity}
         onAssignUser={onAssignBranchUser}
         onRemoveUser={onRemoveBranchUser}
+        onSaveLocalConfiguration={onSaveBranchLocalConfiguration}
+        onListCalendar={onListBranchCalendar}
+        onSaveCalendarException={onSaveBranchCalendarException}
+        onDeleteCalendarException={onDeleteBranchCalendarException}
       />
       <Card><CardHeader><CardTitle className="text-lg">Categorías de menú</CardTitle></CardHeader><CardContent>
         <form className="flex gap-2" onSubmit={(event) => {

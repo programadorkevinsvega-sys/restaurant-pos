@@ -324,6 +324,187 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(branchCreate.rows[0].outcome, "CREATED")
     branchId = branchCreate.rows[0].created_branch_id
 
+    const branchLocalPrivileges = await runtime.query(
+      "SELECT " +
+      "has_table_privilege(current_user, 'public.branch_calendar_exceptions', 'SELECT') AS calendar_read, " +
+      "has_table_privilege(current_user, 'public.branch_calendar_exceptions', 'INSERT') AS calendar_insert, " +
+      "has_table_privilege(current_user, 'public.branch_calendar_exceptions', 'UPDATE') AS calendar_update, " +
+      "has_table_privilege(current_user, 'public.branch_calendar_exceptions', 'DELETE') AS calendar_delete, " +
+      "has_table_privilege(current_user, 'public.branch_local_configuration_events', 'SELECT') AS local_audit_read, " +
+      "has_table_privilege(current_user, 'public.branch_local_configuration_events', 'INSERT') AS local_audit_insert, " +
+      "has_function_privilege(current_user, 'public.update_branch_local_configuration(uuid, jsonb, text, text, jsonb, uuid)'::regprocedure, 'EXECUTE') AS can_update_local_config, " +
+      "has_function_privilege(current_user, 'public.upsert_branch_calendar_exception(uuid, date, text, jsonb, text, uuid)'::regprocedure, 'EXECUTE') AS can_upsert_calendar, " +
+      "has_function_privilege(current_user, 'public.delete_branch_calendar_exception(uuid, date, uuid)'::regprocedure, 'EXECUTE') AS can_delete_calendar",
+    )
+    assert.deepEqual(branchLocalPrivileges.rows[0], {
+      calendar_read: true,
+      calendar_insert: false,
+      calendar_update: false,
+      calendar_delete: false,
+      local_audit_read: true,
+      local_audit_insert: false,
+      can_update_local_config: true,
+      can_upsert_calendar: true,
+      can_delete_calendar: true,
+    })
+
+    const localAddress = {
+      line_1: "Carrera 10 # 20-30",
+      line_2: "Local 4",
+      locality: "Bogotá",
+      administrative_area: "Bogotá D.C.",
+      postal_code: "110111",
+      country_code: "CO",
+    }
+    const weeklyHours = [
+      { weekday: 1, opens_at: "09:00", closes_at: "13:00", closes_next_day: false },
+      { weekday: 1, opens_at: "14:00", closes_at: "22:00", closes_next_day: false },
+      { weekday: 7, opens_at: "22:00", closes_at: "02:00", closes_next_day: true },
+    ]
+    const localConfig = await runtime.query(
+      "SELECT public.update_branch_local_configuration($1, $2::jsonb, $3, $4, $5::jsonb, $6) AS outcome",
+      [branchId, JSON.stringify(localAddress), "America/Bogota", "COP", JSON.stringify(weeklyHours), organizationAdminId],
+    )
+    assert.equal(localConfig.rows[0].outcome, "UPDATED")
+
+    const savedLocalConfig = await runtime.query(
+      "SELECT operational_address, time_zone, currency_code, weekly_hours " +
+      "FROM public.branches WHERE id = $1",
+      [branchId],
+    )
+    assert.deepEqual(savedLocalConfig.rows[0].operational_address, localAddress)
+    assert.equal(savedLocalConfig.rows[0].time_zone, "America/Bogota")
+    assert.equal(savedLocalConfig.rows[0].currency_code, "COP")
+    assert.deepEqual(savedLocalConfig.rows[0].weekly_hours, weeklyHours)
+
+    const invalidTimeZone = await runtime.query(
+      "SELECT public.update_branch_local_configuration($1, $2::jsonb, $3, $4, $5::jsonb, $6) AS outcome",
+      [branchId, JSON.stringify(localAddress), "Not/A_Time_Zone", "COP", "[]", organizationAdminId],
+    )
+    assert.equal(invalidTimeZone.rows[0].outcome, "INVALID_TIME_ZONE")
+
+    const invalidCurrency = await runtime.query(
+      "SELECT public.update_branch_local_configuration($1, $2::jsonb, $3, $4, $5::jsonb, $6) AS outcome",
+      [branchId, JSON.stringify(localAddress), "America/Bogota", "CO", "[]", organizationAdminId],
+    )
+    assert.equal(invalidCurrency.rows[0].outcome, "INVALID_CURRENCY")
+
+    const invalidAddress = await runtime.query(
+      "SELECT public.update_branch_local_configuration($1, $2::jsonb, $3, $4, $5::jsonb, $6) AS outcome",
+      [branchId, JSON.stringify({ line_1: " ", locality: "Bogotá", country_code: "CO" }), "America/Bogota", "COP", "[]", organizationAdminId],
+    )
+    assert.equal(invalidAddress.rows[0].outcome, "INVALID_ADDRESS")
+
+    const missingAddressFields = await runtime.query(
+      "SELECT public.update_branch_local_configuration($1, $2::jsonb, $3, $4, '[]'::jsonb, $5) AS outcome",
+      [branchId, JSON.stringify({}), "America/Bogota", "COP", organizationAdminId],
+    )
+    assert.equal(missingAddressFields.rows[0].outcome, "INVALID_ADDRESS")
+
+    const overlappingHours = [
+      { weekday: 1, opens_at: "09:00", closes_at: "13:00", closes_next_day: false },
+      { weekday: 1, opens_at: "12:30", closes_at: "17:00", closes_next_day: false },
+    ]
+    const invalidWeeklyHours = await runtime.query(
+      "SELECT public.update_branch_local_configuration($1, $2::jsonb, $3, $4, $5::jsonb, $6) AS outcome",
+      [branchId, JSON.stringify(localAddress), "America/Bogota", "COP", JSON.stringify(overlappingHours), organizationAdminId],
+    )
+    assert.equal(invalidWeeklyHours.rows[0].outcome, "INVALID_WEEKLY_HOURS")
+
+    const overnightOverlap = [
+      { weekday: 7, opens_at: "22:00", closes_at: "04:00", closes_next_day: true },
+      { weekday: 1, opens_at: "03:00", closes_at: "08:00", closes_next_day: false },
+    ]
+    const overlappingAcrossWeekBoundary = await runtime.query(
+      "SELECT public.update_branch_local_configuration($1, $2::jsonb, $3, $4, $5::jsonb, $6) AS outcome",
+      [branchId, JSON.stringify(localAddress), "America/Bogota", "COP", JSON.stringify(overnightOverlap), organizationAdminId],
+    )
+    assert.equal(overlappingAcrossWeekBoundary.rows[0].outcome, "INVALID_WEEKLY_HOURS")
+
+    const missingTimeZoneForHours = await runtime.query(
+      "SELECT public.update_branch_local_configuration($1, $2::jsonb, $3, $4, $5::jsonb, $6) AS outcome",
+      [branchId, JSON.stringify(localAddress), null, "COP", JSON.stringify(weeklyHours), organizationAdminId],
+    )
+    assert.equal(missingTimeZoneForHours.rows[0].outcome, "TIME_ZONE_REQUIRED")
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.update_branch_local_configuration($1, $2::jsonb, $3, $4, $5::jsonb, $6)",
+        [branchId, JSON.stringify(localAddress), "America/Bogota", "COP", "[]", organizationStaffId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    const exceptionPeriods = [
+      { opens_at: "10:00", closes_at: "14:00", closes_next_day: false },
+      { opens_at: "16:00", closes_at: "20:00", closes_next_day: false },
+    ]
+    const savedSpecialHours = await runtime.query(
+      "SELECT public.upsert_branch_calendar_exception($1, $2::date, $3, $4::jsonb, $5, $6) AS outcome",
+      [branchId, "2027-01-01", "special_hours", JSON.stringify(exceptionPeriods), "Jornada especial de año nuevo", organizationAdminId],
+    )
+    assert.equal(savedSpecialHours.rows[0].outcome, "SAVED")
+
+    const savedClosedDate = await runtime.query(
+      "SELECT public.upsert_branch_calendar_exception($1, $2::date, $3, $4::jsonb, $5, $6) AS outcome",
+      [branchId, "2027-01-02", "closed", "[]", "Cierre por mantenimiento", organizationAdminId],
+    )
+    assert.equal(savedClosedDate.rows[0].outcome, "SAVED")
+
+    const calendarRows = await runtime.query(
+      "SELECT to_char(local_date, 'YYYY-MM-DD') AS local_date, kind, periods, reason " +
+      "FROM public.branch_calendar_exceptions WHERE branch_id = $1 ORDER BY local_date",
+      [branchId],
+    )
+    assert.deepEqual(calendarRows.rows.map((row) => row.local_date), ["2027-01-01", "2027-01-02"])
+    assert.equal(calendarRows.rows[0].kind, "special_hours")
+    assert.deepEqual(calendarRows.rows[0].periods, exceptionPeriods)
+    assert.equal(calendarRows.rows[1].kind, "closed")
+    assert.deepEqual(calendarRows.rows[1].periods, [])
+
+    const deletedClosedDate = await runtime.query(
+      "SELECT public.delete_branch_calendar_exception($1, $2::date, $3) AS outcome",
+      [branchId, "2027-01-02", organizationAdminId],
+    )
+    assert.equal(deletedClosedDate.rows[0].outcome, "DELETED")
+    const localAudit = await runtime.query(
+      "SELECT event_type, actor_user_id FROM public.branch_local_configuration_events " +
+      "WHERE branch_id = $1 ORDER BY sequence",
+      [branchId],
+    )
+    assert.deepEqual(localAudit.rows.map((event) => event.event_type), [
+      "configuration.updated",
+      "calendar.upserted",
+      "calendar.upserted",
+      "calendar.deleted",
+    ])
+    assert.ok(localAudit.rows.every((event) => event.actor_user_id === organizationAdminId))
+
+    await assert.rejects(
+      runtime.query(
+        "INSERT INTO public.branch_calendar_exceptions " +
+        "(organization_id, branch_id, local_date, kind, periods, reason, created_by_user_id, updated_by_user_id) " +
+        "VALUES ($1, $2, '2027-01-03', 'closed', '[]'::jsonb, 'Direct write', $3, $3)",
+        [organizationId, branchId, organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
+    await assert.rejects(
+      runtime.query(
+        "UPDATE public.branch_local_configuration_events SET event_type = 'calendar.deleted' WHERE branch_id = $1",
+        [branchId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.upsert_branch_calendar_exception($1, $2::date, $3, $4::jsonb, $5, $6)",
+        [branchId, "2027-01-04", "closed", "[]", "No owner", organizationStaffId],
+      ),
+      (error) => error.code === "42501",
+    )
+
     const staffAssignment = await runtime.query(
       "SELECT public.assign_user_to_branch($1, $2, $3) AS outcome",
       [branchId, organizationStaffId, organizationAdminId],
@@ -577,6 +758,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "007_create_legal_entities_and_branch_relations.sql",
         "008_branch_assignments_and_order_context.sql",
         "009_branch_lifecycle_and_read_only_state.sql",
+        "010_branch_local_configuration_and_calendar.sql",
       ],
     )
 
@@ -742,6 +924,22 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       [branchId],
     )
     assert.equal(suspendedStatus.rows[0].status, "suspended")
+
+    const configWhileSuspended = await runtime.query(
+      "SELECT public.update_branch_local_configuration($1, NULL, 'America/Bogota', 'COP', '[]'::jsonb, $2) AS outcome",
+      [branchId, organizationAdminId],
+    )
+    assert.equal(configWhileSuspended.rows[0].outcome, "BRANCH_NOT_ACTIVE")
+    const calendarWhileSuspended = await runtime.query(
+      "SELECT public.upsert_branch_calendar_exception($1, '2027-01-05', 'closed', '[]'::jsonb, 'Suspendida', $2) AS outcome",
+      [branchId, organizationAdminId],
+    )
+    assert.equal(calendarWhileSuspended.rows[0].outcome, "BRANCH_NOT_ACTIVE")
+    const deleteCalendarWhileSuspended = await runtime.query(
+      "SELECT public.delete_branch_calendar_exception($1, '2027-01-01', $2) AS outcome",
+      [branchId, organizationAdminId],
+    )
+    assert.equal(deleteCalendarWhileSuspended.rows[0].outcome, "BRANCH_NOT_ACTIVE")
 
     await assert.rejects(
       runtime.query(
@@ -922,6 +1120,14 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     }
     if (branchId || secondBranchId) {
       const branchIds = [branchId, secondBranchId].filter(Boolean)
+      await migrator.query(
+        "DELETE FROM public.branch_local_configuration_events WHERE branch_id = ANY($1::uuid[])",
+        [branchIds],
+      )
+      await migrator.query(
+        "DELETE FROM public.branch_calendar_exceptions WHERE branch_id = ANY($1::uuid[])",
+        [branchIds],
+      )
       await migrator.query(
         "DELETE FROM public.branch_lifecycle_events WHERE branch_id = ANY($1::uuid[])",
         [branchIds],

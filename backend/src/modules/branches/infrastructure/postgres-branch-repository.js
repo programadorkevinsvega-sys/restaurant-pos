@@ -6,6 +6,10 @@ function mapBranch(row) {
     id: row.id,
     code: row.code,
     name: row.name,
+    operational_address: row.operational_address ?? null,
+    time_zone: row.time_zone ?? null,
+    currency_code: row.currency_code ?? null,
+    weekly_hours: row.weekly_hours ?? [],
     status: row.status,
     status_changed_at: row.status_changed_at,
     closed_at: row.closed_at,
@@ -20,6 +24,10 @@ const branchSelect = `
     b.id,
     b.code,
     b.name,
+    b.operational_address,
+    b.time_zone,
+    b.currency_code,
+    b.weekly_hours,
     b.status,
     b.status_changed_at,
     b.closed_at,
@@ -204,6 +212,53 @@ export class PostgresBranchRepository {
     const outcome = result.rows[0]?.outcome ?? "BRANCH_NOT_FOUND"
     if (outcome !== "CHANGED" && outcome !== "UNCHANGED") return outcome
     return { outcome, branch: await this.findBranchById(branchId) }
+  }
+
+
+  async updateBranchLocalConfiguration(branchId, input, actorUserId) {
+    const result = await queryPostgres(this.pool, `
+      SELECT public.update_branch_local_configuration(
+        $1, $2::jsonb, $3, $4, $5::jsonb, $6
+      ) AS outcome
+    `, [
+      branchId,
+      input.operational_address ? JSON.stringify(input.operational_address) : null,
+      input.time_zone,
+      input.currency_code,
+      JSON.stringify(input.weekly_hours),
+      actorUserId,
+    ])
+    const outcome = result.rows[0]?.outcome ?? "BRANCH_NOT_FOUND"
+    if (outcome !== "UPDATED") return outcome
+    return { outcome, branch: await this.findBranchById(branchId) }
+  }
+
+  async listCalendarExceptions(branchId, from, to) {
+    const result = await queryPostgres(this.pool, `
+      SELECT id, to_char(local_date, 'YYYY-MM-DD') AS local_date,
+             kind, periods, reason, created_at, updated_at
+      FROM public.branch_calendar_exceptions
+      WHERE branch_id = $1 AND local_date BETWEEN $2::date AND $3::date
+      ORDER BY local_date
+      LIMIT 367
+    `, [branchId, from, to])
+    return result.rows
+  }
+
+  async upsertCalendarException(branchId, localDate, input, actorUserId) {
+    const result = await queryPostgres(this.pool, `
+      SELECT public.upsert_branch_calendar_exception(
+        $1, $2::date, $3, $4::jsonb, $5, $6
+      ) AS outcome
+    `, [branchId, localDate, input.kind, JSON.stringify(input.periods), input.reason, actorUserId])
+    return result.rows[0]?.outcome ?? "BRANCH_NOT_FOUND"
+  }
+
+  async deleteCalendarException(branchId, localDate, actorUserId) {
+    const result = await queryPostgres(this.pool, `
+      SELECT public.delete_branch_calendar_exception($1, $2::date, $3) AS outcome
+    `, [branchId, localDate, actorUserId])
+    return result.rows[0]?.outcome ?? "BRANCH_NOT_FOUND"
   }
 
   async listLifecycleEvents(branchId) {
