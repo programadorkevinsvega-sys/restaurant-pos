@@ -65,6 +65,35 @@ test("table updates preserve current_order_id when it is omitted", async () => {
   assert.equal(queryCall[1][3], null)
 })
 
+test("delivery listing and mutation stay within the authenticated active branch", async () => {
+  let listingCall
+  let assignmentCall
+  const repository = new PostgresOperationsRepository({
+    query: async (...args) => {
+      if (args[0].includes("assign_delivery_driver")) {
+        assignmentCall = args
+        return { rows: [{ delivery: { order_id: "order-id" } }] }
+      }
+      listingCall = args
+      return { rows: [] }
+    },
+  })
+
+  await repository.listDeliveries("pending", "branch-id", "staff-id")
+  assert.match(listingCall[0], /o\.branch_id = \$2/)
+  assert.match(listingCall[0], /branch_user_assignments/)
+  assert.deepEqual(listingCall[1], ["pending", "branch-id", "staff-id"])
+
+  await repository.assignDriver({
+    order_id: "order-id",
+    driver_name: "Driver",
+    driver_phone: null,
+    estimated_time: 20,
+  }, "branch-id", "staff-id")
+  assert.match(assignmentCall[0], /assign_delivery_driver\(\$1, \$2, \$3, \$4, \$5::uuid, \$6::uuid\)/)
+  assert.deepEqual(assignmentCall[1], ["order-id", "Driver", null, 20, "branch-id", "staff-id"])
+})
+
 test("settings updates pass values as JSON and upsert on the key", async () => {
   let queryCall
   const repository = new PostgresOperationsRepository({
