@@ -59,12 +59,21 @@ test("branch update schema accepts only base identity fields", () => {
   }).success, false)
 })
 
-test("branch list is readable by an authenticated user but management is owner-only", async () => {
+test("branch list is available to the registered organization owner", async () => {
   const useCases = new BranchUseCases(createRepository())
-  const result = await useCases.list(legacyAdmin)
+  const result = await useCases.list(owner)
 
   assert.equal(result.branches.length, 1)
-  assert.deepEqual(result.permissions, { can_manage: false })
+  assert.deepEqual(result.permissions, { can_manage: true })
+})
+
+test("legacy administrators cannot read branch legal associations without owner assignment", async () => {
+  const useCases = new BranchUseCases(createRepository())
+
+  await assert.rejects(
+    useCases.list(legacyAdmin),
+    { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
+  )
 })
 
 test("branch creation persists one-to-many legal entity associations", async () => {
