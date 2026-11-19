@@ -29,6 +29,9 @@ import { createAccountingRoutes } from "./modules/accounting/presentation/routes
 import { AuthUseCases } from "./modules/auth/application/auth-use-cases.js"
 import { PostgresAuthRepository } from "./modules/auth/infrastructure/postgres-auth-repository.js"
 import { createAuthRoutes } from "./modules/auth/presentation/routes.js"
+import { OrganizationUseCases } from "./modules/organization/application/organization-use-cases.js"
+import { PostgresOrganizationRepository } from "./modules/organization/infrastructure/postgres-organization-repository.js"
+import { createOrganizationRoutes } from "./modules/organization/presentation/routes.js"
 
 export async function createApp(config = loadConfig()) {
   const pool = createPostgresPool(config)
@@ -88,6 +91,9 @@ export async function createApp(config = loadConfig()) {
   })
 
   app.use("/api/auth", createAuthRoutes(auth, config, limiters.login))
+
+  const organization = new OrganizationUseCases(new PostgresOrganizationRepository(pool))
+  app.use("/api/organization", createOrganizationRoutes(organization, requireUser, requireRole, limiters.writes))
 
   const catalogRoutes = createCatalogRoutes(catalog, requireUser, requireRole)
   app.use("/api/categories", catalogRoutes.categories)
