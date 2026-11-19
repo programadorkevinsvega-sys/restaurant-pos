@@ -1,4 +1,4 @@
-import type { AvailableBranchesResult, Branch, BranchInput, BranchesResult, BranchUpdate, BranchUsersResult } from "./models"
+import type { AvailableBranchesResult, Branch, BranchInput, BranchLifecycleResult, BranchStatus, BranchesResult, BranchUpdate, BranchUsersResult } from "./models"
 
 export interface BranchRepository {
   list(signal?: AbortSignal): Promise<BranchesResult>
@@ -6,6 +6,8 @@ export interface BranchRepository {
   listUsers(branchId: string, signal?: AbortSignal): Promise<BranchUsersResult>
   assignUser(branchId: string, userId: string): Promise<BranchUsersResult>
   removeUser(branchId: string, userId: string): Promise<BranchUsersResult>
+  changeStatus(id: string, status: BranchStatus): Promise<Branch>
+  listLifecycleEvents(branchId: string): Promise<BranchLifecycleResult>
   create(input: BranchInput): Promise<Branch>
   update(id: string, input: BranchUpdate): Promise<Branch>
   assignLegalEntity(branchId: string, legalEntityId: string): Promise<Branch>
