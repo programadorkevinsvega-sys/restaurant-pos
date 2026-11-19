@@ -5,7 +5,7 @@ import { branchSchema, updateBranchSchema } from "../src/modules/branches/presen
 
 const owner = { userId: "organization-owner", role: "staff" }
 const legacyAdmin = { userId: "legacy-admin", role: "admin" }
-const legalEntityIds = ["legal-entity-1", "legal-entity-2"]
+const legalEntityIds = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"]
 const branch = {
   id: "branch-id",
   code: "BOG-01",
