@@ -256,22 +256,24 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(legalEntityUpdate.rowCount, 1)
     assert.equal(legalEntityUpdate.rows[0].commercial_name, "Chili Colombia Grupo")
 
-    const nonOwnerLegalEntityUpdate = await runtime.query(
-      "SELECT * FROM public.update_legal_entity($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)",
-      [
-        legalEntityIds[0],
-        "Unauthorized",
-        null,
-        "CO",
-        "NIT",
-        "900123456-7",
-        null,
-        null,
-        null,
-        organizationStaffId,
-      ],
+    await assert.rejects(
+      runtime.query(
+        "SELECT * FROM public.update_legal_entity($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)",
+        [
+          legalEntityIds[0],
+          "Unauthorized",
+          null,
+          "CO",
+          "NIT",
+          "900123456-7",
+          null,
+          null,
+          null,
+          organizationStaffId,
+        ],
+      ),
+      (error) => error.code === "42501",
     )
-    assert.equal(nonOwnerLegalEntityUpdate.rowCount, 0)
 
     await assert.rejects(
       migrator.query("DELETE FROM public.legal_entities WHERE id = $1", [legalEntityIds[0]]),
