@@ -213,6 +213,23 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     assert.equal(duplicateLegalEntity.rowCount, 0)
 
+    const duplicateTaxIdentityUpdate = await runtime.query(
+      "SELECT * FROM public.update_legal_entity($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)",
+      [
+        legalEntityIds[1],
+        "Restaurantes Bogotá S.A.S.",
+        "Duplicated tax identity",
+        "CO",
+        "NIT",
+        "900123456-7",
+        null,
+        null,
+        null,
+        organizationAdminId,
+      ],
+    )
+    assert.equal(duplicateTaxIdentityUpdate.rowCount, 0)
+
     await assert.rejects(
       runtime.query(
         "SELECT * FROM public.create_legal_entity($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)",
@@ -256,6 +273,11 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     assert.equal(nonOwnerLegalEntityUpdate.rowCount, 0)
 
+    await assert.rejects(
+      migrator.query("DELETE FROM public.legal_entities WHERE id = $1", [legalEntityIds[0]]),
+      (error) => error.code === "23503",
+    )
+
     const branchCreate = await runtime.query(
       "SELECT * FROM public.create_branch($1, $2, $3::uuid[], $4)",
       ["BOG-01", "Chili Bogotá Centro", legalEntityIds, organizationAdminId],
@@ -291,6 +313,12 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     assert.equal(duplicateBranch.rows[0].outcome, "BRANCH_CODE_ALREADY_EXISTS")
 
+    const missingLegalEntity = await runtime.query(
+      "SELECT * FROM public.create_branch($1, $2, $3::uuid[], $4)",
+      ["BOG-03", "Branch without legal entity", [], organizationAdminId],
+    )
+    assert.equal(missingLegalEntity.rows[0].outcome, "LEGAL_ENTITY_REQUIRED")
+
     const invalidBranchScope = await runtime.query(
       "SELECT * FROM public.create_branch($1, $2, $3::uuid[], $4)",
       ["BOG-02", "Invalid branch", ["00000000-0000-0000-0000-000000000000"], organizationAdminId],
@@ -302,6 +330,12 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       [branchId, legalEntityIds[0], organizationAdminId],
     )
     assert.equal(duplicateBranchEntity.rowCount, 0)
+
+    const invalidBranchAssignment = await runtime.query(
+      "SELECT * FROM public.assign_branch_legal_entity($1, $2, $3)",
+      [branchId, "00000000-0000-0000-0000-000000000000", organizationAdminId],
+    )
+    assert.equal(invalidBranchAssignment.rowCount, 0)
 
     const branchUpdate = await runtime.query(
       "SELECT * FROM public.update_branch_identity($1, $2, $3, $4)",
