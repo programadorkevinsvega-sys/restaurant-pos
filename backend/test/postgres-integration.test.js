@@ -687,7 +687,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
 
     const initialLifecycleEvents = await runtime.query(
       "SELECT previous_status, new_status, actor_user_id FROM public.branch_lifecycle_events " +
-      "WHERE branch_id = $1 ORDER BY occurred_at, id",
+      "WHERE branch_id = $1 ORDER BY sequence",
       [branchId],
     )
     assert.equal(initialLifecycleEvents.rowCount, 1)
