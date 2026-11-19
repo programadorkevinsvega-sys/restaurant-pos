@@ -13,6 +13,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
   let categoryId
   let productId
   let orderId
+  let deliveryOrderId
   let organizationAdminId
   let organizationStaffId
   let organizationId
@@ -39,12 +40,23 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     const privileges = await runtime.query(
       "SELECT has_table_privilege(current_user, 'public.products', 'SELECT') AS can_read_products, " +
       "has_table_privilege(current_user, 'public.products', 'INSERT') AS can_insert_products, " +
+      "has_table_privilege(current_user, 'public.orders', 'INSERT') AS can_insert_orders, " +
       "has_function_privilege(current_user, " +
-      "'public.create_pos_order(text, text, text, jsonb, text, text)'::regprocedure, 'EXECUTE') AS can_create_orders",
+      "'public.create_pos_order(text, text, text, jsonb, text, text)'::regprocedure, 'EXECUTE') AS can_create_orders_legacy, " +
+      "has_function_privilege(current_user, " +
+      "'public.create_pos_order(text, text, text, jsonb, text, text, uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_create_orders, " +
+      "has_function_privilege(current_user, " +
+      "'public.assign_delivery_driver(uuid, text, text, integer, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_assign_delivery, " +
+      "has_function_privilege(current_user, " +
+      "'public.assign_delivery_driver(uuid, text, text, integer)'::regprocedure, 'EXECUTE') AS can_assign_delivery_legacy",
     )
     assert.equal(privileges.rows[0].can_read_products, true)
     assert.equal(privileges.rows[0].can_insert_products, true)
+    assert.equal(privileges.rows[0].can_insert_orders, false)
+    assert.equal(privileges.rows[0].can_create_orders_legacy, false)
     assert.equal(privileges.rows[0].can_create_orders, true)
+    assert.equal(privileges.rows[0].can_assign_delivery, true)
+    assert.equal(privileges.rows[0].can_assign_delivery_legacy, false)
 
     const legalStructurePrivileges = await runtime.query(
       "SELECT " +
@@ -60,6 +72,14 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "has_table_privilege(current_user, 'public.branch_legal_entities', 'INSERT') AS relation_insert, " +
       "has_table_privilege(current_user, 'public.branch_legal_entities', 'UPDATE') AS relation_update, " +
       "has_table_privilege(current_user, 'public.branch_legal_entities', 'DELETE') AS relation_delete, " +
+      "has_table_privilege(current_user, 'public.branch_user_assignments', 'SELECT') AS assignment_read, " +
+      "has_table_privilege(current_user, 'public.branch_user_assignments', 'INSERT') AS assignment_insert, " +
+      "has_table_privilege(current_user, 'public.branch_user_assignments', 'UPDATE') AS assignment_update, " +
+      "has_table_privilege(current_user, 'public.branch_user_assignments', 'DELETE') AS assignment_delete, " +
+      "has_function_privilege(current_user, " +
+      "'public.assign_user_to_branch(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_assign_user, " +
+      "has_function_privilege(current_user, " +
+      "'public.remove_user_from_branch(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_remove_user, " +
       "has_function_privilege(current_user, " +
       "'public.create_legal_entity(text, text, text, text, text, jsonb, text, text, uuid)'::regprocedure, 'EXECUTE') AS can_create_legal_entity, " +
       "has_function_privilege(current_user, " +
@@ -82,6 +102,12 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       relation_insert: false,
       relation_update: false,
       relation_delete: false,
+      assignment_read: true,
+      assignment_insert: false,
+      assignment_update: false,
+      assignment_delete: false,
+      can_assign_user: true,
+      can_remove_user: true,
       can_create_legal_entity: true,
       can_create_branch: true,
       can_assign_entity: true,
@@ -283,6 +309,26 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(branchCreate.rows[0].outcome, "CREATED")
     branchId = branchCreate.rows[0].created_branch_id
 
+    const staffAssignment = await runtime.query(
+      "SELECT public.assign_user_to_branch($1, $2, $3) AS outcome",
+      [branchId, organizationStaffId, organizationAdminId],
+    )
+    assert.equal(staffAssignment.rows[0].outcome, "ASSIGNED")
+
+    const duplicateStaffAssignment = await runtime.query(
+      "SELECT public.assign_user_to_branch($1, $2, $3) AS outcome",
+      [branchId, organizationStaffId, organizationAdminId],
+    )
+    assert.equal(duplicateStaffAssignment.rows[0].outcome, "ALREADY_ASSIGNED")
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.assign_user_to_branch($1, $2, $3)",
+        [branchId, organizationAdminId, organizationStaffId],
+      ),
+      (error) => error.code === "42501",
+    )
+
     const branchRelations = await runtime.query(
       "SELECT legal_entity_id FROM public.branch_legal_entities " +
       "WHERE organization_id = $1 AND branch_id = $2 ORDER BY legal_entity_id",
@@ -301,6 +347,18 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     assert.equal(secondBranch.rows[0].outcome, "CREATED")
     secondBranchId = secondBranch.rows[0].created_branch_id
+
+    const secondStaffAssignment = await runtime.query(
+      "SELECT public.assign_user_to_branch($1, $2, $3) AS outcome",
+      [secondBranchId, organizationStaffId, organizationAdminId],
+    )
+    assert.equal(secondStaffAssignment.rows[0].outcome, "ASSIGNED")
+
+    const staffBranchCount = await runtime.query(
+      "SELECT count(*)::integer AS branch_count FROM public.branch_user_assignments WHERE user_id = $1",
+      [organizationStaffId],
+    )
+    assert.equal(staffBranchCount.rows[0].branch_count, 2)
 
     const legalEntityBranchCount = await runtime.query(
       "SELECT count(*)::integer AS branch_count FROM public.branch_legal_entities " +
@@ -408,6 +466,14 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
 
     await assert.rejects(
       runtime.query(
+        "INSERT INTO public.branch_user_assignments (organization_id, branch_id, user_id, assigned_by_user_id) VALUES ($1, $2, $3, $4)",
+        [organizationId, branchId, organizationStaffId, organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
         "UPDATE public.legal_entities SET legal_name = 'Direct update bypass' WHERE id = $1",
         [legalEntityIds[0]],
       ),
@@ -494,6 +560,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "005_create_auth_tables.sql",
         "006_create_organization_profile.sql",
         "007_create_legal_entities_and_branch_relations.sql",
+        "008_branch_assignments_and_order_context.sql",
       ],
     )
 
@@ -510,8 +577,32 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     productId = product.rows[0].id
 
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Unassigned operator", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null, branchId, legalEntityIds[0], organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Wrong legal entity for branch", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null, secondBranchId, legalEntityIds[1], organizationStaffId],
+      ),
+      (error) => error.code === "23503",
+    )
+
+    await assert.rejects(
+      migrator.query(
+        "INSERT INTO public.orders (table_number, order_type, total_amount, status) VALUES ($1, $2, $3, $4)",
+        ["Unattributed direct insert", "Para llevar", 1, "pending"],
+      ),
+      (error) => error.code === "23514",
+    )
+
     const order = await runtime.query(
-      "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6) AS order_id",
+      "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid) AS order_id",
       [
         "CI integration table",
         "Integration test",
@@ -519,12 +610,46 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         JSON.stringify([{ id: productId, quantity: 2 }]),
         null,
         null,
+        branchId,
+        legalEntityIds[0],
+        organizationStaffId,
       ],
     )
     orderId = order.rows[0].order_id
 
+    const deliveryOrder = await runtime.query(
+      "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid) AS order_id",
+      [
+        "CI delivery table",
+        "Delivery integration",
+        "A domicilio",
+        JSON.stringify([{ id: productId, quantity: 1 }]),
+        "Calle de prueba 123",
+        "+573000000000",
+        branchId,
+        legalEntityIds[0],
+        organizationStaffId,
+      ],
+    )
+    deliveryOrderId = deliveryOrder.rows[0].order_id
+
+    const deliveryAssignment = await runtime.query(
+      "SELECT public.assign_delivery_driver($1, $2, $3, $4, $5::uuid, $6::uuid) AS delivery",
+      [deliveryOrderId, "CI Driver", "+573000000001", 25, branchId, organizationStaffId],
+    )
+    assert.equal(deliveryAssignment.rows[0].delivery.driver_name, "CI Driver")
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.assign_delivery_driver($1, $2, $3, $4, $5::uuid, $6::uuid)",
+        [deliveryOrderId, "Wrong branch", null, 15, secondBranchId, organizationStaffId],
+      ),
+      (error) => error.code === "42501",
+    )
+
     const persistedOrder = await runtime.query(
-      "SELECT o.total_amount::text AS total_amount, count(oi.id)::integer AS item_count " +
+      "SELECT o.total_amount::text AS total_amount, count(oi.id)::integer AS item_count, " +
+      "o.organization_id, o.branch_id, o.legal_entity_id, o.created_by_user_id " +
       "FROM public.orders o JOIN public.order_items oi ON oi.order_id = o.id " +
       "WHERE o.id = $1 GROUP BY o.id",
       [orderId],
@@ -532,10 +657,29 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(persistedOrder.rowCount, 1)
     assert.equal(persistedOrder.rows[0].total_amount, "25.00")
     assert.equal(persistedOrder.rows[0].item_count, 1)
+    assert.equal(persistedOrder.rows[0].branch_id, branchId)
+    assert.equal(persistedOrder.rows[0].legal_entity_id, legalEntityIds[0])
+    assert.equal(persistedOrder.rows[0].created_by_user_id, organizationStaffId)
+
+    await assert.rejects(
+      migrator.query(
+        "UPDATE public.orders SET legal_entity_id = $2 WHERE id = $1",
+        [orderId, legalEntityIds[1]],
+      ),
+      (error) => error.code === "23514",
+    )
 
     await assert.rejects(
       runtime.query(
         "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6)",
+        ["Legacy API", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
         [
           "CI invalid order",
           "Integration test",
@@ -543,19 +687,33 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
           JSON.stringify([{ id: productId, quantity: 1 }]),
           null,
           null,
+          branchId,
+          legalEntityIds[0],
+          organizationStaffId,
         ],
       ),
       /Invalid order type/,
     )
   } finally {
+    if (orderId || deliveryOrderId) {
+      await migrator.query(
+        "DELETE FROM public.orders WHERE id = ANY($1::uuid[])",
+        [[orderId, deliveryOrderId].filter(Boolean)],
+      )
+    }
     if (branchId || secondBranchId) {
+      const branchIds = [branchId, secondBranchId].filter(Boolean)
+      await migrator.query(
+        "DELETE FROM public.branch_user_assignments WHERE branch_id = ANY($1::uuid[])",
+        [branchIds],
+      )
       await migrator.query(
         "DELETE FROM public.branch_legal_entities WHERE branch_id = ANY($1::uuid[])",
-        [[branchId, secondBranchId].filter(Boolean)],
+        [branchIds],
       )
       await migrator.query(
         "DELETE FROM public.branches WHERE id = ANY($1::uuid[])",
-        [[branchId, secondBranchId].filter(Boolean)],
+        [branchIds],
       )
     }
     if (legalEntityIds.length) {
@@ -568,7 +726,6 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         [[organizationAdminId, organizationStaffId].filter(Boolean)],
       )
     }
-    if (orderId) await runtime.query("DELETE FROM public.orders WHERE id = $1", [orderId])
     if (productId) await runtime.query("DELETE FROM public.products WHERE id = $1", [productId])
     if (categoryId) await runtime.query("DELETE FROM public.categories WHERE id = $1", [categoryId])
     await Promise.all([runtime.end(), migrator.end()])

@@ -4,6 +4,7 @@ import { asyncHandler } from "../../../shared/presentation/http/async-handler.js
 import { validateRequest } from "../../../shared/presentation/http/validate-request.js"
 
 const branchIdParams = z.object({ branchId: z.string().uuid() })
+const userAssignmentParams = branchIdParams.extend({ userId: z.string().uuid() })
 const associationParams = branchIdParams.extend({ legalEntityId: z.string().uuid() })
 
 export const branchSchema = z.object({
@@ -26,6 +27,11 @@ export function createBranchRoutes(branches, authenticate, writesLimiter) {
     response.set("Cache-Control", "no-store")
     next()
   })
+
+  router.get("/available", authenticate, asyncHandler(async (request, response) => {
+    response.json(await branches.listAvailable(request.auth))
+  }))
+
   router.get("/", authenticate, asyncHandler(async (request, response) => {
     response.json(await branches.list(request.auth))
   }))
@@ -37,6 +43,43 @@ export function createBranchRoutes(branches, authenticate, writesLimiter) {
     validateRequest({ body: branchSchema }),
     asyncHandler(async (request, response) => {
       response.status(201).json({ branch: await branches.create(request.validated.body, request.auth) })
+    }),
+  )
+
+  router.get(
+    "/:branchId/users",
+    authenticate,
+    validateRequest({ params: branchIdParams }),
+    asyncHandler(async (request, response) => {
+      response.json(await branches.listUsers(request.validated.params.branchId, request.auth))
+    }),
+  )
+
+  router.post(
+    "/:branchId/users/:userId",
+    authenticate,
+    writesLimiter,
+    validateRequest({ params: userAssignmentParams }),
+    asyncHandler(async (request, response) => {
+      response.status(201).json(await branches.assignUser(
+        request.validated.params.branchId,
+        request.validated.params.userId,
+        request.auth,
+      ))
+    }),
+  )
+
+  router.delete(
+    "/:branchId/users/:userId",
+    authenticate,
+    writesLimiter,
+    validateRequest({ params: userAssignmentParams }),
+    asyncHandler(async (request, response) => {
+      response.json(await branches.removeUser(
+        request.validated.params.branchId,
+        request.validated.params.userId,
+        request.auth,
+      ))
     }),
   )
 

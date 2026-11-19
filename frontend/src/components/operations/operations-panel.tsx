@@ -19,7 +19,7 @@ import type { OrganizationProfile, OrganizationProfileInput, OrganizationProfile
 import { LegalEntityManagementCard } from "@/components/legal-entities/legal-entity-management-card"
 import { BranchManagementCard } from "@/components/branches/branch-management-card"
 import type { LegalEntity, LegalEntityInput } from "@/modules/legal-entities/domain/models"
-import type { Branch, BranchInput, BranchUpdate } from "@/modules/branches/domain/models"
+import type { Branch, BranchInput, BranchUpdate, BranchUser } from "@/modules/branches/domain/models"
 import { HttpError } from "@/shared/infrastructure/http-client"
 
 interface OperationsPanelProps {
@@ -45,6 +45,7 @@ interface OperationsPanelProps {
   onUpdateOrganization: (input: OrganizationProfileUpdate) => Promise<void>
   legalEntities: LegalEntity[]
   branches: Branch[]
+  branchUsersByBranch: Record<string, BranchUser[]>
   corporateStructureLoading: boolean
   corporateStructureLoadError: string | null
   canManageCorporateStructure: boolean
@@ -54,6 +55,8 @@ interface OperationsPanelProps {
   onUpdateBranch: (id: string, input: BranchUpdate) => Promise<void>
   onAssignBranchLegalEntity: (branchId: string, legalEntityId: string) => Promise<void>
   onRemoveBranchLegalEntity: (branchId: string, legalEntityId: string) => Promise<void>
+  onAssignBranchUser: (branchId: string, userId: string) => Promise<void>
+  onRemoveBranchUser: (branchId: string, userId: string) => Promise<void>
 }
 
 const reservationFieldLabels: Record<string, string> = {
@@ -84,9 +87,10 @@ export function OperationsPanel(props: OperationsPanelProps) {
     onCreateReservation, onUpdateReservationStatus, onAssignDriver, onUpdateSettings, onCreateCategory,
     organization, organizationLoading, canUpdateOrganization, canBootstrapOrganization, organizationLoadError,
     onBootstrapOrganization, onUpdateOrganization,
-    legalEntities, branches, corporateStructureLoading, corporateStructureLoadError,
+    legalEntities, branches, branchUsersByBranch, corporateStructureLoading, corporateStructureLoadError,
     canManageCorporateStructure, onCreateLegalEntity, onUpdateLegalEntity,
     onCreateBranch, onUpdateBranch, onAssignBranchLegalEntity, onRemoveBranchLegalEntity,
+    onAssignBranchUser, onRemoveBranchUser,
   } = props
   const [busy, setBusy] = useState(false)
   const [categoryName, setCategoryName] = useState("")
@@ -236,12 +240,15 @@ export function OperationsPanel(props: OperationsPanelProps) {
       <BranchManagementCard
         branches={branches}
         legalEntities={legalEntities}
+        usersByBranch={branchUsersByBranch}
         loading={corporateStructureLoading}
         canManage={canManageCorporateStructure}
         onCreate={onCreateBranch}
         onUpdate={onUpdateBranch}
         onAssign={onAssignBranchLegalEntity}
         onRemove={onRemoveBranchLegalEntity}
+        onAssignUser={onAssignBranchUser}
+        onRemoveUser={onRemoveBranchUser}
       />
       <Card><CardHeader><CardTitle className="text-lg">Categorías de menú</CardTitle></CardHeader><CardContent>
         <form className="flex gap-2" onSubmit={(event) => {

@@ -1,3 +1,4 @@
+import { AppError } from "../../../shared/domain/app-error.js"
 import { traceOperation } from "../../../shared/infrastructure/tracing.js"
 
 export class OperationsUseCases {
@@ -17,8 +18,27 @@ export class OperationsUseCases {
   updateReservation(id, status) {
     return traceOperation("reservations.update_status", () => this.repository.updateReservation(id, status))
   }
-  listDeliveries(status) { return traceOperation("deliveries.list", () => this.repository.listDeliveries(status)) }
-  assignDriver(input) { return traceOperation("deliveries.assign_driver", () => this.repository.assignDriver(input)) }
+  requireActiveBranch(actor) {
+    if (!actor?.userId || !actor.activeBranchId) {
+      throw new AppError(409, "ACTIVE_BRANCH_REQUIRED", "Selecciona una sucursal activa antes de operar con pedidos.")
+    }
+  }
+  listDeliveries(status, actor) {
+    this.requireActiveBranch(actor)
+    return traceOperation("deliveries.list", () => this.repository.listDeliveries(
+      status,
+      actor.activeBranchId,
+      actor.userId,
+    ))
+  }
+  assignDriver(input, actor) {
+    this.requireActiveBranch(actor)
+    return traceOperation("deliveries.assign_driver", () => this.repository.assignDriver(
+      input,
+      actor.activeBranchId,
+      actor.userId,
+    ))
+  }
   getSettings() { return traceOperation("settings.read", () => this.repository.getSettings()) }
   updateSettings(input) { return traceOperation("settings.update", () => this.repository.updateSettings(input)) }
 }

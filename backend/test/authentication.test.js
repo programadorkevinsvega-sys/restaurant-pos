@@ -8,8 +8,8 @@ function runMiddleware(middleware, request) {
   })
 }
 
-function requestWithCookie(cookie) {
-  return { get: (name) => name === "cookie" ? cookie : undefined }
+function requestWithCookie(cookie, activeBranchId) {
+  return { get: (name) => name === "cookie" ? cookie : name === "x-active-branch-id" ? activeBranchId : undefined }
 }
 
 test("authentication resolves the user from the session cookie", async () => {
@@ -23,6 +23,7 @@ test("authentication resolves the user from the session cookie", async () => {
   assert.deepEqual(await runMiddleware(middleware, requestWithCookie("pos_access=valid-session")), {
     userId: "staff-id",
     role: "staff",
+    activeBranchId: null,
   })
 })
 
@@ -45,4 +46,26 @@ test("authentication rejects missing session cookies", async () => {
     code: "AUTHENTICATION_REQUIRED",
     status: 401,
   })
+})
+
+test("authentication attaches a well-formed active branch identifier without granting access", async () => {
+  const middleware = authenticate({
+    getUser: async () => ({ id: "staff-id", role: "staff" }),
+  }, "pos_access")
+  const context = await runMiddleware(
+    middleware,
+    requestWithCookie("pos_access=valid-session", "11111111-1111-4111-8111-111111111111"),
+  )
+  assert.equal(context.activeBranchId, "11111111-1111-4111-8111-111111111111")
+  assert.equal(context.userId, "staff-id")
+})
+
+test("authentication rejects malformed active branch identifiers", async () => {
+  const middleware = authenticate({
+    getUser: async () => ({ id: "staff-id", role: "staff" }),
+  }, "pos_access")
+  await assert.rejects(
+    runMiddleware(middleware, requestWithCookie("pos_access=valid-session", "not-a-uuid")),
+    { status: 400, code: "INVALID_ACTIVE_BRANCH" },
+  )
 })

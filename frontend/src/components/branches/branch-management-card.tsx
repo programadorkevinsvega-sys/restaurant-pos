@@ -5,29 +5,35 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { Branch, BranchInput, BranchUpdate } from "@/modules/branches/domain/models"
+import type { Branch, BranchInput, BranchUpdate, BranchUser } from "@/modules/branches/domain/models"
 import type { LegalEntity } from "@/modules/legal-entities/domain/models"
 
 interface BranchManagementCardProps {
   branches: Branch[]
   legalEntities: LegalEntity[]
+  usersByBranch: Record<string, BranchUser[]>
   loading: boolean
   canManage: boolean
   onCreate: (input: BranchInput) => Promise<void>
   onUpdate: (id: string, input: BranchUpdate) => Promise<void>
   onAssign: (branchId: string, legalEntityId: string) => Promise<void>
   onRemove: (branchId: string, legalEntityId: string) => Promise<void>
+  onAssignUser: (branchId: string, userId: string) => Promise<void>
+  onRemoveUser: (branchId: string, userId: string) => Promise<void>
 }
 
 export function BranchManagementCard({
   branches,
   legalEntities,
+  usersByBranch,
   loading,
   canManage,
   onCreate,
   onUpdate,
   onAssign,
   onRemove,
+  onAssignUser,
+  onRemoveUser,
 }: BranchManagementCardProps) {
   const [code, setCode] = useState("")
   const [name, setName] = useState("")
@@ -158,6 +164,46 @@ export function BranchManagementCard({
                         Debe conservar al menos una entidad legal asociada.
                       </p>
                     )}
+                  </div>
+                  <div className="space-y-2 border-t pt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Usuarios con acceso a esta sucursal
+                    </p>
+                    {usersByBranch[branch.id]?.length ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {usersByBranch[branch.id].map((user) => (
+                          <label key={user.id} className="flex items-start gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={user.assigned}
+                              disabled={!canManage || busy}
+                              onChange={(event) => {
+                                const assigned = event.target.checked
+                                void runAssociation(() => (
+                                  assigned
+                                    ? onAssignUser(branch.id, user.id)
+                                    : onRemoveUser(branch.id, user.id)
+                                ))
+                              }}
+                              className="mt-1"
+                            />
+                            <span>
+                              {user.email}
+                              <span className="block text-xs text-muted-foreground">
+                                {user.role === "admin" ? "Administrador global" : "Personal"}
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No hay usuarios activos disponibles para asignar.
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Solo los usuarios asignados pueden operar pedidos en esta sucursal. La asignación no amplía su rol ni sus permisos.
+                    </p>
                   </div>
                   {canManage && availableEntities.length > 0 && (
                     <div className="flex flex-col gap-2 sm:flex-row">

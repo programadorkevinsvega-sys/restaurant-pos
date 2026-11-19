@@ -5,6 +5,7 @@ import { PostgresOrderRepository } from "../src/modules/orders/infrastructure/po
 import { PostgresOperationsRepository } from "../src/modules/operations/infrastructure/postgres-operations-repository.js"
 import { PostgresAccountingRepository } from "../src/modules/accounting/infrastructure/postgres-accounting-repository.js"
 import { PostgresAuthRepository } from "../src/modules/auth/infrastructure/postgres-auth-repository.js"
+import { PostgresBranchRepository } from "../src/modules/branches/infrastructure/postgres-branch-repository.js"
 
 test("catalog filters use bound parameters and normalize numeric prices", async () => {
   let queryCall
@@ -22,6 +23,22 @@ test("catalog filters use bound parameters and normalize numeric prices", async 
   assert.equal(products[0].price, 12.5)
 })
 
+test("available branches exclude inactive users and non-installation organizations", async () => {
+  let queryCall
+  const repository = new PostgresBranchRepository({
+    query: async (...args) => {
+      queryCall = args
+      return { rows: [] }
+    },
+  })
+
+  await repository.listAvailableBranches("staff-id")
+
+  assert.match(queryCall[0], /assigned_user\.is_active = true/)
+  assert.match(queryCall[0], /organization\.installation_slot = 1/)
+  assert.deepEqual(queryCall[1], ["staff-id"])
+})
+
 test("order creation sends only trusted identifiers and quantities to PostgreSQL", async () => {
   let queryCall
   const repository = new PostgresOrderRepository({
@@ -36,11 +53,16 @@ test("order creation sends only trusted identifiers and quantities to PostgreSQL
     customer_name: "Test",
     order_type: "Comer aquí",
     total_amount: 0.01,
+    legal_entity_id: "legal-entity-id",
     items: [{ id: "product-id", quantity: 2, price: 0.01 }],
+  }, {
+    activeBranchId: "branch-id",
+    userId: "actor-user-id",
   })
 
   assert.match(queryCall[0], /public\.create_pos_order/)
   assert.deepEqual(JSON.parse(queryCall[1][3]), [{ id: "product-id", quantity: 2 }])
+  assert.deepEqual(queryCall[1].slice(6), ["branch-id", "legal-entity-id", "actor-user-id"])
   assert.equal(queryCall[1].some((value) => value === 0.01), false)
   assert.deepEqual(response, { success: true, orderId: "order-id", message: "Pedido creado exitosamente" })
 })
@@ -58,6 +80,35 @@ test("table updates preserve current_order_id when it is omitted", async () => {
 
   assert.equal(queryCall[1][2], false)
   assert.equal(queryCall[1][3], null)
+})
+
+test("delivery listing and mutation stay within the authenticated active branch", async () => {
+  let listingCall
+  let assignmentCall
+  const repository = new PostgresOperationsRepository({
+    query: async (...args) => {
+      if (args[0].includes("assign_delivery_driver")) {
+        assignmentCall = args
+        return { rows: [{ delivery: { order_id: "order-id" } }] }
+      }
+      listingCall = args
+      return { rows: [] }
+    },
+  })
+
+  await repository.listDeliveries("pending", "branch-id", "staff-id")
+  assert.match(listingCall[0], /o\.branch_id = \$2/)
+  assert.match(listingCall[0], /branch_user_assignments/)
+  assert.deepEqual(listingCall[1], ["pending", "branch-id", "staff-id"])
+
+  await repository.assignDriver({
+    order_id: "order-id",
+    driver_name: "Driver",
+    driver_phone: null,
+    estimated_time: 20,
+  }, "branch-id", "staff-id")
+  assert.match(assignmentCall[0], /assign_delivery_driver\(\$1, \$2, \$3, \$4, \$5::uuid, \$6::uuid\)/)
+  assert.deepEqual(assignmentCall[1], ["order-id", "Driver", null, 20, "branch-id", "staff-id"])
 })
 
 test("settings updates pass values as JSON and upsert on the key", async () => {
