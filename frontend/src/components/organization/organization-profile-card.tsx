@@ -34,19 +34,6 @@ interface ProfileFormState {
   country_code: string
 }
 
-const emptyForm: ProfileFormState = {
-  name: "",
-  commercial_name: "",
-  contact_email: "",
-  contact_phone: "",
-  website_url: "",
-  line_1: "",
-  line_2: "",
-  locality: "",
-  administrative_area: "",
-  postal_code: "",
-  country_code: "",
-}
 
 function toFormState(organization: OrganizationProfile | null): ProfileFormState {
   const address = organization?.headquarters_address
