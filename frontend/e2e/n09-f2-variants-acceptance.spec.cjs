@@ -139,6 +139,7 @@ async function setOptionInherited(page, optionName, reason) {
       await inherit.click()
       const response = await responsePromise
       expect(response.status()).toBe(200)
+      await expect(row.getByText("Heredado", { exact: true })).toBeVisible()
       return
     }
   }
@@ -254,5 +255,4 @@ test("N09-F2.2 incremento 2: configurar variantes, restringir por sucursal y con
   expect(branchReload.status()).toBe(200)
   await expect(page.getByText(baconName, { exact: true })).toBeVisible()
   await setOptionInherited(page, baconName, "Restaurar herencia al finalizar aceptación automatizada")
-  await expect(page.getByText("Heredado", { exact: false })).toBeVisible()
 })
