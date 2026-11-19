@@ -6,7 +6,7 @@ async function queryBranchFunction(pool, sql, values) {
   try {
     return await queryPostgres(pool, sql, values)
   } catch (error) {
-    if (error?.code === "42501") {
+    if (error?.code === "42501" || error?.cause?.code === "42501") {
       throw new AppError(403, "BRANCH_ACCESS_DENIED", "No tienes una asignación activa para la sucursal seleccionada.")
     }
     throw error
