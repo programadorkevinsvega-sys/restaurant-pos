@@ -31,7 +31,7 @@ test("N09-F1.2: las entidades legales y la asociación con sucursales son visibl
 test("N09-F1.3: una sucursal puede suspenderse y reactivarse desde su ficha", async ({ page }) => {
   await page.getByRole("button", { name: "Configuración" }).click()
   await page.getByRole("tab", { name: "Sucursales" }).click()
-  await expect(page.getByText("Chili E2E Centro")).toBeVisible()
+  await expect(page.getByText("Chili E2E Centro", { exact: true })).toBeVisible()
 
   const active = page.getByRole("button", { name: "Suspender" })
   const suspended = page.getByRole("button", { name: "Reactivar" })
