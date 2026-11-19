@@ -8,7 +8,7 @@ test("order creation requires an active branch before reaching persistence", asy
     createOrder: async () => { called = true },
   })
 
-  await assert.rejects(orders.createOrder({ legal_entity_id: "entity-id" }, {
+  assert.throws(() => orders.createOrder({ legal_entity_id: "entity-id" }, {
     userId: "staff-id",
     activeBranchId: null,
   }), {
@@ -43,11 +43,11 @@ test("order listing and status changes require branch context", async () => {
     listOrders: async () => [],
     updateStatus: async () => ({ id: "order-id" }),
   })
-  await assert.rejects(orders.listOrders({}, { userId: "staff-id" }), {
+  assert.throws(() => orders.listOrders({}, { userId: "staff-id" }), {
     status: 409,
     code: "ACTIVE_BRANCH_REQUIRED",
   })
-  await assert.rejects(orders.updateStatus("order-id", "ready", { userId: "staff-id" }), {
+  assert.throws(() => orders.updateStatus("order-id", "ready", { userId: "staff-id" }), {
     status: 409,
     code: "ACTIVE_BRANCH_REQUIRED",
   })
