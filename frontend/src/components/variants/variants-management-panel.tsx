@@ -132,6 +132,34 @@ export function VariantsManagementPanel({
     }
     return run(() => application.updateGroup(group.id, input), "Grupo actualizado.")
   }
+  const saveGroupFromInputs = (group: ProductOptionGroup, isActive: boolean) => {
+    const name = document.getElementById("option-group-name-" + group.id) as HTMLInputElement | null
+    const kind = document.getElementById("option-group-kind-" + group.id) as HTMLSelectElement | null
+    const minimum = document.getElementById("option-group-min-" + group.id) as HTMLInputElement | null
+    const maximum = document.getElementById("option-group-max-" + group.id) as HTMLInputElement | null
+    if (!name || !kind || !minimum || !maximum) return
+    const input: ProductOptionGroupInput = {
+      kind: kind.value as ProductOptionGroupInput["kind"],
+      name: name.value.trim(),
+      min_selections: Number(minimum.value),
+      max_selections: Number(maximum.value),
+      position: group.position,
+      is_active: isActive,
+    }
+    if (!input.name || !Number.isInteger(input.min_selections) || !Number.isInteger(input.max_selections)) {
+      setError("Completa el nombre y una cardinalidad válida para el grupo.")
+      return
+    }
+    if (input.min_selections < 0 || input.max_selections < 1 || input.min_selections > input.max_selections || input.max_selections > 10) {
+      setError("La cardinalidad debe cumplir 0 ≤ mínimo ≤ máximo ≤ 10 y el máximo debe ser al menos 1.")
+      return
+    }
+    if (input.kind === "presentation" && (input.min_selections !== 1 || input.max_selections !== 1)) {
+      setError("Una presentación exige exactamente una opción.")
+      return
+    }
+    void run(() => application.updateGroup(group.id, input), "Grupo actualizado.")
+  }
 
   const createOption = (group: ProductOptionGroup) => {
     const name = newOptionNames[group.id]?.trim()

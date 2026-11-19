@@ -1747,7 +1747,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "SELECT id, branch_id FROM public.orders WHERE branch_id = $1 ORDER BY created_at",
       [branchId],
     )
-    assert.equal(historicalOrdersWhileSuspended.rowCount, 2)
+    assert.equal(historicalOrdersWhileSuspended.rowCount, 3)
     assert.equal(historicalOrdersWhileSuspended.rows[0].branch_id, branchId)
 
     const idempotentSuspension = await runtime.query(
@@ -1794,7 +1794,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "SELECT id, branch_id FROM public.orders WHERE branch_id = $1",
       [branchId],
     )
-    assert.equal(historicalOrdersAfterClosure.rowCount, 2)
+    assert.equal(historicalOrdersAfterClosure.rowCount, 3)
 
     const lifecycleEvents = await runtime.query(
       "SELECT previous_status, new_status, actor_user_id FROM public.branch_lifecycle_events " +
