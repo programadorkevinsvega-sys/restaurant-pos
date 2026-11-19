@@ -15,7 +15,7 @@ export class HttpBranchRepository implements BranchRepository {
   }
 
   async update(id: string, input: BranchUpdate) {
-    const result = await this.http.patch<{ branch: Branch }>(
+    const result = await this.http.put<{ branch: Branch }>(
       `/branches/${encodeURIComponent(id)}`,
       input,
     )
