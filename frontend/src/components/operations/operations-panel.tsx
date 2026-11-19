@@ -371,7 +371,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
         <TabsContent value="history" className="mt-0 space-y-4">
           <OrganizationHistoryPanel
             branches={branches}
-            canViewHistory={canManageCorporateStructure}
+            canViewHistory={canUpdateOrganization}
             onListHistory={onListOrganizationHistory}
           />
         </TabsContent>
