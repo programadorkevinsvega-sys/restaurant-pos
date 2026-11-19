@@ -168,8 +168,8 @@ test("reservation queries and mutations use branch-scoped database functions", a
     "branch-id", "Guest", null, null, "table-id",
     "2026-11-18T18:00:00.000Z", 4, null, "staff-id",
   ])
-  assert.match(calls[2][0], /public\.update_branch_reservation_status/)
-  assert.deepEqual(calls[2][1], [
+  assert.match(calls[3][0], /public\.update_branch_reservation_status/)
+  assert.deepEqual(calls[3][1], [
     "reservation-id", "branch-id", "seated", "staff-id",
   ])
   assert.ok(calls.slice(1).some((call) => call[0].includes("get_branch_reservation")))
