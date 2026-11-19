@@ -7,19 +7,27 @@ import { PostgresAccountingRepository } from "../src/modules/accounting/infrastr
 import { PostgresAuthRepository } from "../src/modules/auth/infrastructure/postgres-auth-repository.js"
 import { PostgresBranchRepository } from "../src/modules/branches/infrastructure/postgres-branch-repository.js"
 
-test("catalog filters use bound parameters and normalize numeric prices", async () => {
-  let queryCall
+test("catalog filters use bound parameters, branch scope and normalize numeric prices", async () => {
+  const calls = []
   const repository = new PostgresCatalogRepository({
     query: async (...args) => {
-      queryCall = args
+      calls.push(args)
+      if (calls.length === 1) return { rows: [{ id: "branch-id" }] }
       return { rows: [{ id: "product-id", price: "12.50" }] }
     },
   })
 
-  const products = await repository.listProducts("category-id")
+  const products = await repository.listProducts("category-id", {
+    userId: "staff-id",
+    activeBranchId: "branch-id",
+  })
 
-  assert.equal(queryCall[1][0], "category-id")
-  assert.match(queryCall[0], /p\.category_id = \$1::uuid/)
+  assert.match(calls[0][0], /branch_user_assignments/)
+  assert.deepEqual(calls[0][1], ["branch-id", "staff-id"])
+  assert.equal(calls[1][1][0], "category-id")
+  assert.equal(calls[1][1][1], "branch-id")
+  assert.match(calls[1][0], /p\.category_id = \$1::uuid/)
+  assert.match(calls[1][0], /branch_catalog_product_exclusions/)
   assert.equal(products[0].price, 12.5)
 })
 
