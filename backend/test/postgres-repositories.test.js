@@ -47,7 +47,7 @@ test("available branches exclude inactive users and non-installation organizatio
   assert.deepEqual(queryCall[1], ["staff-id"])
 })
 
-test("order creation sends only trusted identifiers and quantities to PostgreSQL", async () => {
+test("order creation sends trusted product, quantity and option identifiers to PostgreSQL", async () => {
   let queryCall
   const repository = new PostgresOrderRepository({
     query: async (...args) => {
@@ -69,7 +69,7 @@ test("order creation sends only trusted identifiers and quantities to PostgreSQL
   })
 
   assert.match(queryCall[0], /public\.create_pos_order/)
-  assert.deepEqual(JSON.parse(queryCall[1][3]), [{ id: "product-id", quantity: 2 }])
+  assert.deepEqual(JSON.parse(queryCall[1][3]), [{ id: "product-id", quantity: 2, option_ids: [] }])
   assert.deepEqual(queryCall[1].slice(6), ["branch-id", "legal-entity-id", "actor-user-id"])
   assert.equal(queryCall[1].some((value) => value === 0.01), false)
   assert.deepEqual(response, { success: true, orderId: "order-id", message: "Pedido creado exitosamente" })
