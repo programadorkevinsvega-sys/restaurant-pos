@@ -13,6 +13,9 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
   let categoryId
   let productId
   let orderId
+  let organizationAdminId
+  let organizationStaffId
+  let organizationId
 
   try {
     const identity = await runtime.query(
@@ -44,6 +47,104 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "SELECT 1 FROM pg_extension WHERE extname = 'uuid-ossp'",
     )
     assert.equal(extension.rowCount, 1)
+
+    const organizationPrivileges = await runtime.query(
+      "SELECT " +
+      "has_table_privilege(current_user, 'public.organizations', 'SELECT') AS can_read, " +
+      "has_table_privilege(current_user, 'public.organizations', 'INSERT') AS can_insert, " +
+      "has_table_privilege(current_user, 'public.organizations', 'UPDATE') AS can_update, " +
+      "has_table_privilege(current_user, 'public.organizations', 'DELETE') AS can_delete, " +
+      "has_function_privilege(current_user, " +
+      "'public.bootstrap_organization_profile(text, text, text, text, text, jsonb, uuid)'::regprocedure, 'EXECUTE') AS can_bootstrap, " +
+      "has_function_privilege(current_user, " +
+      "'public.update_organization_profile(uuid, boolean, text, boolean, text, boolean, text, boolean, text, boolean, text, boolean, jsonb)'::regprocedure, 'EXECUTE') AS can_update_profile",
+    )
+    assert.deepEqual(organizationPrivileges.rows[0], {
+      can_read: true,
+      can_insert: false,
+      can_update: false,
+      can_delete: false,
+      can_bootstrap: true,
+      can_update_profile: true,
+    })
+
+    const adminUser = await runtime.query(
+      "INSERT INTO public.app_users (email, password_hash, role, is_active) " +
+      "VALUES ('org-admin-' || uuid_generate_v4()::text || '@example.invalid', 'ci-fixture-only', 'admin', true) " +
+      "RETURNING id",
+    )
+    organizationAdminId = adminUser.rows[0].id
+
+    const staffUser = await runtime.query(
+      "INSERT INTO public.app_users (email, password_hash, role, is_active) " +
+      "VALUES ('org-staff-' || uuid_generate_v4()::text || '@example.invalid', 'ci-fixture-only', 'staff', true) " +
+      "RETURNING id",
+    )
+    organizationStaffId = staffUser.rows[0].id
+
+    const bootstrapArguments = [
+      "Chili POS Group",
+      "Chili POS",
+      "contact@example.invalid",
+      "+57 300 000 0000",
+      "https://example.invalid",
+      JSON.stringify({ country_code: "CO", locality: "Medellín" }),
+    ]
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT * FROM public.bootstrap_organization_profile($1, $2, $3, $4, $5, $6::jsonb, $7)",
+        [...bootstrapArguments, organizationStaffId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    const bootstrapped = await runtime.query(
+      "SELECT * FROM public.bootstrap_organization_profile($1, $2, $3, $4, $5, $6::jsonb, $7)",
+      [...bootstrapArguments, organizationAdminId],
+    )
+    assert.equal(bootstrapped.rowCount, 1)
+    organizationId = bootstrapped.rows[0].id
+    assert.equal(bootstrapped.rows[0].owner_user_id, organizationAdminId)
+    assert.equal(bootstrapped.rows[0].name, "Chili POS Group")
+
+    const duplicateBootstrap = await runtime.query(
+      "SELECT * FROM public.bootstrap_organization_profile($1, $2, $3, $4, $5, $6::jsonb, $7)",
+      [...bootstrapArguments, organizationAdminId],
+    )
+    assert.equal(duplicateBootstrap.rowCount, 0)
+
+    const ownerUpdate = await runtime.query(
+      "SELECT * FROM public.update_organization_profile(" +
+      "$1, false, null, true, $2, false, null, false, null, false, null, false, null::jsonb)",
+      [organizationAdminId, "Chili POS Corporate"],
+    )
+    assert.equal(ownerUpdate.rowCount, 1)
+    assert.equal(ownerUpdate.rows[0].commercial_name, "Chili POS Corporate")
+    assert.equal(ownerUpdate.rows[0].owner_user_id, organizationAdminId)
+
+    const nonOwnerUpdate = await runtime.query(
+      "SELECT * FROM public.update_organization_profile(" +
+      "$1, false, null, true, $2, false, null, false, null, false, null, false, null::jsonb)",
+      [organizationStaffId, "Unauthorized Change"],
+    )
+    assert.equal(nonOwnerUpdate.rowCount, 0)
+
+    await assert.rejects(
+      runtime.query(
+        "UPDATE public.organizations SET name = 'Direct SQL bypass' WHERE id = $1",
+        [organizationId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "DELETE FROM public.organizations WHERE id = $1",
+        [organizationId],
+      ),
+      (error) => error.code === "42501",
+    )
 
     const migrationHistory = await migrator.query(
       "SELECT version FROM public.schema_migrations ORDER BY version",
@@ -110,6 +211,13 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       /Invalid order type/,
     )
   } finally {
+    if (organizationId) await migrator.query("DELETE FROM public.organizations WHERE id = $1", [organizationId])
+    if (organizationAdminId || organizationStaffId) {
+      await migrator.query(
+        "DELETE FROM public.app_users WHERE id = ANY($1::uuid[])",
+        [[organizationAdminId, organizationStaffId].filter(Boolean)],
+      )
+    }
     if (orderId) await runtime.query("DELETE FROM public.orders WHERE id = $1", [orderId])
     if (productId) await runtime.query("DELETE FROM public.products WHERE id = $1", [productId])
     if (categoryId) await runtime.query("DELETE FROM public.categories WHERE id = $1", [categoryId])
