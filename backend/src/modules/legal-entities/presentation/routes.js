@@ -42,7 +42,7 @@ export function createLegalEntityRoutes(legalEntities, authenticate, writesLimit
     }),
   )
 
-  router.patch(
+  router.put(
     "/:id",
     authenticate,
     writesLimiter,
