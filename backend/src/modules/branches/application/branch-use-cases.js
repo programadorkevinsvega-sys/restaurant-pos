@@ -1,16 +1,20 @@
 import { AppError } from "../../../shared/domain/app-error.js"
 import { traceOperation } from "../../../shared/infrastructure/tracing.js"
-import { toBranchDto } from "../domain/branch.js"
+import { toAvailableBranchDto, toBranchDto } from "../domain/branch.js"
 
 export class BranchUseCases {
   constructor(repository) {
     this.repository = repository
   }
 
-  async requireOrganizationOwner(actor) {
+  async requireActor(actor) {
     if (!actor?.userId) {
       throw new AppError(401, "AUTHENTICATION_REQUIRED", "Inicia sesión para continuar.")
     }
+  }
+
+  async requireOrganizationOwner(actor) {
+    await this.requireActor(actor)
     const ownerUserId = await this.repository.findOrganizationOwnerId()
     if (!ownerUserId) {
       throw new AppError(404, "ORGANIZATION_NOT_INITIALIZED", "La organización todavía no está configurada.")
@@ -20,6 +24,15 @@ export class BranchUseCases {
     }
   }
 
+  listAvailable(actor) {
+    return traceOperation("branches.list_available", async () => {
+      await this.requireActor(actor)
+      return {
+        branches: (await this.repository.listAvailableBranches(actor.userId)).map(toAvailableBranchDto),
+      }
+    })
+  }
+
   list(actor) {
     return traceOperation("branches.list", async () => {
       await this.requireOrganizationOwner(actor)
@@ -27,6 +40,61 @@ export class BranchUseCases {
         branches: (await this.repository.listBranches()).map(toBranchDto),
         permissions: { can_manage: true },
       }
+    })
+  }
+
+  listUsers(branchId, actor) {
+    return traceOperation("branches.list_users", async () => {
+      await this.requireOrganizationOwner(actor)
+      if (!await this.repository.findBranchById(branchId)) {
+        throw new AppError(404, "BRANCH_NOT_FOUND", "No se encontró la sucursal indicada.")
+      }
+      const users = await this.repository.listBranchUsers(branchId)
+      return {
+        users: users.map((user) => ({
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          assigned: user.assigned,
+        })),
+      }
+    })
+  }
+
+  assignUser(branchId, userId, actor) {
+    return traceOperation("branches.assign_user", async () => {
+      await this.requireOrganizationOwner(actor)
+      const outcome = await this.repository.assignUserToBranch(branchId, userId, actor.userId)
+      if (outcome === "BRANCH_NOT_FOUND") {
+        throw new AppError(404, "BRANCH_NOT_FOUND", "No se encontró la sucursal indicada.")
+      }
+      if (outcome === "USER_NOT_FOUND") {
+        throw new AppError(404, "USER_NOT_FOUND", "El usuario no existe o está desactivado.")
+      }
+      if (outcome === "ALREADY_ASSIGNED") {
+        throw new AppError(409, "USER_ALREADY_ASSIGNED", "El usuario ya está asignado a esta sucursal.")
+      }
+      if (outcome !== "ASSIGNED") {
+        throw new AppError(409, "BRANCH_USER_ASSIGNMENT_CONFLICT", "No se pudo asignar el usuario a la sucursal.")
+      }
+      return this.listUsers(branchId, actor)
+    })
+  }
+
+  removeUser(branchId, userId, actor) {
+    return traceOperation("branches.remove_user", async () => {
+      await this.requireOrganizationOwner(actor)
+      const outcome = await this.repository.removeUserFromBranch(branchId, userId, actor.userId)
+      if (outcome === "BRANCH_NOT_FOUND") {
+        throw new AppError(404, "BRANCH_NOT_FOUND", "No se encontró la sucursal indicada.")
+      }
+      if (outcome === "NOT_ASSIGNED") {
+        throw new AppError(404, "BRANCH_USER_ASSIGNMENT_NOT_FOUND", "El usuario no está asignado a esta sucursal.")
+      }
+      if (outcome !== "REMOVED") {
+        throw new AppError(409, "BRANCH_USER_ASSIGNMENT_CONFLICT", "No se pudo retirar la asignación del usuario.")
+      }
+      return this.listUsers(branchId, actor)
     })
   }
 
