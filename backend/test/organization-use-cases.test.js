@@ -119,3 +119,47 @@ test("empty profile updates are rejected", async () => {
     { status: 400, code: "EMPTY_UPDATE" },
   )
 })
+
+
+test("organization profile schema trims and normalizes corporate contact details", async () => {
+  const { organizationProfileSchema } = await import("../src/modules/organization/presentation/routes.js")
+  const parsed = organizationProfileSchema.safeParse({
+    name: "  Chili POS Group  ",
+    contact_email: "  CONTACT@EXAMPLE.COM ",
+    contact_phone: "+57 300 000 0000",
+    website_url: "https://example.com",
+    headquarters_address: {
+      line_1: "  Main Street 1 ",
+      country_code: "CO",
+    },
+  })
+
+  assert.equal(parsed.success, true)
+  assert.equal(parsed.data.name, "Chili POS Group")
+  assert.equal(parsed.data.contact_email, "contact@example.com")
+  assert.equal(parsed.data.contact_phone, "+57 300 000 0000")
+})
+
+test("organization profile schema rejects non-HTTP websites, invalid country codes and unknown fields", async () => {
+  const { organizationProfileSchema } = await import("../src/modules/organization/presentation/routes.js")
+
+  assert.equal(organizationProfileSchema.safeParse({
+    name: "Chili POS",
+    website_url: "ftp://example.com",
+  }).success, false)
+
+  assert.equal(organizationProfileSchema.safeParse({
+    name: "Chili POS",
+    headquarters_address: { country_code: "co" },
+  }).success, false)
+
+  assert.equal(organizationProfileSchema.safeParse({
+    name: "Chili POS",
+    nit: "900000000",
+  }).success, false)
+})
+
+test("organization update schema rejects empty patches", async () => {
+  const { updateOrganizationProfileSchema } = await import("../src/modules/organization/presentation/routes.js")
+  assert.equal(updateOrganizationProfileSchema.safeParse({}).success, false)
+})
