@@ -172,7 +172,24 @@ test("N09-F2.2 incremento 1: administrar ingredientes y guardar una receta técn
   await page.getByRole("button", { name: "Recetas técnicas" }).click()
   const productSelect = page.getByLabel("Producto del catálogo")
   await expect(productSelect.locator('option[value="' + productId + '"]')).toBeAttached()
+  const recipeLoad = page.waitForResponse((response) =>
+    response.url().endsWith("/api/admin/recipes/products/" + productId) &&
+    response.request().method() === "GET",
+  )
   await productSelect.selectOption(productId)
+  const recipeResponse = await recipeLoad
+  expect(recipeResponse.status()).toBe(200)
+
+  // Desktop and mobile share the disposable E2E database. Clear the product's
+  // previous recipe so this scenario is repeatable across browser projects.
+  const existingComponents = page.getByRole("button", { name: "Quitar", exact: true })
+  let existingComponentCount = await existingComponents.count()
+  while (existingComponentCount > 0) {
+    await existingComponents.first().click()
+    existingComponentCount -= 1
+    await expect(existingComponents).toHaveCount(existingComponentCount)
+  }
+
   await page.getByLabel("Instrucciones de preparación").fill("Mezclar y hornear para la aceptación automatizada.")
   await page.getByRole("button", { name: "Agregar ingrediente" }).click()
   await page.getByLabel("Ingrediente de componente 1").selectOption({ label: ingredientName + " (g)" })
