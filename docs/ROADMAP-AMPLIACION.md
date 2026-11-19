@@ -1201,3 +1201,16 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 - **Validación técnica:** backend/unit tests, typecheck, lint, build y las matrices PostgreSQL 16/17 aprobaron en el run #25 sobre el HEAD indicado.
 - **Integración:** fusionada en `main` mediante PR #10, merge commit `94ea9dd837073950c138b1dd138133a7ce7f2201`. El contexto operativo de pedidos se completó posteriormente mediante PR #11.
 - **Producción:** no ejecutar migración 007 ni backfills hasta completar la inspección productiva y el restore real de Fase 0.
+
+
+### N09-F1.3 — Ciclo de vida de sucursales
+
+- **Estado:** Implementación validada por CI; PR #12 abierto para revisión, todavía no integrado en `main`.
+- **Alcance implementado:** estados `active`, `suspended` y `closed`; suspensión reversible, cierre terminal; registro auditable de creación/transiciones con actor e instante; consulta del historial para el propietario corporativo.
+- **Regla de operación:** una sucursal suspendida/cerrada no admite crear, modificar ni borrar pedidos atribuidos; tampoco se pueden alterar líneas ni datos de entrega. Se conservan las consultas históricas.
+- **Integridad y concurrencia:** los guards PostgreSQL protegen escrituras directas además de los contratos HTTP. La transición bloquea la fila de sucursal y se serializa con la escritura de pedidos. Cambios de identidad, asociaciones legales y nuevas asignaciones quedan bloqueados mientras la sucursal no esté activa.
+- **Compatibilidad:** las sucursales existentes reciben una línea base `active`, sin inferir estados históricos. Los pedidos antiguos sin `branch_id` siguen sin atribución.
+- **Límites pendientes:** mesas/reservas aún no tienen `branch_id`; no quedan aisladas por esta fase. Dirección, horarios, zona horaria y parámetros locales corresponden a F1.4; historial organizacional general a F1.5; RBAC granular sigue pendiente.
+- **Documentación:** [FASE-1.3-CICLO-VIDA-SUCURSALES.md](./FASE-1.3-CICLO-VIDA-SUCURSALES.md).
+- **Validación CI:** run [44439162015](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44439162015) — **success** sobre HEAD `692193739ec168abf75369ad589292bd3c5acc17`. Pasaron backend/unit tests, TypeScript, Biome lint, build no productivo y PostgreSQL 16/17 (migraciones desde base vacía, idempotencia e integración con rol runtime restringido).
+- **Producción:** no se aplicó migración 009, no hubo backfill ni despliegue. Las puertas de inspección productiva y restore de Fase 0 siguen vigentes.
