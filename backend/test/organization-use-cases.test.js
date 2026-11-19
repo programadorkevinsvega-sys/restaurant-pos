@@ -248,3 +248,75 @@ test("non-owner administrators can read but cannot update the profile", async ()
     { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
   )
 })
+
+
+test("organization history is restricted to the registered owner", async () => {
+  let called = false
+  const useCases = new OrganizationUseCases(repository({
+    listHistory: async () => {
+      called = true
+      return []
+    },
+  }))
+
+  await assert.rejects(
+    useCases.listHistory({ limit: 50 }, admin),
+    { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
+  )
+  assert.equal(called, false)
+})
+
+test("organization history returns a stable next cursor when more events exist", async () => {
+  const rows = [
+    { id: "event-3", occurred_at: new Date("2027-01-03T00:00:00.000Z") },
+    { id: "event-2", occurred_at: new Date("2027-01-02T00:00:00.000Z") },
+    { id: "event-1", occurred_at: new Date("2027-01-01T00:00:00.000Z") },
+  ]
+  let received
+  const useCases = new OrganizationUseCases(repository({
+    listHistory: async (filters, actorUserId) => {
+      received = { filters, actorUserId }
+      return rows
+    },
+  }))
+
+  const result = await useCases.listHistory({ limit: 2, resource_type: "branch" }, owner)
+
+  assert.equal(received.actorUserId, owner.userId)
+  assert.equal(received.filters.limit, 3)
+  assert.equal(received.filters.resource_type, "branch")
+  assert.deepEqual(result.events.map((event) => event.id), ["event-3", "event-2"])
+  assert.deepEqual(result.next_cursor, {
+    before_at: "2027-01-02T00:00:00.000Z",
+    before_id: "event-2",
+  })
+})
+
+test("organization history requires an initialized organization", async () => {
+  const useCases = new OrganizationUseCases(repository({
+    findProfile: async () => null,
+  }))
+
+  await assert.rejects(
+    useCases.listHistory({ limit: 50 }, owner),
+    { status: 404, code: "ORGANIZATION_NOT_INITIALIZED" },
+  )
+})
+
+test("organization history query schema validates filters and complete cursors", async () => {
+  const { organizationHistoryQuerySchema } = await import("../src/modules/organization/presentation/routes.js")
+  const valid = organizationHistoryQuerySchema.safeParse({
+    limit: "25",
+    resource_type: "branch",
+    branch_id: "11111111-1111-4111-8111-111111111111",
+    before_at: "2027-01-02T00:00:00.000Z",
+    before_id: "22222222-2222-4222-8222-222222222222",
+  })
+
+  assert.equal(valid.success, true)
+  assert.equal(valid.data.limit, 25)
+  assert.equal(organizationHistoryQuerySchema.safeParse({ before_at: "2027-01-02T00:00:00.000Z" }).success, false)
+  assert.equal(organizationHistoryQuerySchema.safeParse({ before_id: "22222222-2222-4222-8222-222222222222" }).success, false)
+  assert.equal(organizationHistoryQuerySchema.safeParse({ limit: "101" }).success, false)
+  assert.equal(organizationHistoryQuerySchema.safeParse({ unknown: "value" }).success, false)
+})
