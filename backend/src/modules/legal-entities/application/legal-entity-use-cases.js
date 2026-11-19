@@ -22,16 +22,10 @@ export class LegalEntityUseCases {
 
   list(actor) {
     return traceOperation("legal_entities.list", async () => {
-      if (!actor?.userId) {
-        throw new AppError(401, "AUTHENTICATION_REQUIRED", "Inicia sesión para continuar.")
-      }
-      const ownerUserId = await this.repository.findOrganizationOwnerId()
-      if (!ownerUserId) {
-        throw new AppError(404, "ORGANIZATION_NOT_INITIALIZED", "La organización todavía no está configurada.")
-      }
+      await this.requireOrganizationOwner(actor)
       return {
         legal_entities: (await this.repository.listLegalEntities()).map(toLegalEntityDto),
-        permissions: { can_manage: ownerUserId === actor.userId },
+        permissions: { can_manage: true },
       }
     })
   }
