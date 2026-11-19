@@ -143,28 +143,34 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
           setCorporateStructureLoadError(null)
           try {
             setSettings(await posApplication.settings.get(controller.signal))
+            let profile = null
             try {
-              const result = await posApplication.organization.get(controller.signal)
-              setOrganization(result.organization)
-              setCanUpdateOrganization(result.permissions.can_update)
-              await refreshCorporateStructure(controller.signal)
+              profile = await posApplication.organization.get(controller.signal)
             } catch (error) {
-              if (error instanceof HttpError && error.status === 404) {
-                setOrganization(null)
-                setCanUpdateOrganization(false)
-                setLegalEntities([])
-                setBranches([])
-                setCanManageCorporateStructure(false)
-              } else {
-                const message = error instanceof Error ? error.message : "No se pudo cargar la estructura corporativa."
-                setCorporateStructureLoadError(message)
+              if (!(error instanceof HttpError && error.status === 404)) {
+                const message = error instanceof Error ? error.message : "No se pudo cargar el perfil corporativo."
+                setOrganizationLoadError(message)
                 throw error
               }
             }
-          } catch (error) {
-            const message = error instanceof Error ? error.message : "No se pudo cargar la configuración corporativa."
-            setOrganizationLoadError(message)
-            throw error
+
+            if (profile) {
+              setOrganization(profile.organization)
+              setCanUpdateOrganization(profile.permissions.can_update)
+              try {
+                await refreshCorporateStructure(controller.signal)
+              } catch (error) {
+                if (error instanceof Error && error.name === "AbortError") return
+                const message = error instanceof Error ? error.message : "No se pudo cargar la estructura corporativa."
+                setCorporateStructureLoadError(message)
+              }
+            } else {
+              setOrganization(null)
+              setCanUpdateOrganization(false)
+              setLegalEntities([])
+              setBranches([])
+              setCanManageCorporateStructure(false)
+            }
           } finally {
             if (!controller.signal.aborted) {
               setOrganizationLoading(false)
