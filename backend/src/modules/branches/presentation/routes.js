@@ -22,6 +22,10 @@ export const updateBranchSchema = z.object({
 
 export function createBranchRoutes(branches, authenticate, writesLimiter) {
   const router = Router()
+  router.use((request, response, next) => {
+    response.set("Cache-Control", "no-store")
+    next()
+  })
   router.get("/", authenticate, asyncHandler(async (request, response) => {
     response.json(await branches.list(request.auth))
   }))
