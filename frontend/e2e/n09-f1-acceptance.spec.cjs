@@ -42,17 +42,23 @@ test("N09-F1.3: una sucursal puede suspenderse y reactivarse desde su ficha", as
 
   const active = page.getByRole("button", { name: "Suspender" })
   const suspended = page.getByRole("button", { name: "Reactivar" })
-  if (await suspended.count()) await suspended.click()
-  await expect(active).toBeVisible()
+  if (await suspended.count()) {
+    await suspended.click()
+    await expect(active).toBeEnabled()
+    await expect(page.getByText(/Estado: Activa/)).toBeVisible()
+  }
 
   try {
     await active.click()
+    await expect(suspended).toBeEnabled()
     await expect(page.getByText(/Estado: Suspendida/)).toBeVisible()
   } finally {
-    const reactivate = page.getByRole("button", { name: "Reactivar" })
-    if (await reactivate.count()) await reactivate.click()
+    // Wait for the asynchronous branch refresh before deciding whether cleanup is needed.
+    await expect(suspended).toBeVisible()
+    await suspended.click()
+    await expect(active).toBeEnabled()
+    await expect(page.getByText(/Estado: Activa/)).toBeVisible()
   }
-  await expect(page.getByText(/Estado: Activa/)).toBeVisible()
 })
 
 test("N09-F1.4: la configuración local se guarda y el calendario se consulta", async ({ page }) => {
