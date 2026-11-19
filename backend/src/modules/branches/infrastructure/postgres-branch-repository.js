@@ -216,7 +216,7 @@ export class PostgresBranchRepository {
         AND branch.id = event.branch_id
       JOIN public.app_users AS actor ON actor.id = event.actor_user_id
       WHERE branch.id = $1
-      ORDER BY event.occurred_at DESC, event.id DESC
+      ORDER BY event.sequence DESC
       LIMIT 100
     `, [branchId])
     return result.rows
