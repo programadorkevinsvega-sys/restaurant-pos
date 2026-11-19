@@ -13,6 +13,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
   let categoryId
   let productId
   let orderId
+  let deliveryOrderId
   let organizationAdminId
   let organizationStaffId
   let organizationId
@@ -606,6 +607,36 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     orderId = order.rows[0].order_id
 
+    const deliveryOrder = await runtime.query(
+      "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid) AS order_id",
+      [
+        "CI delivery table",
+        "Delivery integration",
+        "A domicilio",
+        JSON.stringify([{ id: productId, quantity: 1 }]),
+        "Calle de prueba 123",
+        "+573000000000",
+        branchId,
+        legalEntityIds[0],
+        organizationStaffId,
+      ],
+    )
+    deliveryOrderId = deliveryOrder.rows[0].order_id
+
+    const deliveryAssignment = await runtime.query(
+      "SELECT public.assign_delivery_driver($1, $2, $3, $4, $5::uuid, $6::uuid) AS delivery",
+      [deliveryOrderId, "CI Driver", "+573000000001", 25, branchId, organizationStaffId],
+    )
+    assert.equal(deliveryAssignment.rows[0].delivery.driver_name, "CI Driver")
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.assign_delivery_driver($1, $2, $3, $4, $5::uuid, $6::uuid)",
+        [deliveryOrderId, "Wrong branch", null, 15, secondBranchId, organizationStaffId],
+      ),
+      (error) => error.code === "42501",
+    )
+
     const persistedOrder = await runtime.query(
       "SELECT o.total_amount::text AS total_amount, count(oi.id)::integer AS item_count, " +
       "o.organization_id, o.branch_id, o.legal_entity_id, o.created_by_user_id " +
@@ -654,7 +685,12 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       /Invalid order type/,
     )
   } finally {
-    if (orderId) await migrator.query("DELETE FROM public.orders WHERE id = $1", [orderId])
+    if (orderId || deliveryOrderId) {
+      await migrator.query(
+        "DELETE FROM public.orders WHERE id = ANY($1::uuid[])",
+        [[orderId, deliveryOrderId].filter(Boolean)],
+      )
+    }
     if (branchId || secondBranchId) {
       const branchIds = [branchId, secondBranchId].filter(Boolean)
       await migrator.query(
