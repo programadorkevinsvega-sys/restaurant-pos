@@ -158,22 +158,33 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog
-AS $$
+AS $
 DECLARE
+  v_branch_id uuid;
+  v_organization_id uuid;
   v_status text;
 BEGIN
-  IF NEW.branch_id IS NULL THEN
+  IF TG_OP = 'DELETE' THEN
+    v_branch_id := OLD.branch_id;
+    v_organization_id := OLD.organization_id;
+  ELSE
+    v_branch_id := NEW.branch_id;
+    v_organization_id := NEW.organization_id;
+  END IF;
+
+  IF v_branch_id IS NULL THEN
     IF TG_OP = 'INSERT' THEN
       RAISE EXCEPTION 'BRANCH_CONTEXT_REQUIRED'
         USING ERRCODE = '23514';
     END IF;
+    IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
     RETURN NEW;
   END IF;
 
   SELECT b.status INTO v_status
   FROM public.branches AS b
-  WHERE b.organization_id = NEW.organization_id
-    AND b.id = NEW.branch_id
+  WHERE b.organization_id = v_organization_id
+    AND b.id = v_branch_id
   FOR SHARE;
 
   IF NOT FOUND THEN
@@ -186,14 +197,15 @@ BEGIN
       USING ERRCODE = '55000';
   END IF;
 
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
 END;
-$$;
+$;
 
 REVOKE ALL ON FUNCTION public.guard_branch_order_writes() FROM PUBLIC;
 
 CREATE TRIGGER orders_require_active_branch
-  BEFORE INSERT OR UPDATE ON public.orders
+  BEFORE INSERT OR UPDATE OR DELETE ON public.orders
   FOR EACH ROW
   EXECUTE FUNCTION public.guard_branch_order_writes();
 
