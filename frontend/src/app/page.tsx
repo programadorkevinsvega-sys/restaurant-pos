@@ -20,7 +20,7 @@ import type { Category, NewProduct, Product } from "@/modules/catalog/domain/mod
 import type { CartItem, OrderType } from "@/modules/orders/domain/models"
 import type { OrganizationProfile, OrganizationProfileInput, OrganizationProfileUpdate } from "@/modules/organization/domain/models"
 import type { LegalEntity, LegalEntityInput } from "@/modules/legal-entities/domain/models"
-import type { Branch, BranchInput, BranchUpdate, BranchUser, OperationalBranch } from "@/modules/branches/domain/models"
+import type { Branch, BranchInput, BranchLifecycleEvent, BranchStatus, BranchUpdate, BranchUser, OperationalBranch } from "@/modules/branches/domain/models"
 import type {
   BestSellingProduct,
   DeliveryOrder,
@@ -52,6 +52,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
   const [branchUsersByBranch, setBranchUsersByBranch] = useState<Record<string, BranchUser[]>>({})
+  const [branchLifecycleEventsByBranch, setBranchLifecycleEventsByBranch] = useState<Record<string, BranchLifecycleEvent[]>>({})
   const [availableBranches, setAvailableBranches] = useState<OperationalBranch[]>([])
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null)
   const [canManageCorporateStructure, setCanManageCorporateStructure] = useState(false)
@@ -132,12 +133,16 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     if (signal?.aborted) return
     setLegalEntities(entityResult.legal_entities)
     setBranches(branchResult.branches)
-    const branchUserEntries = await Promise.all(branchResult.branches.map(async (branch) => {
-      const result = await posApplication.branches.listUsers(branch.id, signal)
-      return [branch.id, result.users] as const
+    const branchEntries = await Promise.all(branchResult.branches.map(async (branch) => {
+      const [users, lifecycle] = await Promise.all([
+        posApplication.branches.listUsers(branch.id, signal),
+        posApplication.branches.listLifecycleEvents(branch.id),
+      ])
+      return [branch.id, users.users, lifecycle.events] as const
     }))
     if (signal?.aborted) return
-    setBranchUsersByBranch(Object.fromEntries(branchUserEntries))
+    setBranchUsersByBranch(Object.fromEntries(branchEntries.map(([id, users]) => [id, users])))
+    setBranchLifecycleEventsByBranch(Object.fromEntries(branchEntries.map(([id, , events]) => [id, events])))
     setCanManageCorporateStructure(
       entityResult.permissions.can_manage && branchResult.permissions.can_manage,
     )
@@ -404,6 +409,17 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     toast({ title: "Sucursal actualizada" })
   }
 
+  const handleChangeBranchStatus = async (id: string, status: BranchStatus) => {
+    await posApplication.branches.changeStatus(id, status)
+    await refreshCorporateStructure()
+    await refreshAvailableBranches()
+    toast({
+      title: status === "active"
+        ? "Sucursal reactivada"
+        : status === "suspended" ? "Sucursal suspendida" : "Sucursal cerrada",
+    })
+  }
+
   const handleAssignBranchLegalEntity = async (branchId: string, legalEntityId: string) => {
     await posApplication.branches.assignLegalEntity(branchId, legalEntityId)
     await refreshCorporateStructure()
@@ -491,6 +507,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         legalEntities={legalEntities}
         branches={branches}
         branchUsersByBranch={branchUsersByBranch}
+        branchLifecycleEventsByBranch={branchLifecycleEventsByBranch}
         corporateStructureLoading={corporateStructureLoading}
         corporateStructureLoadError={corporateStructureLoadError}
         canManageCorporateStructure={canManageCorporateStructure}
@@ -498,6 +515,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         onUpdateLegalEntity={handleUpdateLegalEntity}
         onCreateBranch={handleCreateBranch}
         onUpdateBranch={handleUpdateBranch}
+        onChangeBranchStatus={handleChangeBranchStatus}
         onAssignBranchLegalEntity={handleAssignBranchLegalEntity}
         onRemoveBranchLegalEntity={handleRemoveBranchLegalEntity}
         onAssignBranchUser={handleAssignBranchUser}
