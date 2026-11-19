@@ -1166,9 +1166,10 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 
 ### N09-F1.1 — Organización y datos corporativos
 
-- **Estado:** En desarrollo en la rama `feat/fase-1-1-organizacion-corporativa`.
+- **Estado:** En validación en la rama `feat/fase-1-1-organizacion-corporativa`; pendiente CI sobre el HEAD final.
 - **Alcance:** registro único de organización por instalación, datos corporativos generales y contacto/domicilio de sede; alta inicial atómica; propietario explícito del perfil; lectura autenticada y edición restringida al propietario.
 - **Límites:** no se crean entidades legales/NIT, sucursales, almacenes, usuarios/asignaciones RBAC, monedas, zonas horarias ni configuraciones fiscales. Esos elementos pertenecen a subfases posteriores y conservan sus decisiones pendientes.
-- **Persistencia:** migración PostgreSQL versionada, probada en PostgreSQL 16 y 17; sin aplicar en producción.
+- **Persistencia:** migración PostgreSQL versionada; la ejecución desde base vacía, idempotencia y pruebas con rol runtime se validarán en PostgreSQL 16 y 17 mediante CI. No se ha aplicado en producción.
 - **Seguridad:** no se interpreta el rol heredado `admin` como propietario permanente. Solo puede ejecutar el bootstrap mientras el perfil no exista; el usuario que lo realiza queda registrado como propietario y únicamente ese usuario puede actualizar el perfil.
+- **Diseño y contrato:** documentados en [FASE-1.1-ORGANIZACION.md](./FASE-1.1-ORGANIZACION.md).
 - **Criterio de cierre:** dominio/casos de uso, repositorio, API, validación estricta, pruebas unitarias y de PostgreSQL, CI, documentación y trazabilidad de requisito→prueba→ejecución. No se declara completada hasta que CI pase sobre el HEAD final.
