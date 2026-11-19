@@ -1,6 +1,6 @@
 # N09-F1.3 — Alta, apertura, suspensión y cierre de sucursales
 
-**Estado:** En desarrollo; la aceptación final depende de CI y revisión del PR.  
+**Estado:** Validada en CI sobre HEAD `692193739ec168abf75369ad589292bd3c5acc17`; PR #12 abierto para revisión, pendiente de integración en `main`.  
 **Módulo:** N09 — Gestión multisucursal  
 **Rama:** `feat/fase-1-3-ciclo-vida-sucursales`
 
@@ -87,4 +87,6 @@ Configuración muestra el estado actual, acciones válidas para la transición, 
 | Privilegios | Runtime lee historial, pero no inserta/actualiza/elimina eventos ni modifica estado directamente |
 | Reproducibilidad | Migración desde base vacía e idempotencia en PostgreSQL 16 y 17 |
 
-La fase solo se declara completada cuando todos los jobs del PR pasan y el roadmap refleja el HEAD validado. La integración de código en `main` no autoriza migraciones ni despliegue productivo; se mantienen las puertas de inspección y restore de Fase 0.
+**Evidencia de cierre técnico:** GitHub Actions [run #39 / 44439162015](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44439162015) terminó con `success` sobre HEAD `692193739ec168abf75369ad589292bd3c5acc17`. Aprobaron backend/unit tests, TypeScript, Biome lint, build no productivo y ambos jobs PostgreSQL 16/17 (migración desde base vacía, segunda ejecución idempotente y pruebas de integración con rol runtime restringido).
+
+La fase está validada técnicamente y queda pendiente la revisión/fusión del PR #12 para integrarse en `main`. Esta validación no autoriza migraciones ni despliegue productivo; se mantienen las puertas de inspección y restore de Fase 0.
