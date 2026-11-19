@@ -177,11 +177,14 @@ export function BranchManagementCard({
                               type="checkbox"
                               checked={user.assigned}
                               disabled={!canManage || busy}
-                              onChange={(event) => void runAssociation(() => (
-                                event.target.checked
-                                  ? onAssignUser(branch.id, user.id)
-                                  : onRemoveUser(branch.id, user.id)
-                              ))}
+                              onChange={(event) => {
+                                const assigned = event.target.checked
+                                void runAssociation(() => (
+                                  assigned
+                                    ? onAssignUser(branch.id, user.id)
+                                    : onRemoveUser(branch.id, user.id)
+                                ))
+                              }}
                               className="mt-1"
                             />
                             <span>
