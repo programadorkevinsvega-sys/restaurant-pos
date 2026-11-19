@@ -15,6 +15,20 @@ async function ensureE2EBranchActive(page) {
   await expect(page.getByText(/Estado: Activa/)).toBeVisible()
 }
 
+async function setBranchProductAvailability(page, checkbox, branchId, productId, enabled) {
+  await expect(checkbox).toBeVisible()
+  if ((await checkbox.isChecked()) !== enabled) {
+    const updatePromise = page.waitForResponse((response) =>
+      response.url().endsWith(`/api/admin/catalog/branches/${branchId}/products/${productId}`) &&
+      response.request().method() === "PUT",
+    )
+    await checkbox.click()
+    const response = await updatePromise
+    expect(response.status()).toBe(200)
+  }
+  await expect(checkbox).toHaveJSProperty("checked", enabled)
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/")
   await expect(page.getByLabel("Sucursal activa")).toHaveValue(
@@ -155,11 +169,22 @@ test("N09-F2.1: el catálogo maestro permite excluir y reactivar un producto por
   )
 
   let checkbox = page.getByRole("checkbox", { name: productLabel })
-  await expect(checkbox).toBeVisible()
-  if (!(await checkbox.isChecked())) await checkbox.check()
+  await setBranchProductAvailability(
+    page,
+    checkbox,
+    process.env.E2E_BRANCH_ID || "44444444-4444-4444-8444-444444444444",
+    "66666666-6666-4666-8666-666666666666",
+    true,
+  )
 
   try {
-    await checkbox.uncheck()
+    await setBranchProductAvailability(
+      page,
+      checkbox,
+      process.env.E2E_BRANCH_ID || "44444444-4444-4444-8444-444444444444",
+      "66666666-6666-4666-8666-666666666666",
+      false,
+    )
     await expect(page.getByText("Excluido de esta sucursal")).toBeVisible()
     await page.getByRole("button", { name: "Punto de venta", exact: true }).click()
     await expect(productOrderButton).toHaveCount(0)
@@ -171,8 +196,13 @@ test("N09-F2.1: el catálogo maestro permite excluir y reactivar un producto por
     await page.getByRole("button", { name: "Catálogo" }).click()
     await page.getByRole("button", { name: "Surtido por sucursal" }).click()
     checkbox = page.getByRole("checkbox", { name: productLabel })
-    await expect(checkbox).toBeVisible()
-    if (!(await checkbox.isChecked())) await checkbox.check()
+    await setBranchProductAvailability(
+      page,
+      checkbox,
+      process.env.E2E_BRANCH_ID || "44444444-4444-4444-8444-444444444444",
+      "66666666-6666-4666-8666-666666666666",
+      true,
+    )
     await expect(page.getByText("Heredado y habilitado")).toBeVisible()
   }
   await page.getByRole("button", { name: "Punto de venta", exact: true }).click()
@@ -212,7 +242,7 @@ test("N09-F2.1: productos y categorías tienen CRUD corporativo con baja lógica
 
   const updatedCard = page.getByText(updatedProductName, { exact: true }).locator("xpath=../..")
   await updatedCard.getByRole("button", { name: "Dar de baja" }).click()
-  await expect(updatedCard.getByText("Inactivo")).toBeVisible()
+  await expect(page.getByText(updatedProductName, { exact: true })).toContainText("Inactivo")
 
   await page.getByRole("button", { name: "Categorías" }).click()
   await page.getByPlaceholder("Nombre de categoría").fill(originalCategoryName)
@@ -225,5 +255,5 @@ test("N09-F2.1: productos y categorías tienen CRUD corporativo con baja lógica
   await expect(page.getByText(updatedCategoryName, { exact: true })).toBeVisible()
   const updatedCategoryRow = page.getByText(updatedCategoryName, { exact: true }).locator("xpath=../..")
   await updatedCategoryRow.getByRole("button", { name: "Dar de baja" }).click()
-  await expect(updatedCategoryRow.getByText("Inactiva")).toBeVisible()
+  await expect(updatedCategoryRow).toContainText("Inactiva")
 })
