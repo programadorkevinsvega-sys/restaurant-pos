@@ -51,6 +51,14 @@ export class HttpClient {
     })
   }
 
+  async patch<T>(path: string, body: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+  }
+
   async login(email: string, password: string): Promise<{ user: AuthenticatedUser }> {
     const result = await traceOperation("auth.login", () =>
       this.post<{ user: AuthenticatedUser; csrfToken: string }>("/auth/login", { email, password }),
