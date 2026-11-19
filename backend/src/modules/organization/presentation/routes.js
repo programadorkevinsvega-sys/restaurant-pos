@@ -51,7 +51,7 @@ export function createOrganizationRoutes(organization, authenticate, authorize, 
   })
 
   router.get("/", authenticate, asyncHandler(async (request, response) => {
-    response.json({ organization: await organization.getProfile() })
+    response.json(await organization.getProfile(request.auth))
   }))
 
   router.post(
@@ -61,8 +61,8 @@ export function createOrganizationRoutes(organization, authenticate, authorize, 
     writesLimiter,
     validateRequest({ body: organizationProfileSchema }),
     asyncHandler(async (request, response) => {
-      const profile = await organization.bootstrapProfile(request.validated.body, request.auth)
-      response.status(201).json({ organization: profile })
+      const result = await organization.bootstrapProfile(request.validated.body, request.auth)
+      response.status(201).json(result)
     }),
   )
 
@@ -72,8 +72,8 @@ export function createOrganizationRoutes(organization, authenticate, authorize, 
     writesLimiter,
     validateRequest({ body: updateOrganizationProfileSchema }),
     asyncHandler(async (request, response) => {
-      const profile = await organization.updateProfile(request.validated.body, request.auth)
-      response.json({ organization: profile })
+      const result = await organization.updateProfile(request.validated.body, request.auth)
+      response.json(result)
     }),
   )
 
