@@ -309,7 +309,7 @@ CREATE TRIGGER branch_legal_entities_change_history
   FOR EACH ROW
   EXECUTE FUNCTION public.capture_branch_legal_entity_association();
 
-CREATE FUNCTION public.remove_branch_legal_entity(
+CREATE OR REPLACE FUNCTION public.remove_branch_legal_entity(
   p_branch_id uuid,
   p_legal_entity_id uuid,
   p_actor_user_id uuid
