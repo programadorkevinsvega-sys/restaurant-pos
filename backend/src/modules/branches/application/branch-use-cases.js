@@ -22,16 +22,10 @@ export class BranchUseCases {
 
   list(actor) {
     return traceOperation("branches.list", async () => {
-      if (!actor?.userId) {
-        throw new AppError(401, "AUTHENTICATION_REQUIRED", "Inicia sesión para continuar.")
-      }
-      const ownerUserId = await this.repository.findOrganizationOwnerId()
-      if (!ownerUserId) {
-        throw new AppError(404, "ORGANIZATION_NOT_INITIALIZED", "La organización todavía no está configurada.")
-      }
+      await this.requireOrganizationOwner(actor)
       return {
         branches: (await this.repository.listBranches()).map(toBranchDto),
-        permissions: { can_manage: ownerUserId === actor.userId },
+        permissions: { can_manage: true },
       }
     })
   }
