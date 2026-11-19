@@ -157,6 +157,16 @@ export class PostgresCatalogRepository extends CatalogRepository {
 
   async setBranchProductEnabled(branchId, productId, enabled, actor) {
     await this.assertOrganizationOwner(actor)
+    const activeProduct = await queryPostgres(this.pool, `
+      SELECT product.id
+      FROM public.products AS product
+      LEFT JOIN public.categories AS category ON category.id = product.category_id
+      WHERE product.id = $1 AND product.is_active = true
+        AND (product.category_id IS NULL OR category.is_active = true)
+    `, [productId])
+    if (!activeProduct.rows[0]) {
+      throw new AppError(409, "PRODUCT_NOT_ACTIVE", "No se puede cambiar el surtido de un producto inactivo.")
+    }
     const { rows } = await queryPostgres(this.pool,
       "SELECT public.set_branch_catalog_product_enabled($1::uuid, $2::uuid, $3::boolean, $4::uuid) AS outcome",
       [branchId, productId, enabled, actor.userId])

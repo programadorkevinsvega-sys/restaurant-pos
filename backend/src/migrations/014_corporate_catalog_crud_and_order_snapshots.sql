@@ -89,7 +89,7 @@ BEGIN
   SELECT coalesce(jsonb_agg(to_jsonb(result_row)), '[]'::jsonb)
   INTO v_result
   FROM (
-    SELECT oi.product_id AS id, oi.product_name_at_order AS name,
+    SELECT oi.product_id AS id, coalesce(oi.product_name_at_order, product.name) AS name,
       coalesce(category.name, 'Sin categoría') AS category,
       sum(oi.quantity)::integer AS total_quantity,
       sum(oi.quantity * oi.price_at_order) AS total_revenue
@@ -99,7 +99,7 @@ BEGIN
     LEFT JOIN public.categories AS category ON category.id = product.category_id
     WHERE orders.status = 'completed'
       AND orders.created_at >= p_start_date AND orders.created_at <= p_end_date
-    GROUP BY oi.product_id, oi.product_name_at_order, category.name
+    GROUP BY oi.product_id, coalesce(oi.product_name_at_order, product.name), category.name
     ORDER BY total_quantity DESC, name
     LIMIT 10
   ) AS result_row;
@@ -179,3 +179,34 @@ CREATE TRIGGER order_items_product_snapshots_immutable
   ON public.order_items
   FOR EACH ROW
   EXECUTE FUNCTION public.prevent_order_item_snapshot_rewrite();
+
+CREATE FUNCTION public.prevent_branch_assortment_for_inactive_product()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+DECLARE
+  v_active boolean;
+BEGIN
+  SELECT product.is_active AND coalesce(category.is_active, true)
+  INTO v_active
+  FROM public.products AS product
+  LEFT JOIN public.categories AS category ON category.id = product.category_id
+  WHERE product.id = NEW.product_id
+  FOR KEY SHARE OF product;
+
+  IF NOT FOUND OR NOT v_active THEN
+    RAISE EXCEPTION 'PRODUCT_NOT_ACTIVE'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.prevent_branch_assortment_for_inactive_product() FROM PUBLIC;
+
+CREATE TRIGGER branch_catalog_events_require_active_product
+  BEFORE INSERT ON public.branch_catalog_product_events
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_branch_assortment_for_inactive_product();

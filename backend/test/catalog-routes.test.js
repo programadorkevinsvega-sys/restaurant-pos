@@ -198,7 +198,7 @@ test("corporate catalog CRUD routes validate payloads and pass authenticated act
   const calls = []
   const catalog = {
     listCorporateProducts: async () => [],
-    listCorporateCategories: async () => [],
+    listCorporateCategories: async () => [{ id: categoryId, name: "Bebidas" }],
     updateProduct: async (id, input, actor) => {
       calls.push(["update-product", id, input, actor.userId])
       return { id, ...input }
@@ -222,6 +222,12 @@ test("corporate catalog CRUD routes validate payloads and pass authenticated act
 
   await withServer(app, async (baseUrl) => {
     const headers = { "X-Test-User": owner.userId, "Content-Type": "application/json" }
+    const masterProducts = await fetch(`${baseUrl}/api/admin/catalog/products`, { headers })
+    assert.equal(masterProducts.status, 200)
+    const masterCategories = await fetch(`${baseUrl}/api/admin/catalog/categories`, { headers })
+    assert.equal(masterCategories.status, 200)
+    assert.equal((await masterCategories.json())[0].id, categoryId)
+
     const productInput = {
       name: "Gaseosa", description: "500 ml", price: 25000, image_url: null,
       discount_percentage: 0, type: "Veg", category_id: categoryId,

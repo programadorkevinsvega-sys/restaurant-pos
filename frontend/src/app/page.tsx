@@ -609,12 +609,21 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
           onCreateProduct={async (input) => { await posApplication.corporateCatalog.createProduct(input); await refreshCatalogManagement() }}
           onUpdateProduct={async (id, input) => { await posApplication.corporateCatalog.updateProduct(id, input); await refreshCatalogManagement() }}
           onDeactivateProduct={async (id) => { await posApplication.corporateCatalog.deactivateProduct(id); await refreshCatalogManagement() }}
-          onCreateCategory={async (name) => { await posApplication.corporateCatalog.createCategory({ name, icon: "Grid" }); await refreshCatalogManagement() }}
-          onUpdateCategory={async (id, name) => { await posApplication.corporateCatalog.updateCategory(id, { name, icon: "Grid" }); await refreshCatalogManagement() }}
+          onCreateCategory={async (name, icon) => { await posApplication.corporateCatalog.createCategory({ name, icon }); await refreshCatalogManagement() }}
+          onUpdateCategory={async (id, name, icon) => { await posApplication.corporateCatalog.updateCategory(id, { name, icon }); await refreshCatalogManagement() }}
           onDeactivateCategory={async (id) => { await posApplication.corporateCatalog.deactivateCategory(id); await refreshCatalogManagement() }}
           onSetProductEnabled={async (branchId, productId, enabled) => {
             await posApplication.corporateCatalog.setBranchProductEnabled(branchId, productId, enabled)
             await refreshCatalogManagement(branchId)
+            if (activeBranchId === branchId) {
+              const [nextCategories, nextProducts] = await Promise.all([
+                posApplication.listCatalog.getCategories(),
+                posApplication.listCatalog.getProducts(activeCategory === "all" ? undefined : activeCategory),
+              ])
+              setCategories(nextCategories)
+              setProducts(nextProducts)
+              if (!enabled) setCartItems((current) => current.filter((item) => item.product.id !== productId))
+            }
           }}
         />
       )
