@@ -32,6 +32,12 @@ import { createAuthRoutes } from "./modules/auth/presentation/routes.js"
 import { OrganizationUseCases } from "./modules/organization/application/organization-use-cases.js"
 import { PostgresOrganizationRepository } from "./modules/organization/infrastructure/postgres-organization-repository.js"
 import { createOrganizationRoutes } from "./modules/organization/presentation/routes.js"
+import { LegalEntityUseCases } from "./modules/legal-entities/application/legal-entity-use-cases.js"
+import { PostgresLegalEntityRepository } from "./modules/legal-entities/infrastructure/postgres-legal-entity-repository.js"
+import { createLegalEntityRoutes } from "./modules/legal-entities/presentation/routes.js"
+import { BranchUseCases } from "./modules/branches/application/branch-use-cases.js"
+import { PostgresBranchRepository } from "./modules/branches/infrastructure/postgres-branch-repository.js"
+import { createBranchRoutes } from "./modules/branches/presentation/routes.js"
 
 export async function createApp(config = loadConfig()) {
   const pool = createPostgresPool(config)
@@ -94,6 +100,10 @@ export async function createApp(config = loadConfig()) {
 
   const organization = new OrganizationUseCases(new PostgresOrganizationRepository(pool))
   app.use("/api/organization", createOrganizationRoutes(organization, requireUser, requireRole, limiters.writes))
+  const legalEntities = new LegalEntityUseCases(new PostgresLegalEntityRepository(pool))
+  app.use("/api/legal-entities", createLegalEntityRoutes(legalEntities, requireUser, limiters.writes))
+  const branches = new BranchUseCases(new PostgresBranchRepository(pool))
+  app.use("/api/branches", createBranchRoutes(branches, requireUser, limiters.writes))
 
   const catalogRoutes = createCatalogRoutes(catalog, requireUser, requireRole)
   app.use("/api/categories", catalogRoutes.categories)
