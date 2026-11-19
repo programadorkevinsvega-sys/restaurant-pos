@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { Category } from "@/modules/catalog/domain/models"
+import type { BranchCatalogProduct, Category } from "@/modules/catalog/domain/models"
+import { CorporateCatalogManagementCard } from "@/components/catalog/corporate-catalog-management-card"
 import type {
   BestSellingProduct,
   DeliveryOrder,
@@ -58,6 +59,8 @@ interface OperationsPanelProps {
   onAssignDriver: (orderId: string, name: string, phone: string, eta: string) => Promise<void>
   onUpdateSettings: (settings: RestaurantSettings) => Promise<void>
   onCreateCategory: (name: string) => Promise<void>
+  onListBranchCatalogProducts: (branchId: string) => Promise<BranchCatalogProduct[]>
+  onSetBranchCatalogProductEnabled: (branchId: string, productId: string, enabled: boolean) => Promise<void>
   organization: OrganizationProfile | null
   organizationLoading: boolean
   canUpdateOrganization: boolean
@@ -115,6 +118,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
     section, tables, reservations, deliveries, salesReport, bestSellingProducts, settings, categories,
     onCreateReservation, onUpdateReservationStatus, onListReservations, canWriteOperationalData,
     onAssignDriver, onUpdateSettings, onCreateCategory,
+    onListBranchCatalogProducts, onSetBranchCatalogProductEnabled,
     organization, organizationLoading, canUpdateOrganization, canBootstrapOrganization, organizationLoadError,
     onBootstrapOrganization, onUpdateOrganization, onListOrganizationHistory,
     legalEntities, branches, branchUsersByBranch, branchLifecycleEventsByBranch, corporateStructureLoading, corporateStructureLoadError,
@@ -329,6 +333,13 @@ export function OperationsPanel(props: OperationsPanelProps) {
               )}
             </CardContent>
           </Card>
+          <CorporateCatalogManagementCard
+            branches={branches}
+            loading={corporateStructureLoading}
+            canManage={canManageCorporateStructure}
+            onListProducts={onListBranchCatalogProducts}
+            onSetProductEnabled={onSetBranchCatalogProductEnabled}
+          />
         </TabsContent>
 
         <TabsContent value="history" className="mt-0 space-y-4">

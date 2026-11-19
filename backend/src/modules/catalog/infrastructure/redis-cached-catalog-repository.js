@@ -29,7 +29,6 @@ export class RedisCachedCatalogRepository {
   async readVersion() {
     if (!this.redisClient) return null
     if (!this.redisReady("read-version")) return null
-
     try {
       const version = await this.redisClient.get(this.versionKey)
       if (version === null) return "0"
@@ -46,11 +45,9 @@ export class RedisCachedCatalogRepository {
 
   async readCachedValue(key) {
     if (!this.redisReady("read-value")) return cacheMiss
-
     try {
       const serialized = await this.redisClient.get(key)
       if (serialized === null) return cacheMiss
-
       try {
         return JSON.parse(serialized)
       } catch (error) {
@@ -70,10 +67,8 @@ export class RedisCachedCatalogRepository {
 
   async writeCachedValue(key, value) {
     if (!this.redisReady("write-value")) return
-
-    const serialized = JSON.stringify(value)
     try {
-      await this.redisClient.set(key, serialized, { EX: cacheTtlSeconds })
+      await this.redisClient.set(key, JSON.stringify(value), { EX: cacheTtlSeconds })
     } catch (error) {
       this.logRedisFailure("write-value", error)
     }
@@ -82,20 +77,16 @@ export class RedisCachedCatalogRepository {
   async getOrLoad(keySuffix, load) {
     const version = await this.readVersion()
     if (version === null) return load()
-
     const key = `${this.namespace}:${version}:${keySuffix}`
     const cachedValue = await this.readCachedValue(key)
     if (cachedValue !== cacheMiss) return cachedValue
-
     const value = await load()
     await this.writeCachedValue(key, value)
     return value
   }
 
   async invalidate() {
-    if (!this.redisClient) return
-    if (!this.redisReady("invalidate")) return
-
+    if (!this.redisClient || !this.redisReady("invalidate")) return
     try {
       await this.redisClient.incr(this.versionKey)
     } catch (error) {
@@ -103,27 +94,53 @@ export class RedisCachedCatalogRepository {
     }
   }
 
-  listCategories() {
-    return this.getOrLoad("categories", () => this.repository.listCategories())
+  async listCategories(actor) {
+    await this.repository.assertBranchAccess(actor)
+    return this.getOrLoad(
+      `branch:${actor.activeBranchId}:categories`,
+      () => this.repository.listCategories(actor),
+    )
   }
 
-  listProducts(categoryId) {
-    const key = categoryId ? `products:category:${categoryId}` : "products:all"
-    return this.getOrLoad(key, () => this.repository.listProducts(categoryId))
+  async listProducts(categoryId, actor) {
+    await this.repository.assertBranchAccess(actor)
+    const categoryKey = categoryId ?? "all"
+    return this.getOrLoad(
+      `branch:${actor.activeBranchId}:products:${categoryKey}`,
+      () => this.repository.listProducts(categoryId, actor),
+    )
   }
 
-  findProduct(id) {
-    return this.getOrLoad(`product:${id}`, () => this.repository.findProduct(id))
+  async findProduct(id, actor) {
+    await this.repository.assertBranchAccess(actor)
+    return this.getOrLoad(
+      `branch:${actor.activeBranchId}:product:${id}`,
+      () => this.repository.findProduct(id, actor),
+    )
   }
 
-  async createCategory(category) {
-    const result = await this.repository.createCategory(category)
+  listCorporateProducts(actor) {
+    return this.repository.listCorporateProducts(actor)
+  }
+
+  listBranchProducts(branchId, actor) {
+    return this.repository.listBranchProducts(branchId, actor)
+  }
+
+  async setBranchProductEnabled(branchId, productId, enabled, actor) {
+    const result = await this.repository.setBranchProductEnabled(branchId, productId, enabled, actor)
+    if (result.changed) await this.invalidate()
+    return result
+  }
+
+  async createCategory(category, actor) {
+    const result = await this.repository.createCategory(category, actor)
     await this.invalidate()
     return result
   }
 
-  async createProduct(product) {
-    const result = await this.repository.createProduct(product)
+  async createProduct(product, actor) {
+    const result = await this.repository.createProduct(product, actor)
     await this.invalidate()
     return result
   }

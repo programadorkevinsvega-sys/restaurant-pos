@@ -43,7 +43,7 @@ export function ProductForm({ categories, onSubmit, onCancel }: ProductFormProps
   return (
     <Card className="w-full max-w-2xl self-start">
       <CardHeader>
-        <h1 className="text-2xl font-semibold leading-none tracking-tight">Crear producto</h1>
+        <div className="space-y-1"><h1 className="text-2xl font-semibold leading-none tracking-tight">Crear producto corporativo</h1><p className="text-sm text-muted-foreground">Se registra una sola vez en el catálogo maestro y se hereda a las sucursales. Su disponibilidad local se configura en Configuración → Menú.</p></div>
       </CardHeader>
       <CardContent>
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit}>

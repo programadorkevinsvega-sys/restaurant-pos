@@ -131,3 +131,43 @@ test("N09-F1: la navegación presenta las secciones principales sin errores de r
     process.env.E2E_BRANCH_ID || "44444444-4444-4444-8444-444444444444",
   )
 })
+
+test("N09-F2.1: el catálogo maestro permite excluir y reactivar un producto por sucursal", async ({ page }, testInfo) => {
+  const productLabel = "Disponible en sucursal: Producto E2E"
+  const productOrderButton = page.getByRole("button", { name: "Agregar Producto E2E al pedido" })
+  await page.getByRole("button", { name: "Configuración" }).click()
+  await page.getByRole("tab", { name: "Menú" }).click()
+
+  const branchSelect = page.getByLabel("Sucursal del catálogo corporativo")
+  await expect(branchSelect).toHaveValue(
+    process.env.E2E_BRANCH_ID || "44444444-4444-4444-8444-444444444444",
+  )
+
+  let checkbox = page.getByRole("checkbox", { name: productLabel })
+  await expect(checkbox).toBeVisible()
+  if (!(await checkbox.isChecked())) await checkbox.check()
+
+  try {
+    await checkbox.uncheck()
+    await expect(page.getByText("Excluido de esta sucursal")).toBeVisible()
+    await page.getByRole("button", { name: "Menú", exact: true }).click()
+    await expect(productOrderButton).toHaveCount(0)
+    await testInfo.attach("catalogo-excluido-en-la-sucursal", {
+      body: await page.screenshot({ fullPage: true, animations: "disabled" }),
+      contentType: "image/png",
+    })
+  } finally {
+    await page.getByRole("button", { name: "Configuración" }).click()
+    await page.getByRole("tab", { name: "Menú" }).click()
+    checkbox = page.getByRole("checkbox", { name: productLabel })
+    await expect(checkbox).toBeVisible()
+    if (!(await checkbox.isChecked())) await checkbox.check()
+    await expect(page.getByText("Heredado y habilitado")).toBeVisible()
+  }
+  await page.getByRole("button", { name: "Menú", exact: true }).click()
+  await expect(productOrderButton).toBeVisible()
+  await testInfo.attach("catalogo-reactivado-en-la-sucursal", {
+    body: await page.screenshot({ fullPage: true, animations: "disabled" }),
+    contentType: "image/png",
+  })
+})

@@ -16,7 +16,7 @@ import { TableManagement } from "@/components/tables/table-management"
 import { toast } from "@/hooks/use-toast"
 import { posApplication } from "@/modules/pos/infrastructure/container"
 import { HttpError, type AuthenticatedUser } from "@/shared/infrastructure/http-client"
-import type { Category, NewProduct, Product } from "@/modules/catalog/domain/models"
+import type { BranchCatalogProduct, Category, NewProduct, Product } from "@/modules/catalog/domain/models"
 import type { CartItem, OrderSummary, OrderType } from "@/modules/orders/domain/models"
 import type {
   OrganizationHistoryFilters,
@@ -103,6 +103,10 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   }, [])
 
   useEffect(() => {
+    if (!activeBranchId) {
+      setCategories([])
+      return
+    }
     const controller = new AbortController()
     posApplication.listCatalog.getCategories(controller.signal)
       .then(setCategories)
@@ -115,10 +119,16 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         })
       })
     return () => controller.abort()
-  }, [])
+  }, [activeBranchId])
 
   useEffect(() => {
     if (activeSection !== "menu") return
+    if (!activeBranchId) {
+      setProducts([])
+      setIsLoading(false)
+      return
+    }
+    setIsLoading(true)
     const controller = new AbortController()
     posApplication.listCatalog.getProducts(
       activeCategory === "all" ? undefined : activeCategory,
@@ -137,7 +147,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         if (!controller.signal.aborted) setIsLoading(false)
       })
     return () => controller.abort()
-  }, [activeCategory, activeSection])
+  }, [activeCategory, activeBranchId, activeSection])
 
   const refreshTables = useCallback(async () => {
     const result = await posApplication.tables.getAll()
@@ -261,18 +271,44 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
 
   const refreshAvailableBranches = async () => {
     const result = await posApplication.branches.listAvailable()
-    setAvailableBranches(result.branches)
-    const nextBranchId = activeBranchId && result.branches.some((item) => item.id === activeBranchId)
-      ? activeBranchId
+    const currentBranch = availableBranches.find((branch) => branch.id === activeBranchId)
+    const nextBranch = result.branches.find((branch) => branch.id === activeBranchId)
+    const nextBranchId = nextBranch
+      ? nextBranch.id
       : result.branches.length === 1 ? result.branches[0].id : null
+    const contextChanged = nextBranchId !== activeBranchId
+    const currentBranchBecameReadOnly = Boolean(
+      currentBranch?.status === "active" && nextBranch && nextBranch.status !== "active",
+    )
+
+    setAvailableBranches(result.branches)
     setActiveBranchId(nextBranchId)
     posApplication.setActiveBranchId(nextBranchId)
+
+    if (contextChanged || currentBranchBecameReadOnly) {
+      setActiveCategory("all")
+      setCategories([])
+      setProducts([])
+      setCartItems([])
+      setTables([])
+      setOrders([])
+      setReservations([])
+      setDeliveries([])
+      setIsLoading(Boolean(nextBranchId))
+      setOperationError("")
+      setReloadIndex((current) => current + 1)
+    }
   }
 
   const handleActiveBranchChange = (branchId: string) => {
     if (!availableBranches.some((branch) => branch.id === branchId)) return
     setActiveBranchId(branchId)
     posApplication.setActiveBranchId(branchId)
+    setActiveCategory("all")
+    setCategories([])
+    setProducts([])
+    setCartItems([])
+    setIsLoading(true)
     setDeliveries([])
     setOperationError("")
     setReloadIndex((current) => current + 1)
@@ -511,6 +547,35 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     toast({ title: "Asignación de sucursal retirada" })
   }
 
+  const handleListBranchCatalogProducts = useCallback(
+    (branchId: string): Promise<BranchCatalogProduct[]> =>
+      posApplication.corporateCatalog.listBranchProducts(branchId),
+    [],
+  )
+
+  const handleSetBranchCatalogProductEnabled = useCallback(async (
+    branchId: string,
+    productId: string,
+    enabled: boolean,
+  ) => {
+    await posApplication.corporateCatalog.setBranchProductEnabled(branchId, productId, enabled)
+    if (activeBranchId === branchId) {
+      const [nextCategories, nextProducts] = await Promise.all([
+        posApplication.listCatalog.getCategories(),
+        posApplication.listCatalog.getProducts(activeCategory === "all" ? undefined : activeCategory),
+      ])
+      setCategories(nextCategories)
+      setProducts(nextProducts)
+      if (!enabled) {
+        setCartItems((current) => current.filter((item) => item.product.id !== productId))
+      }
+    }
+    toast({
+      title: enabled ? "Producto habilitado" : "Producto excluido de la sucursal",
+      description: "El catálogo de la sucursal quedó actualizado.",
+    })
+  }, [activeBranchId, activeCategory])
+
   const handleCreateCategory = async (name: string) => {
     const category = await posApplication.createCategory.execute(name)
     setCategories((current) => [...current, category].sort((a, b) => a.name.localeCompare(b.name)))
@@ -570,6 +635,8 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         onAssignDriver={handleAssignDriver}
         onUpdateSettings={handleUpdateSettings}
         onCreateCategory={handleCreateCategory}
+        onListBranchCatalogProducts={handleListBranchCatalogProducts}
+        onSetBranchCatalogProductEnabled={handleSetBranchCatalogProductEnabled}
         organization={organization}
         organizationLoading={organizationLoading}
         canUpdateOrganization={canUpdateOrganization}

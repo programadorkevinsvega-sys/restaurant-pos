@@ -2,6 +2,7 @@ import { CreateProduct } from "@/modules/catalog/application/create-product"
 import { CreateCategory } from "@/modules/catalog/application/create-category"
 import { ListCatalog } from "@/modules/catalog/application/list-catalog"
 import { HttpCatalogRepository } from "@/modules/catalog/infrastructure/http-catalog-repository"
+import { ManageCorporateCatalog } from "@/modules/catalog/application/manage-corporate-catalog"
 import { CreateOrder } from "@/modules/orders/application/create-order"
 import { ListOrders } from "@/modules/orders/application/list-orders"
 import { HttpOrderRepository } from "@/modules/orders/infrastructure/http-order-repository"
@@ -39,6 +40,7 @@ export const posApplication = {
     currentUser: () => http.currentUser(),
   },
   listCatalog: new ListCatalog(catalogRepository),
+  corporateCatalog: new ManageCorporateCatalog(catalogRepository),
   createProduct: new CreateProduct(catalogRepository),
   createCategory: new CreateCategory(catalogRepository),
   createOrder: new CreateOrder(orderRepository),
