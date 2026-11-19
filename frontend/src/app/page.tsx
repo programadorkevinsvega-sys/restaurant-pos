@@ -136,7 +136,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     const branchEntries = await Promise.all(branchResult.branches.map(async (branch) => {
       const [users, lifecycle] = await Promise.all([
         posApplication.branches.listUsers(branch.id, signal),
-        posApplication.branches.listLifecycleEvents(branch.id),
+        posApplication.branches.listLifecycleEvents(branch.id, signal),
       ])
       return [branch.id, users.users, lifecycle.events] as const
     }))
