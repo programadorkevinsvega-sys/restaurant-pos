@@ -19,7 +19,7 @@ import type { OrganizationProfile, OrganizationProfileInput, OrganizationProfile
 import { LegalEntityManagementCard } from "@/components/legal-entities/legal-entity-management-card"
 import { BranchManagementCard } from "@/components/branches/branch-management-card"
 import type { LegalEntity, LegalEntityInput } from "@/modules/legal-entities/domain/models"
-import type { Branch, BranchInput, BranchUpdate, BranchUser } from "@/modules/branches/domain/models"
+import type { Branch, BranchInput, BranchLifecycleEvent, BranchStatus, BranchUpdate, BranchUser } from "@/modules/branches/domain/models"
 import { HttpError } from "@/shared/infrastructure/http-client"
 
 interface OperationsPanelProps {
@@ -46,6 +46,7 @@ interface OperationsPanelProps {
   legalEntities: LegalEntity[]
   branches: Branch[]
   branchUsersByBranch: Record<string, BranchUser[]>
+  branchLifecycleEventsByBranch: Record<string, BranchLifecycleEvent[]>
   corporateStructureLoading: boolean
   corporateStructureLoadError: string | null
   canManageCorporateStructure: boolean
@@ -53,6 +54,7 @@ interface OperationsPanelProps {
   onUpdateLegalEntity: (id: string, input: LegalEntityInput) => Promise<void>
   onCreateBranch: (input: BranchInput) => Promise<void>
   onUpdateBranch: (id: string, input: BranchUpdate) => Promise<void>
+  onChangeBranchStatus: (id: string, status: BranchStatus) => Promise<void>
   onAssignBranchLegalEntity: (branchId: string, legalEntityId: string) => Promise<void>
   onRemoveBranchLegalEntity: (branchId: string, legalEntityId: string) => Promise<void>
   onAssignBranchUser: (branchId: string, userId: string) => Promise<void>
@@ -87,9 +89,9 @@ export function OperationsPanel(props: OperationsPanelProps) {
     onCreateReservation, onUpdateReservationStatus, onAssignDriver, onUpdateSettings, onCreateCategory,
     organization, organizationLoading, canUpdateOrganization, canBootstrapOrganization, organizationLoadError,
     onBootstrapOrganization, onUpdateOrganization,
-    legalEntities, branches, branchUsersByBranch, corporateStructureLoading, corporateStructureLoadError,
+    legalEntities, branches, branchUsersByBranch, branchLifecycleEventsByBranch, corporateStructureLoading, corporateStructureLoadError,
     canManageCorporateStructure, onCreateLegalEntity, onUpdateLegalEntity,
-    onCreateBranch, onUpdateBranch, onAssignBranchLegalEntity, onRemoveBranchLegalEntity,
+    onCreateBranch, onUpdateBranch, onChangeBranchStatus, onAssignBranchLegalEntity, onRemoveBranchLegalEntity,
     onAssignBranchUser, onRemoveBranchUser,
   } = props
   const [busy, setBusy] = useState(false)
@@ -241,10 +243,12 @@ export function OperationsPanel(props: OperationsPanelProps) {
         branches={branches}
         legalEntities={legalEntities}
         usersByBranch={branchUsersByBranch}
+        lifecycleEventsByBranch={branchLifecycleEventsByBranch}
         loading={corporateStructureLoading}
         canManage={canManageCorporateStructure}
         onCreate={onCreateBranch}
         onUpdate={onUpdateBranch}
+        onChangeStatus={onChangeBranchStatus}
         onAssign={onAssignBranchLegalEntity}
         onRemove={onRemoveBranchLegalEntity}
         onAssignUser={onAssignBranchUser}
