@@ -5,17 +5,19 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { Branch, BranchInput, BranchUpdate, BranchUser } from "@/modules/branches/domain/models"
+import type { Branch, BranchInput, BranchLifecycleEvent, BranchStatus, BranchUpdate, BranchUser } from "@/modules/branches/domain/models"
 import type { LegalEntity } from "@/modules/legal-entities/domain/models"
 
 interface BranchManagementCardProps {
   branches: Branch[]
   legalEntities: LegalEntity[]
   usersByBranch: Record<string, BranchUser[]>
+  lifecycleEventsByBranch: Record<string, BranchLifecycleEvent[]>
   loading: boolean
   canManage: boolean
   onCreate: (input: BranchInput) => Promise<void>
   onUpdate: (id: string, input: BranchUpdate) => Promise<void>
+  onChangeStatus: (id: string, status: BranchStatus) => Promise<void>
   onAssign: (branchId: string, legalEntityId: string) => Promise<void>
   onRemove: (branchId: string, legalEntityId: string) => Promise<void>
   onAssignUser: (branchId: string, userId: string) => Promise<void>
@@ -26,10 +28,12 @@ export function BranchManagementCard({
   branches,
   legalEntities,
   usersByBranch,
+  lifecycleEventsByBranch,
   loading,
   canManage,
   onCreate,
   onUpdate,
+  onChangeStatus,
   onAssign,
   onRemove,
   onAssignUser,
@@ -112,14 +116,23 @@ export function BranchManagementCard({
                 (entity) => !branch.legal_entities.some((assigned) => assigned.id === entity.id),
               )
               const selectedId = assignmentSelections[branch.id] ?? ""
+              const statusLabel = branch.status === "active"
+                ? "Activa"
+                : branch.status === "suspended" ? "Suspendida" : "Cerrada"
+              const lifecycleEvents = lifecycleEventsByBranch[branch.id] ?? []
               return (
                 <article key={branch.id} className="space-y-3 rounded-md border p-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-medium">{branch.name}</p>
                       <p className="text-sm text-muted-foreground">Código: {branch.code}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Estado: {statusLabel}
+                        {branch.closed_at ? ` · Cerrada el ${new Date(branch.closed_at).toLocaleString()}` : ""}
+                      </p>
                     </div>
-                    {canManage && (
+                    <div className="flex flex-wrap items-center gap-2">
+                    {canManage && branch.status !== "closed" && (
                       <Button
                         type="button"
                         size="sm"
@@ -136,6 +149,46 @@ export function BranchManagementCard({
                         Editar identidad
                       </Button>
                     )}
+                    {canManage && branch.status === "active" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void runAssociation(() => onChangeStatus(branch.id, "suspended"))}
+                      >
+                        Suspender
+                      </Button>
+                    )}
+                    {canManage && branch.status === "suspended" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void runAssociation(() => onChangeStatus(branch.id, "active"))}
+                      >
+                        Reactivar
+                      </Button>
+                    )}
+                    {canManage && branch.status !== "closed" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        disabled={busy}
+                        onClick={() => {
+                          if (!window.confirm("El cierre es definitivo. Se bloquearán nuevas operaciones y se conservará la consulta histórica. ¿Deseas continuar?")) return
+                          void runAssociation(() => onChangeStatus(branch.id, "closed"))
+                        }}
+                      >
+                        Cerrar definitivamente
+                      </Button>
+                    )}
+                    {branch.status === "closed" && (
+                      <span className="text-xs text-muted-foreground">Solo consulta histórica · cierre definitivo</span>
+                    )}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -146,7 +199,7 @@ export function BranchManagementCard({
                         <span>
                           {entity.legal_name} · {entity.tax_identifier_type} {entity.tax_identifier}
                         </span>
-                        {canManage && branch.legal_entities.length > 1 && (
+                        {canManage && branch.status !== "closed" && branch.legal_entities.length > 1 && (
                           <Button
                             type="button"
                             size="sm"
@@ -167,6 +220,26 @@ export function BranchManagementCard({
                   </div>
                   <div className="space-y-2 border-t pt-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Historial de estados
+                    </p>
+                    {lifecycleEvents.length > 0 ? (
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        {lifecycleEvents.slice(0, 5).map((event) => (
+                          <p key={event.id}>
+                            {event.previous_status
+                              ? `${event.previous_status} → ${event.new_status}`
+                              : `Estado inicial: ${event.new_status}`}
+                            {" · "}{new Date(event.occurred_at).toLocaleString()}
+                            {" · "}{event.actor_email}
+                          </p>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Sin eventos de estado registrados.</p>
+                    )}
+                  </div>
+                  <div className="space-y-2 border-t pt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Usuarios con acceso a esta sucursal
                     </p>
                     {usersByBranch[branch.id]?.length ? (
@@ -176,7 +249,7 @@ export function BranchManagementCard({
                             <input
                               type="checkbox"
                               checked={user.assigned}
-                              disabled={!canManage || busy}
+                              disabled={!canManage || busy || branch.status !== "active"}
                               onChange={(event) => {
                                 const assigned = event.target.checked
                                 void runAssociation(() => (
@@ -205,7 +278,7 @@ export function BranchManagementCard({
                       Solo los usuarios asignados pueden operar pedidos en esta sucursal. La asignación no amplía su rol ni sus permisos.
                     </p>
                   </div>
-                  {canManage && availableEntities.length > 0 && (
+                  {canManage && branch.status === "active" && availableEntities.length > 0 && (
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <select
                         aria-label={`Nueva entidad legal para ${branch.name}`}
