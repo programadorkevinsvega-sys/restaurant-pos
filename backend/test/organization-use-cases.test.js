@@ -350,3 +350,19 @@ test("PostgreSQL organization repository reads history through its protected fun
   ])
   assert.equal(rows[0].actor_email, "owner@example.invalid")
 })
+
+
+test("PostgreSQL organization history maps a revoked owner authorization to 403", async () => {
+  const repository = new PostgresOrganizationRepository({
+    query: async () => {
+      const error = new Error("Active organization owner required")
+      error.code = "42501"
+      throw error
+    },
+  })
+
+  await assert.rejects(
+    repository.listHistory({ limit: 50 }, owner.userId),
+    { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
+  )
+})
