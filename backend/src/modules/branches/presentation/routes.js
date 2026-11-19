@@ -36,7 +36,7 @@ export function createBranchRoutes(branches, authenticate, writesLimiter) {
     }),
   )
 
-  router.patch(
+  router.put(
     "/:branchId",
     authenticate,
     writesLimiter,
