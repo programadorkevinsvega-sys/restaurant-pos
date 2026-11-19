@@ -19,6 +19,7 @@ export class PostgresOrderRepository extends OrderRepository {
                   'id', oi.id,
                   'quantity', oi.quantity,
                   'price_at_order', oi.price_at_order,
+                  'variant_selection_snapshot', oi.variant_selection_snapshot,
                   'products', jsonb_build_object(
                     'id', p.id, 'name', coalesce(oi.product_name_at_order, 'Producto histórico'),
                     'image_url', oi.product_image_url_at_order
@@ -53,7 +54,7 @@ export class PostgresOrderRepository extends OrderRepository {
         order.table_number,
         order.customer_name ?? null,
         order.order_type,
-        JSON.stringify(order.items.map(({ id, quantity }) => ({ id, quantity }))),
+        JSON.stringify(order.items.map(({ id, quantity, option_ids }) => ({ id, quantity, option_ids: option_ids ?? [] }))),
         order.delivery_address ?? null,
         order.delivery_phone ?? null,
         actor.activeBranchId,

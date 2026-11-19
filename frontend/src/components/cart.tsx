@@ -88,7 +88,7 @@ export function Cart({
       <div className="flex items-center justify-between border-b p-4">
         <div>
           <h2 className="text-xl font-bold">Pedido actual</h2>
-          <p className="text-sm text-gray-500">{cartItems.length} productos</p>
+          <p className="text-sm text-gray-500">{cartItems.reduce((total, item) => total + item.quantity, 0)} productos</p>
         </div>
         <Button variant="ghost" size="icon" aria-label="Editar pedido">
           <Edit2 className="h-5 w-5" />
@@ -208,7 +208,7 @@ export function Cart({
           <p className="mt-10 text-center text-gray-500">El pedido está vacío. Agrega productos del menú.</p>
         ) : (
           cartItems.map((item) => (
-            <CartItemView key={item.product.id} item={item} onUpdateQuantity={onUpdateQuantity} onRemoveItem={onRemoveItem} />
+            <CartItemView key={item.lineId} item={item} onUpdateQuantity={onUpdateQuantity} onRemoveItem={onRemoveItem} />
           ))
         )}
       </div>

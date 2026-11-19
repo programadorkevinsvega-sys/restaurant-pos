@@ -14,6 +14,7 @@ const createOrderSchema = z.object({
   items: z.array(z.object({
     id: uuid,
     quantity: z.coerce.number().int().min(1).max(50),
+    option_ids: z.array(uuid).max(40).default([]),
   })).min(1).max(50),
   delivery_address: z.string().trim().min(5).max(300).optional(),
   delivery_phone: z.string().trim().min(5).max(32).optional(),

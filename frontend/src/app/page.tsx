@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,6 +12,8 @@ import { Header } from "@/components/header"
 import { OperationsPanel } from "@/components/operations/operations-panel"
 import { CatalogManagementPanel } from "@/components/catalog/catalog-management-panel"
 import { RecipeManagementPanel } from "@/components/recipes/recipe-management-panel"
+import { VariantsManagementPanel } from "@/components/variants/variants-management-panel"
+import { ProductOptionsDialog } from "@/components/pos/product-options-dialog"
 import { SidebarNav, type AppSection } from "@/components/sidebar-nav"
 import { TableManagement } from "@/components/tables/table-management"
 import { toast } from "@/hooks/use-toast"
@@ -19,6 +21,7 @@ import { posApplication } from "@/modules/pos/infrastructure/container"
 import { HttpError, type AuthenticatedUser } from "@/shared/infrastructure/http-client"
 import type { BranchCatalogProduct, Category, Product } from "@/modules/catalog/domain/models"
 import type { CartItem, OrderSummary, OrderType } from "@/modules/orders/domain/models"
+import type { PosProductOptionGroup, ProductOptionSelection } from "@/modules/variants/domain/models"
 import type {
   OrganizationHistoryFilters,
   OrganizationHistoryPage,
@@ -86,6 +89,8 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   const [selectedCatalogBranchId, setSelectedCatalogBranchId] = useState("")
   const [recipeProducts, setRecipeProducts] = useState<Product[]>([])
   const [recipesLoading, setRecipesLoading] = useState(false)
+  const [variantDialog, setVariantDialog] = useState<{ product: Product; groups: PosProductOptionGroup[] } | null>(null)
+  const variantRequestSequence = useRef(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -186,7 +191,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   }, [])
 
   useEffect(() => {
-    if (activeSection !== "catalog") return
+    if (activeSection !== "catalog" && activeSection !== "variants") return
     const controller = new AbortController()
     setCorporateStructureLoading(true)
     void (async () => {
@@ -346,6 +351,8 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     posApplication.setActiveBranchId(nextBranchId)
 
     if (contextChanged || currentBranchBecameReadOnly) {
+      variantRequestSequence.current += 1
+      setVariantDialog(null)
       setActiveCategory("all")
       setCategories([])
       setProducts([])
@@ -362,6 +369,8 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
 
   const handleActiveBranchChange = (branchId: string) => {
     if (!availableBranches.some((branch) => branch.id === branchId)) return
+    variantRequestSequence.current += 1
+    setVariantDialog(null)
     setActiveBranchId(branchId)
     posApplication.setActiveBranchId(branchId)
     setActiveCategory("all")
@@ -382,19 +391,41 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     )
   }, [products, query])
 
-  const handleAddToCart = useCallback((product: Product) => {
+  const addConfiguredProduct = useCallback((product: Product, selectedOptions: ProductOptionSelection[]) => {
+    const optionIds = selectedOptions.map((option) => option.id).sort()
+    const lineId = `${product.id}:${optionIds.join(".") || "default"}`
     setCartItems((current) => {
-      const existing = current.find((item) => item.product.id === product.id)
+      const existing = current.find((item) => item.lineId === lineId)
       return existing
-        ? current.map((item) => item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item)
-        : [...current, { product, quantity: 1 }]
+        ? current.map((item) => item.lineId === lineId ? { ...item, quantity: item.quantity + 1 } : item)
+        : [...current, { lineId, product, quantity: 1, selectedOptions }]
     })
   }, [])
 
-  const handleUpdateQuantity = useCallback((productId: string, quantity: number) => {
+  const handleAddToCart = useCallback(async (product: Product) => {
+    const requestSequence = ++variantRequestSequence.current
+    try {
+      const configuration = await posApplication.variants.getForPos(product.id)
+      if (requestSequence !== variantRequestSequence.current) return
+      if (configuration.groups.length > 0) {
+        setVariantDialog({ product, groups: configuration.groups })
+      } else {
+        addConfiguredProduct(product, [])
+      }
+    } catch (error) {
+      if (requestSequence !== variantRequestSequence.current) return
+      toast({
+        title: "No se pudieron cargar las opciones del producto",
+        description: error instanceof Error ? error.message : "No fue posible consultar las opciones para la sucursal activa.",
+        variant: "destructive",
+      })
+    }
+  }, [addConfiguredProduct])
+
+  const handleUpdateQuantity = useCallback((lineId: string, quantity: number) => {
     setCartItems((current) => quantity <= 0
-      ? current.filter((item) => item.product.id !== productId)
-      : current.map((item) => item.product.id === productId ? { ...item, quantity } : item))
+      ? current.filter((item) => item.lineId !== lineId)
+      : current.map((item) => item.lineId === lineId ? { ...item, quantity } : item))
   }, [])
 
   const handlePlaceOrder = useCallback(async (order: {
@@ -409,9 +440,10 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     try {
       const receipt = await posApplication.createOrder.execute({
         ...order,
-        items: cartItems.map(({ product, quantity }) => ({
+        items: cartItems.map(({ product, quantity, selectedOptions }) => ({
           id: product.id,
           quantity,
+          option_ids: selectedOptions.map((option) => option.id),
         })),
       })
       setCartItems([])
@@ -630,6 +662,17 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         />
       )
     }
+    if (activeSection === "variants") {
+      return (
+        <VariantsManagementPanel
+          products={catalogProducts}
+          branches={branches}
+          canManage={canManageCorporateStructure}
+          loading={corporateStructureLoading}
+          application={posApplication.variants}
+        />
+      )
+    }
     if (activeSection === "catalog") {
       return (
         <CatalogManagementPanel
@@ -756,6 +799,17 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
           )}
         </div>
         <Footer />
+        {variantDialog && (
+          <ProductOptionsDialog
+            product={variantDialog.product}
+            groups={variantDialog.groups}
+            onClose={() => setVariantDialog(null)}
+            onConfirm={(selected) => {
+              addConfiguredProduct(variantDialog.product, selected)
+              setVariantDialog(null)
+            }}
+          />
+        )}
       </div>
     </div>
   )

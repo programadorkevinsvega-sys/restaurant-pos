@@ -41,6 +41,9 @@ import { createBranchRoutes } from "./modules/branches/presentation/routes.js"
 import { RecipesUseCases } from "./modules/recipes/application/recipes-use-cases.js"
 import { PostgresRecipesRepository } from "./modules/recipes/infrastructure/postgres-recipes-repository.js"
 import { createAdminRecipeRoutes } from "./modules/recipes/presentation/routes.js"
+import { ProductOptionsUseCases } from "./modules/product-options/application/product-options-use-cases.js"
+import { PostgresProductOptionsRepository } from "./modules/product-options/infrastructure/postgres-product-options-repository.js"
+import { createAdminProductOptionRoutes, createPosProductOptionRoutes } from "./modules/product-options/presentation/routes.js"
 
 export async function createApp(config = loadConfig()) {
   const pool = createPostgresPool(config)
@@ -59,6 +62,7 @@ export async function createApp(config = loadConfig()) {
   const catalog = new CatalogUseCases(cachedCatalogRepository)
   const orders = new OrderUseCases(new PostgresOrderRepository(pool))
   const recipes = new RecipesUseCases(new PostgresRecipesRepository(pool))
+  const productOptions = new ProductOptionsUseCases(new PostgresProductOptionsRepository(pool))
   const operations = new OperationsUseCases(new PostgresOperationsRepository(pool))
   const accounting = new AccountingUseCases(new PostgresAccountingRepository(pool))
   const app = express()
@@ -112,10 +116,12 @@ export async function createApp(config = loadConfig()) {
   const catalogRoutes = createCatalogRoutes(catalog, requireUser, limiters.writes)
   app.use("/api/categories", catalogRoutes.categories)
   app.use("/api/products", catalogRoutes.products)
+  app.use("/api/products", createPosProductOptionRoutes(productOptions, requireUser, requireRole))
   app.use("/api/admin", createAdminCatalogRoutes(catalog, requireUser, requireRole, limiters.writes))
 
   app.use("/api/orders", createOrderRoutes(orders, requireUser, requireRole, limiters.writes))
   app.use("/api/admin/recipes", createAdminRecipeRoutes(recipes, requireUser, limiters.writes))
+  app.use("/api/admin/product-options", createAdminProductOptionRoutes(productOptions, requireUser, limiters.writes))
 
   const operationRoutes = createOperationsRoutes(operations, requireUser, requireRole, limiters.writes)
   app.use("/api/tables", operationRoutes.tables)

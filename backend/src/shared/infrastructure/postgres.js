@@ -36,6 +36,24 @@ export async function queryPostgres(client, query, values = []) {
         "El producto no está habilitado para la sucursal del pedido.",
       )
     }
+    if (error.code === "23514" && String(error.message).includes("PRODUCT_OPTION_GROUP_CARDINALITY_INVALID")) {
+      throw new AppError(422, "PRODUCT_OPTION_SELECTION_INVALID", "Selecciona las variantes y modificadores requeridos para cada producto.");
+    }
+    if (error.code === "23514" && String(error.message).includes("PRODUCT_OPTION_INVALID_INACTIVE_OR_NOT_AVAILABLE_FOR_BRANCH")) {
+      throw new AppError(422, "PRODUCT_OPTION_NOT_AVAILABLE", "Una opción seleccionada no está disponible para esta sucursal.");
+    }
+    if (error.code === "23514" && String(error.message).includes("Duplicate product option selection")) {
+      throw new AppError(400, "DUPLICATE_PRODUCT_OPTION", "No repitas opciones en la misma línea del pedido.");
+    }
+    if (error.code === "23514" && String(error.message).includes("PRODUCT_NOT_ACTIVE_OR_NOT_AVAILABLE_FOR_BRANCH")) {
+      throw new AppError(409, "PRODUCT_NOT_AVAILABLE_FOR_BRANCH", "El producto no está activo o no está habilitado para esta sucursal.");
+    }
+    if (error.code === "23514" && String(error.message).includes("BRANCH_OPTION_WOULD_VIOLATE_GROUP_MINIMUM")) {
+      throw new AppError(409, "BRANCH_OPTION_MINIMUM_REQUIRED", "La excepción dejaría el grupo sin suficientes opciones disponibles en esta sucursal.");
+    }
+    if (error.code === "23514" && String(error.message).includes("BRANCH_PRODUCT_OPTION_MINIMUM_REQUIRED")) {
+      throw new AppError(409, "BRANCH_PRODUCT_OPTION_MINIMUM_REQUIRED", "No se puede habilitar el producto: las opciones disponibles no cumplen los mínimos de sus grupos.");
+    }
     if (error.code === "42501" && String(error.message).includes("Active organization owner required")) {
       throw new AppError(403, "ORGANIZATION_OWNER_REQUIRED", "Solo el propietario corporativo puede administrar el catálogo maestro.")
     }

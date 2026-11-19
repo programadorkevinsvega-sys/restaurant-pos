@@ -64,8 +64,14 @@ export class HttpClient {
     })
   }
 
-  async delete<T>(path: string): Promise<T> {
-    return this.request<T>(path, { method: "DELETE" })
+  async delete<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: "DELETE",
+      ...(body === undefined ? {} : {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    })
   }
 
   async login(email: string, password: string): Promise<{ user: AuthenticatedUser }> {

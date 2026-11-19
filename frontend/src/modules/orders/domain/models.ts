@@ -1,10 +1,13 @@
 import type { Product } from "@/modules/catalog/domain/models"
+import type { ProductOptionSelection } from "@/modules/variants/domain/models"
 
 export type OrderType = "Comer aquí" | "Para llevar" | "A domicilio"
 
 export interface CartItem {
+  lineId: string
   product: Product
   quantity: number
+  selectedOptions: ProductOptionSelection[]
 }
 
 export interface NewOrder {
@@ -17,6 +20,7 @@ export interface NewOrder {
   items: Array<{
     id: string
     quantity: number
+    option_ids: string[]
   }>
 }
 
@@ -25,7 +29,6 @@ export interface OrderReceipt {
   orderId: string
   message?: string
 }
-
 
 export type OrderStatus = "pending" | "preparing" | "ready" | "completed" | "cancelled"
 
@@ -48,6 +51,15 @@ export interface OrderSummary {
     id: string
     quantity: number
     price_at_order: number
+    variant_selection_snapshot: Array<{
+      option_id: string
+      group_id: string
+      group_name: string
+      group_kind: "presentation" | "modifier"
+      name: string
+      group_position: number
+      position: number
+    }>
     products: { id: string; name: string; image_url: string | null }
   }>
 }
