@@ -236,7 +236,7 @@ jobs:
 
       - name: Start frontend
         run: |
-          pnpm --dir frontend start -- --hostname 127.0.0.1 --port 3002 > "$RUNNER_TEMP/frontend-e2e.log" 2>&1 &
+          pnpm --dir frontend start --hostname 127.0.0.1 --port 3002 > "$RUNNER_TEMP/frontend-e2e.log" 2>&1 &
           for attempt in $(seq 1 40); do
             if curl --fail --silent http://127.0.0.1:3002/ >/dev/null; then
               exit 0
