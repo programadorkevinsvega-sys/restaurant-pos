@@ -16,6 +16,7 @@ interface OrganizationProfileCardProps {
   loading: boolean
   canUpdate: boolean
   canBootstrap: boolean
+  loadError: string | null
   onBootstrap: (input: OrganizationProfileInput) => Promise<void>
   onUpdate: (input: OrganizationProfileUpdate) => Promise<void>
 }
@@ -78,6 +79,7 @@ export function OrganizationProfileCard({
   loading,
   canUpdate,
   canBootstrap,
+  loadError,
   onBootstrap,
   onUpdate,
 }: OrganizationProfileCardProps) {
@@ -124,6 +126,8 @@ export function OrganizationProfileCard({
       <CardContent>
         {loading ? (
           <p className="text-sm text-muted-foreground">Cargando perfil corporativo…</p>
+        ) : loadError ? (
+          <p role="alert" className="text-sm text-destructive">{loadError} Vuelve a cargar la sección antes de modificar el perfil.</p>
         ) : !organization && !canBootstrap ? (
           <p className="text-sm text-muted-foreground">
             La organización todavía no está configurada. Un administrador autorizado debe completar el alta inicial.
@@ -133,7 +137,7 @@ export function OrganizationProfileCard({
             {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="organization-name">Razón o nombre corporativo</Label>
+                <Label htmlFor="organization-name">Nombre corporativo de la organización</Label>
                 <Input
                   id="organization-name"
                   required
