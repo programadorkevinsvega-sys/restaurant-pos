@@ -339,7 +339,7 @@ test("PostgreSQL organization repository reads history through its protected fun
     branch_id: "11111111-1111-4111-8111-111111111111",
   }, owner.userId)
 
-  assert.match(queryCall[0], /public\\.list_organization_history/)
+  assert.match(queryCall[0], /public\.list_organization_history/)
   assert.deepEqual(queryCall[1], [
     owner.userId,
     51,
