@@ -306,14 +306,6 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(branchCreate.rows[0].outcome, "CREATED")
     branchId = branchCreate.rows[0].created_branch_id
 
-    await assert.rejects(
-      runtime.query(
-        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
-        ["Unassigned operator", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null, branchId, legalEntityIds[0], organizationStaffId],
-      ),
-      (error) => error.code === "42501",
-    )
-
     const staffAssignment = await runtime.query(
       "SELECT public.assign_user_to_branch($1, $2, $3) AS outcome",
       [branchId, organizationStaffId, organizationAdminId],
@@ -569,6 +561,14 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       ["CI integration product", "12.50", "Veg", categoryId],
     )
     productId = product.rows[0].id
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Unassigned operator", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null, branchId, legalEntityIds[0], organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
 
     const order = await runtime.query(
       "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid) AS order_id",
