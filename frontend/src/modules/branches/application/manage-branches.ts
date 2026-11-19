@@ -28,8 +28,8 @@ export class ManageBranches {
     return this.repository.changeStatus(id, status)
   }
 
-  listLifecycleEvents(branchId: string): Promise<BranchLifecycleResult> {
-    return this.repository.listLifecycleEvents(branchId)
+  listLifecycleEvents(branchId: string, signal?: AbortSignal): Promise<BranchLifecycleResult> {
+    return this.repository.listLifecycleEvents(branchId, signal)
   }
 
   create(input: BranchInput): Promise<Branch> {
