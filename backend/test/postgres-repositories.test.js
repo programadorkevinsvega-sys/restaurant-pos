@@ -36,11 +36,16 @@ test("order creation sends only trusted identifiers and quantities to PostgreSQL
     customer_name: "Test",
     order_type: "Comer aquí",
     total_amount: 0.01,
+    legal_entity_id: "legal-entity-id",
     items: [{ id: "product-id", quantity: 2, price: 0.01 }],
+  }, {
+    activeBranchId: "branch-id",
+    userId: "actor-user-id",
   })
 
   assert.match(queryCall[0], /public\.create_pos_order/)
   assert.deepEqual(JSON.parse(queryCall[1][3]), [{ id: "product-id", quantity: 2 }])
+  assert.deepEqual(queryCall[1].slice(6), ["branch-id", "legal-entity-id", "actor-user-id"])
   assert.equal(queryCall[1].some((value) => value === 0.01), false)
   assert.deepEqual(response, { success: true, orderId: "order-id", message: "Pedido creado exitosamente" })
 })
