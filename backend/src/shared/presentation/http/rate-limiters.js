@@ -27,6 +27,12 @@ export function createRateLimitKeyGenerator(trustedProxyIp) {
   }
 }
 
+export function globalRateLimitFor(environment) {
+  // Browser acceptance runs many real authenticated requests from one CI IP.
+  // Keep the production/development limit unchanged; raise it only in test mode.
+  return environment === "test" ? 5000 : 300
+}
+
 export async function createRateLimiters(config, logger) {
   let client
 
@@ -68,7 +74,7 @@ export async function createRateLimiters(config, logger) {
   }
 
   return {
-    global: createLimiter("global", 300, 15 * 60 * 1000),
+    global: createLimiter("global", globalRateLimitFor(config.NODE_ENV), 15 * 60 * 1000),
     writes: createLimiter("writes", 30, 60 * 1000),
     login: createLimiter("login", 5, 15 * 60 * 1000),
     redisClient: client,

@@ -20,7 +20,8 @@ export class PostgresOrderRepository extends OrderRepository {
                   'quantity', oi.quantity,
                   'price_at_order', oi.price_at_order,
                   'products', jsonb_build_object(
-                    'id', p.id, 'name', p.name, 'image_url', p.image_url
+                    'id', p.id, 'name', coalesce(oi.product_name_at_order, 'Producto histórico'),
+                    'image_url', oi.product_image_url_at_order
                   )
                 ) ORDER BY oi.created_at, oi.id)
                 FROM public.order_items oi

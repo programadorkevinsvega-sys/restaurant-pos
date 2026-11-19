@@ -3,6 +3,7 @@ export interface Category {
   name: string
   icon: string | null
   item_count: number
+  is_active?: boolean
 }
 
 export interface Product {
@@ -15,6 +16,7 @@ export interface Product {
   type: "Veg" | "Non Veg"
   category_id: string
   categories?: { id: string; name: string; icon: string | null } | null
+  is_active?: boolean
 }
 
 export interface BranchCatalogProduct extends Product {
@@ -24,4 +26,6 @@ export interface BranchCatalogProduct extends Product {
   last_changed_by_email: string | null
 }
 
-export type NewProduct = Omit<Product, "id" | "categories">
+export type NewProduct = Omit<Product, "id" | "categories" | "is_active">
+export type ProductInput = NewProduct
+export type CategoryInput = Pick<Category, "name" | "icon">

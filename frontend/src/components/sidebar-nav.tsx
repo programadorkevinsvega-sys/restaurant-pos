@@ -1,12 +1,12 @@
-import { Menu, TableIcon as TableBar, CalendarRange, Truck, Calculator, Settings, PackagePlus } from "lucide-react"
+import { Menu, TableIcon as TableBar, CalendarRange, Truck, Calculator, Settings, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export type AppSection = "menu" | "tables" | "add-product" | "reservations" | "delivery" | "accounting" | "settings"
+export type AppSection = "menu" | "catalog" | "tables" | "reservations" | "delivery" | "accounting" | "settings"
 
 const navItems: Array<{ id: AppSection; icon: typeof Menu; label: string }> = [
-  { id: "menu", icon: Menu, label: "Menú" },
+  { id: "menu", icon: Menu, label: "Punto de venta" },
+  { id: "catalog", icon: Package, label: "Catálogo" },
   { id: "tables", icon: TableBar, label: "Mesas" },
-  { id: "add-product", icon: PackagePlus, label: "Nuevo producto" },
   { id: "reservations", icon: CalendarRange, label: "Reservaciones" },
   { id: "delivery", icon: Truck, label: "Entregas" },
   { id: "accounting", icon: Calculator, label: "Contabilidad" },
