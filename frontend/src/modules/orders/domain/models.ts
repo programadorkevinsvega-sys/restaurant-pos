@@ -12,6 +12,7 @@ export interface NewOrder {
   customer_name: string
   order_type: OrderType
   total_amount: number
+  legal_entity_id: string
   items: Array<{
     id: string
     name: string
