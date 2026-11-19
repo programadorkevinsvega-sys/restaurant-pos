@@ -1051,7 +1051,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     const variantProduct = await runtime.query(
       "INSERT INTO public.products (name, price, type, category_id, discount_percentage) " +
       "VALUES ($1, $2, $3, $4, 0) RETURNING id",
-      ["CI configurable product", "8.75", "Veg", categoryId],
+      ["CI configurable product", "8.75", "Veg", null],
     )
     variantProductId = variantProduct.rows[0].id
     const presentationGroup = await runtime.query(
@@ -1088,7 +1088,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     const secondProduct = await runtime.query(
       "INSERT INTO public.products (name, price, type, category_id, discount_percentage) " +
       "VALUES ($1, $2, $3, $4, 0) RETURNING id",
-      ["CI another product", "4.00", "Veg", categoryId],
+      ["CI another product", "4.00", "Veg", null],
     )
     secondProductId = secondProduct.rows[0].id
     const foreignGroup = await runtime.query(
