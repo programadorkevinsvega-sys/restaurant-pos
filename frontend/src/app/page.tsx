@@ -20,7 +20,7 @@ import type { Category, NewProduct, Product } from "@/modules/catalog/domain/mod
 import type { CartItem, OrderType } from "@/modules/orders/domain/models"
 import type { OrganizationProfile, OrganizationProfileInput, OrganizationProfileUpdate } from "@/modules/organization/domain/models"
 import type { LegalEntity, LegalEntityInput } from "@/modules/legal-entities/domain/models"
-import type { Branch, BranchInput, BranchUpdate } from "@/modules/branches/domain/models"
+import type { Branch, BranchInput, BranchUpdate, BranchUser, OperationalBranch } from "@/modules/branches/domain/models"
 import type {
   BestSellingProduct,
   DeliveryOrder,
@@ -51,11 +51,35 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   const [organizationLoadError, setOrganizationLoadError] = useState<string | null>(null)
   const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
+  const [branchUsersByBranch, setBranchUsersByBranch] = useState<Record<string, BranchUser[]>>({})
+  const [availableBranches, setAvailableBranches] = useState<OperationalBranch[]>([])
+  const [activeBranchId, setActiveBranchId] = useState<string | null>(null)
   const [canManageCorporateStructure, setCanManageCorporateStructure] = useState(false)
   const [corporateStructureLoading, setCorporateStructureLoading] = useState(false)
   const [corporateStructureLoadError, setCorporateStructureLoadError] = useState<string | null>(null)
   const [operationError, setOperationError] = useState("")
   const [reloadIndex, setReloadIndex] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    posApplication.branches.listAvailable(controller.signal)
+      .then(({ branches: assignedBranches }) => {
+        if (controller.signal.aborted) return
+        setAvailableBranches(assignedBranches)
+        const initialBranchId = assignedBranches.length === 1 ? assignedBranches[0].id : null
+        setActiveBranchId(initialBranchId)
+        posApplication.setActiveBranchId(initialBranchId)
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.name === "AbortError") return
+        toast({
+          title: "No se pudieron cargar tus sucursales",
+          description: error instanceof Error ? error.message : "Error desconocido.",
+          variant: "destructive",
+        })
+      })
+    return () => controller.abort()
+  }, [user.id])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -107,6 +131,12 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     if (signal?.aborted) return
     setLegalEntities(entityResult.legal_entities)
     setBranches(branchResult.branches)
+    const branchUserEntries = await Promise.all(branchResult.branches.map(async (branch) => {
+      const result = await posApplication.branches.listUsers(branch.id, signal)
+      return [branch.id, result.users] as const
+    }))
+    if (signal?.aborted) return
+    setBranchUsersByBranch(Object.fromEntries(branchUserEntries))
     setCanManageCorporateStructure(
       entityResult.permissions.can_manage && branchResult.permissions.can_manage,
     )
@@ -194,6 +224,22 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     return () => controller.abort()
   }, [activeSection, reloadIndex, refreshCorporateStructure])
 
+  const refreshAvailableBranches = async () => {
+    const result = await posApplication.branches.listAvailable()
+    setAvailableBranches(result.branches)
+    const nextBranchId = activeBranchId && result.branches.some((item) => item.id === activeBranchId)
+      ? activeBranchId
+      : result.branches.length === 1 ? result.branches[0].id : null
+    setActiveBranchId(nextBranchId)
+    posApplication.setActiveBranchId(nextBranchId)
+  }
+
+  const handleActiveBranchChange = (branchId: string) => {
+    if (!availableBranches.some((branch) => branch.id === branchId)) return
+    setActiveBranchId(branchId)
+    posApplication.setActiveBranchId(branchId)
+  }
+
   const visibleProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
     if (!normalizedQuery) return products
@@ -222,6 +268,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     customer_name: string
     order_type: OrderType
     total_amount: number
+    legal_entity_id: string
   }) => {
     setIsPlacingOrder(true)
     try {
@@ -343,6 +390,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   const handleCreateBranch = async (input: BranchInput) => {
     await posApplication.branches.create(input)
     await refreshCorporateStructure()
+    await refreshAvailableBranches()
     toast({ title: "Sucursal registrada" })
   }
 
@@ -362,6 +410,20 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     await posApplication.branches.removeLegalEntity(branchId, legalEntityId)
     await refreshCorporateStructure()
     toast({ title: "Asociación legal retirada" })
+  }
+
+  const handleAssignBranchUser = async (branchId: string, userId: string) => {
+    await posApplication.branches.assignUser(branchId, userId)
+    await refreshCorporateStructure()
+    await refreshAvailableBranches()
+    toast({ title: "Usuario asignado a la sucursal" })
+  }
+
+  const handleRemoveBranchUser = async (branchId: string, userId: string) => {
+    await posApplication.branches.removeUser(branchId, userId)
+    await refreshCorporateStructure()
+    await refreshAvailableBranches()
+    toast({ title: "Asignación de sucursal retirada" })
   }
 
   const handleCreateCategory = async (name: string) => {
@@ -422,6 +484,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         onUpdateOrganization={handleUpdateOrganization}
         legalEntities={legalEntities}
         branches={branches}
+        branchUsersByBranch={branchUsersByBranch}
         corporateStructureLoading={corporateStructureLoading}
         corporateStructureLoadError={corporateStructureLoadError}
         canManageCorporateStructure={canManageCorporateStructure}
@@ -431,6 +494,8 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         onUpdateBranch={handleUpdateBranch}
         onAssignBranchLegalEntity={handleAssignBranchLegalEntity}
         onRemoveBranchLegalEntity={handleRemoveBranchLegalEntity}
+        onAssignBranchUser={handleAssignBranchUser}
+        onRemoveBranchUser={handleRemoveBranchUser}
       />
     )
   }
@@ -445,7 +510,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         }}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <Header query={query} onQueryChange={setQuery} onLogout={onLogout} />
+        <Header query={query} onQueryChange={setQuery} onLogout={onLogout} branches={availableBranches} activeBranchId={activeBranchId} onActiveBranchChange={handleActiveBranchChange} />
         {operationError && activeSection !== "menu" && activeSection !== "add-product" && (
           <div role="alert" className="mx-4 mt-3 flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             <span>{operationError}</span>
@@ -457,6 +522,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
           {activeSection === "menu" && (
             <Cart
               cartItems={cartItems}
+              activeBranch={availableBranches.find((branch) => branch.id === activeBranchId) ?? null}
               onRemoveItem={(id) => handleUpdateQuantity(id, 0)}
               onUpdateQuantity={handleUpdateQuantity}
               onPlaceOrder={handlePlaceOrder}
