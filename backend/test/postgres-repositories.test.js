@@ -67,19 +67,127 @@ test("order creation sends only trusted identifiers and quantities to PostgreSQL
   assert.deepEqual(response, { success: true, orderId: "order-id", message: "Pedido creado exitosamente" })
 })
 
-test("table updates preserve current_order_id when it is omitted", async () => {
+test("table listing invokes the branch-scoped database function with authenticated context", async () => {
   let queryCall
   const repository = new PostgresOperationsRepository({
     query: async (...args) => {
       queryCall = args
-      return { rows: [{ id: "table-id", status: "available", current_order_id: "existing-order" }] }
+      return { rows: [{ id: "table-id", branch_id: "branch-id" }] }
     },
   })
 
-  await repository.updateTable("table-id", { status: "available" })
+  const tables = await repository.listTables("branch-id", "staff-id")
 
-  assert.equal(queryCall[1][2], false)
-  assert.equal(queryCall[1][3], null)
+  assert.match(queryCall[0], /public\.list_branch_tables/)
+  assert.deepEqual(queryCall[1], ["branch-id", "staff-id"])
+  assert.equal(tables[0].branch_id, "branch-id")
+})
+
+test("table creation validates branch scope through PostgreSQL and retrieves the created table", async () => {
+  const calls = []
+  const repository = new PostgresOperationsRepository({
+    query: async (...args) => {
+      calls.push(args)
+      if (args[0].includes("create_branch_table")) {
+        return { rows: [{ created_table_id: "table-id", outcome: "CREATED" }] }
+      }
+      return { rows: [{ id: "table-id", number: "A1", capacity: 4, status: "available" }] }
+    },
+  })
+
+  const table = await repository.createTable({ number: "A1", capacity: 4 }, "branch-id", "staff-id")
+
+  assert.match(calls[0][0], /public\.create_branch_table/)
+  assert.deepEqual(calls[0][1], ["branch-id", "A1", 4, "staff-id"])
+  assert.match(calls[1][0], /public\.get_branch_table/)
+  assert.deepEqual(calls[1][1], ["table-id", "branch-id", "staff-id"])
+  assert.equal(table.id, "table-id")
+})
+
+test("table updates preserve current_order_id when omitted and retain branch scope", async () => {
+  const calls = []
+  const repository = new PostgresOperationsRepository({
+    query: async (...args) => {
+      calls.push(args)
+      if (args[0].includes("update_branch_table")) return { rows: [{ outcome: "UPDATED" }] }
+      return { rows: [{ id: "table-id", current_order: null }] }
+    },
+  })
+
+  await repository.updateTable("table-id", { status: "available" }, "branch-id", "staff-id")
+
+  assert.match(calls[0][0], /public\.update_branch_table/)
+  assert.deepEqual(calls[0][1], [
+    "table-id", "branch-id", "available", null, false, "staff-id",
+  ])
+  assert.match(calls[1][0], /public\.get_branch_table/)
+})
+
+test("reservation queries and mutations use branch-scoped database functions", async () => {
+  const calls = []
+  const repository = new PostgresOperationsRepository({
+    query: async (...args) => {
+      calls.push(args)
+      if (args[0].includes("create_branch_reservation")) {
+        return { rows: [{ created_reservation_id: "reservation-id", outcome: "CREATED" }] }
+      }
+      if (args[0].includes("update_branch_reservation_status")) {
+        return { rows: [{ outcome: "UPDATED" }] }
+      }
+      if (args[0].includes("list_branch_reservations")) {
+        return { rows: [{ id: "reservation-id", branch_id: "branch-id" }] }
+      }
+      return { rows: [{
+        id: "reservation-id",
+        branch_id: "branch-id",
+        status: "confirmed",
+      }] }
+    },
+  })
+  const input = {
+    customer_name: "Guest",
+    table_id: "table-id",
+    reservation_date: "2026-11-18T18:00:00.000Z",
+    party_size: 4,
+  }
+
+  await repository.listReservations({ date: "2026-11-18", status: "confirmed" }, "branch-id", "staff-id")
+  await repository.createReservation(input, "branch-id", "staff-id")
+  await repository.updateReservation("reservation-id", "seated", "branch-id", "staff-id")
+
+  assert.match(calls[0][0], /public\.list_branch_reservations/)
+  assert.deepEqual(calls[0][1], [
+    "branch-id",
+    "staff-id",
+    "2026-11-18T00:00:00.000Z",
+    "2026-11-19T00:00:00.000Z",
+    "confirmed",
+  ])
+  assert.match(calls[1][0], /public\.create_branch_reservation/)
+  assert.deepEqual(calls[1][1], [
+    "branch-id", "Guest", null, null, "table-id",
+    "2026-11-18T18:00:00.000Z", 4, null, "staff-id",
+  ])
+  assert.match(calls[3][0], /public\.update_branch_reservation_status/)
+  assert.deepEqual(calls[3][1], [
+    "reservation-id", "branch-id", "seated", "staff-id",
+  ])
+  assert.ok(calls.slice(1).some((call) => call[0].includes("get_branch_reservation")))
+})
+
+test("branch authorization failures are translated to a forbidden application error", async () => {
+  const repository = new PostgresOperationsRepository({
+    query: async () => {
+      const error = new Error("permission denied")
+      error.code = "42501"
+      throw error
+    },
+  })
+
+  await assert.rejects(repository.listTables("branch-id", "unassigned-user"), {
+    status: 403,
+    code: "BRANCH_ACCESS_DENIED",
+  })
 })
 
 test("delivery listing and mutation stay within the authenticated active branch", async () => {

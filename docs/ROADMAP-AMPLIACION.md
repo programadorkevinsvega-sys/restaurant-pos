@@ -466,6 +466,7 @@ Los módulos se identifican con códigos estables. Cada fase contiene subfases n
 - N09-F1.3: alta, configuración, apertura, suspensión y cierre de sucursal.
 - N09-F1.4: dirección, zona horaria, calendario y parámetros locales.
 - N09-F1.5: historial de cambios organizacionales.
+- N09-F1.6: atribución y aislamiento multisucursal de mesas y reservas, con trazabilidad de actor y preservación explícita de registros históricos sin sucursal.
 
 ### N09-F2 — Recursos y políticas compartidas
 - N09-F2.1: catálogo corporativo con habilitación por sucursal.
@@ -497,18 +498,21 @@ Los módulos se identifican con códigos estables. Cada fase contiene subfases n
 
 **Cierre N09:** ninguna consulta, caché, exportación, evento o trabajo en segundo plano puede filtrar información de una sucursal fuera del alcance autorizado.
 
-### Estado de implementación — contexto operativo de pedidos
+### Estado de implementación — estructura multisucursal y recursos operativos
 
 - N09-F1.1 y N09-F1.2 están implementadas, validadas y fusionadas en `main` mediante PR #9 y PR #10.
-- El PR #11 integró el contexto operativo de pedidos: asignación básica de usuarios a una o varias sucursales (N09-F3.2), selector de sucursal activa, selección explícita de entidad legal por pedido y validación transaccional en PostgreSQL. Se fusionó en `main` mediante el commit `3ce453f7d9e8173eef828f73f200c0dc63d6d4cd`; CI #36 aprobó backend, frontend y PostgreSQL 16/17.
+- El PR #11 integró el contexto operativo de pedidos y la asignación básica de usuarios a una o varias sucursales (N09-F3.2), selector de sucursal activa, selección explícita de entidad legal por pedido y validación transaccional en PostgreSQL. Se fusionó mediante el commit `3ce453f7d9e8173eef828f73f200c0dc63d6d4cd`; CI #36 aprobó backend y PostgreSQL 16/17.
 - Los pedidos nuevos quedan ligados a organización, sucursal, entidad legal y actor autenticado. Los históricos conservan su contexto nulo, sin backfill ni atribución fiscal inferida.
-- La consulta/actualización de pedidos y la consulta/asignación de entregas están delimitadas por sucursal y usuario. N09-F1.3 añade el control del estado de la sucursal y su modo de solo lectura.
-- N09-F1.4 (dirección y configuración local) está implementada y validada por CI #46 (ejecución `44444253303`, commit `b43b69b64317fb61e19335d066f8b094470801e9`): backend/frontend/build y PostgreSQL 16/17 aprobados. El PR #13 sigue abierto y sin fusionar; la fase no está integrada ni desplegada.
-- N09-F3.3 (permisos granulares por ámbito), N09-F1.5 (historial organizacional general) e integración multisucursal de mesas, reservas y contabilidad siguen pendientes.
-- Mesas y reservas todavía no tienen atribución por sucursal. No se asignan retroactivamente a una sede; su aislamiento requiere una fase propia.
+- La consulta/actualización de pedidos y la consulta/asignación de entregas están delimitadas por sucursal y usuario. N09-F1.3 aplica el ciclo de vida activo/suspendido/cerrado y los guardas de solo lectura existentes.
+- N09-F1.4 (dirección y configuración local) quedó fusionada mediante PR #13 en el commit `687329eb9402e1b9158eaad9c5acb9fa15e62e72`. La ejecución de despliegue productivo #23 (`44453919737`) finalizó correctamente; el despliegue en la VM fue confirmado.
+- PR #14 separó la pantalla de Configuración en grupos navegables; quedó fusionado en `main` en el commit `44ca42b77bcc1690ba3eff02b2d6d60ac7849451`. CI #48 (`44455008643`) aprobó backend/frontend/build y PostgreSQL 16/17.
+- N09-F1.6 está implementada en PR #15 (HEAD `c3631f12a69350b0ada68a8817ffc3486c0ca70d`). CI #53 (`44458796849`) aprobó los tres jobs: backend/frontend/build, PostgreSQL 16 y PostgreSQL 17. El PR continúa abierto, sin fusionar ni desplegar; su migración aún no se ha aplicado en producción.
+- Los registros de mesas y reservas ya existentes permanecen sin sucursal, sin backfill ni inferencia; no aparecen en los listados operativos por sucursal. Su eventual atribución requiere un proceso explícito y aprobado.
+- N09-F1.5 (historial organizacional general) y N09-F3.3 (matriz de permisos granulares por recurso/acción/ámbito), N09-F3.4 (delegación) y N09-F3.5 (auditoría y pruebas RBAC integrales) siguen pendientes.
+- La configuración `settings` continúa siendo global. No se implementa precedencia/herencia entre organización, entidad legal y sucursal (D0-10). La moneda declarada de sucursal no modifica precios, ventas, impuestos, pagos, conversiones ni contabilidad; siguen pendientes las decisiones de moneda funcional, monedas transaccionales y snapshots de conversión (D0-08 y línea financiera).
 - La facturación electrónica, impuestos por entidad y contabilidad separada por entidad legal siguen sujetas al diseño y aprobación fiscal/contable correspondientes.
 
-Detalle técnico y contrato: `docs/CONTEXTO-OPERATIVO-PEDIDOS.md`. La entrega quedó fusionada; no implica migración ni despliegue en producción.
+Detalle técnico del contexto de pedidos: `docs/CONTEXTO-OPERATIVO-PEDIDOS.md`. Detalle de N09-F1.6: `docs/FASE-1.6-MESAS-RESERVAS-MULTISUCURSAL.md`.
 
 
 # N10 — Atención y reservas avanzada

@@ -4,9 +4,10 @@
 
 ## Estado de implementación y validación
 
-- Implementación incluida en el commit `b43b69b64317fb61e19335d066f8b094470801e9`.
-- CI de Pull Request #46: [ejecución 44444253303](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44444253303), con los tres jobs aprobados: backend/frontend/build, PostgreSQL 16 y PostgreSQL 17.
-- PR #13 permanece abierto y sin fusionar. La aprobación de CI no autoriza merge, migración productiva ni despliegue.
+- Implementación fusionada mediante PR #13 en `main`, commit `687329eb9402e1b9158eaad9c5acb9fa15e62e72`.
+- CI de PR #13: ejecución `44444672086`, con backend/frontend/build y PostgreSQL 16/17 aprobados.
+- Despliegue productivo #23: [ejecución 44453919737](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44453919737), finalizada correctamente. El despliegue en la VM fue confirmado.
+- PR #14, que separó la navegación de Configuración en grupos, también está fusionado en `main` en el commit `44ca42b77bcc1690ba3eff02b2d6d60ac7849451`; CI #48 aprobó backend/frontend/build y PostgreSQL 16/17.
 
 Registrar la información física y operativa propia de cada establecimiento: dirección de operación, zona horaria, moneda declarada, horario semanal y excepciones de calendario. Esta información pertenece a la sucursal y no sustituye los datos corporativos ni el domicilio fiscal de las entidades legales asociadas.
 
@@ -91,9 +92,9 @@ Esta fase **no** implementa:
 - Uso de la moneda local para precios, ventas, impuestos, pagos, contabilidad o facturación.
 - Reglas de corte diario, turnos, cajas o cierres operativos.
 - Importación automática de festivos ni fuentes externas de calendario.
-- Asociación retroactiva o aislamiento de mesas y reservas. Esas tablas aún requieren su propia atribución por sucursal.
+- La atribución multisucursal de mesas y reservas se desarrolla en N09-F1.6. Los registros históricos no se asignan automáticamente a una sucursal.
 - Historial organizacional general de N09-F1.5; los eventos aquí cubren únicamente cambios de configuración local y excepciones de calendario.
-- Migración, backfill, verificación o despliegue sobre la base productiva.
+- Uso de la moneda declarada para cálculos financieros, fiscales o contables; sigue pendiente de decisiones D0-08.
 
 ## Criterios de cierre
 

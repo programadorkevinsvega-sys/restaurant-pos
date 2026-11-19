@@ -29,6 +29,8 @@ export async function queryPostgres(client, query, values = []) {
         "La sucursal está suspendida o cerrada. Sus pedidos y detalles permanecen disponibles solo para consulta.",
       )
     }
-    throw new AppError(500, "PERSISTENCE_ERROR", "No se pudo completar la operación.")
+    const appError = new AppError(500, "PERSISTENCE_ERROR", "No se pudo completar la operación.")
+    Object.defineProperty(appError, "cause", { value: error })
+    throw appError
   }
 }

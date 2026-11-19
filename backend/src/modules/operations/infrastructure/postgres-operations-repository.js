@@ -2,96 +2,124 @@ import { AppError } from "../../../shared/domain/app-error.js"
 import { queryPostgres } from "../../../shared/infrastructure/postgres.js"
 import { OperationsRepository } from "../domain/operations-repository.js"
 
+async function queryBranchFunction(pool, sql, values) {
+  try {
+    return await queryPostgres(pool, sql, values)
+  } catch (error) {
+    if (error?.code === "42501" || error?.cause?.code === "42501") {
+      throw new AppError(403, "BRANCH_ACCESS_DENIED", "No tienes una asignación activa para la sucursal seleccionada.")
+    }
+    throw error
+  }
+}
+
+function requireOutcome(outcome, resource) {
+  const outcomes = {
+    BRANCH_NOT_ACTIVE: [409, "BRANCH_NOT_ACTIVE", "La sucursal no está activa y no admite cambios operativos."],
+    TABLE_NUMBER_EXISTS: [409, "TABLE_NUMBER_EXISTS", "Ya existe una mesa con ese número en la sucursal."],
+    TABLE_NOT_FOUND: [404, "TABLE_NOT_FOUND", "La mesa no existe en la sucursal activa."],
+    TABLE_NOT_IN_BRANCH: [404, "TABLE_NOT_FOUND", "La mesa no existe en la sucursal activa."],
+    ORDER_NOT_IN_BRANCH: [409, "ORDER_NOT_IN_BRANCH", "El pedido indicado no pertenece a la sucursal activa."],
+    INVALID_TABLE: [400, "INVALID_TABLE", "Los datos de la mesa no son válidos."],
+    INVALID_TABLE_STATUS: [400, "INVALID_TABLE_STATUS", "El estado de la mesa no es válido."],
+    INVALID_RESERVATION: [400, "INVALID_RESERVATION", "Los datos de la reserva no son válidos."],
+    INVALID_RESERVATION_STATUS: [400, "INVALID_RESERVATION_STATUS", "El estado de la reserva no es válido."],
+    RESERVATION_NOT_FOUND: [404, "RESERVATION_NOT_FOUND", "La reserva no existe en la sucursal activa."],
+  }
+  const failure = outcomes[outcome]
+  if (failure) {
+    const [status, code, message] = failure
+    throw new AppError(status, code, message)
+  }
+  if (outcome !== "CREATED" && outcome !== "UPDATED") {
+    throw new AppError(409, `${resource.toUpperCase()}_OPERATION_CONFLICT`, "No se pudo completar la operación en la sucursal activa.")
+  }
+}
+
 export class PostgresOperationsRepository extends OperationsRepository {
   constructor(pool) {
     super()
     this.pool = pool
   }
 
-  async listTables() {
-    const { rows } = await queryPostgres(
+  async listTables(branchId, userId) {
+    const { rows } = await queryBranchFunction(
       this.pool,
-      `SELECT t.id, t.number, t.capacity, t.status,
-              CASE WHEN o.id IS NULL THEN NULL ELSE jsonb_build_object(
-                'id', o.id, 'total_amount', o.total_amount,
-                'status', o.status, 'created_at', o.created_at
-              ) END AS current_order
-       FROM public.tables t
-       LEFT JOIN public.orders o ON o.id = t.current_order_id
-       ORDER BY t.number
-       LIMIT 100`,
+      "SELECT * FROM public.list_branch_tables($1::uuid, $2::uuid)",
+      [branchId, userId],
     )
     return rows
   }
 
-  async createTable(input) {
-    const { rows } = await queryPostgres(
+  async getBranchTable(id, branchId, userId) {
+    const { rows } = await queryBranchFunction(
       this.pool,
-      `INSERT INTO public.tables (number, capacity)
-       VALUES ($1, $2)
-       RETURNING id, number, capacity, status`,
-      [input.number, input.capacity],
+      "SELECT * FROM public.get_branch_table($1::uuid, $2::uuid, $3::uuid)",
+      [id, branchId, userId],
     )
+    if (!rows[0]) throw new AppError(404, "TABLE_NOT_FOUND", "La mesa no existe en la sucursal activa.")
     return rows[0]
   }
 
-  async updateTable(id, input) {
-    const { rows } = await queryPostgres(
+  async createTable(input, branchId, userId) {
+    const { rows } = await queryBranchFunction(
       this.pool,
-      `UPDATE public.tables
-       SET status = $2,
-           current_order_id = CASE WHEN $3::boolean THEN $4::uuid ELSE current_order_id END,
-           updated_at = now()
-       WHERE id = $1
-       RETURNING id, number, capacity, status, current_order_id`,
-      [id, input.status, Object.hasOwn(input, "current_order_id"), input.current_order_id ?? null],
+      "SELECT * FROM public.create_branch_table($1::uuid, $2, $3, $4::uuid)",
+      [branchId, input.number, input.capacity, userId],
     )
-    if (!rows[0]) throw new AppError(404, "NOT_FOUND", "Mesa no encontrada.")
-    return rows[0]
+    const result = rows[0]
+    requireOutcome(result?.outcome, "table")
+    return this.getBranchTable(result.created_table_id, branchId, userId)
   }
 
-  async listReservations({ date, status }) {
-    const conditions = []
-    const values = []
-    if (date) {
-      const start = `${date}T00:00:00.000Z`
-      const end = new Date(Date.parse(start) + 24 * 60 * 60 * 1000).toISOString()
-      values.push(start, end)
-      conditions.push(`r.reservation_date >= $${values.length - 1} AND r.reservation_date < $${values.length}`)
-    }
-    if (status) {
-      values.push(status)
-      conditions.push(`r.status = $${values.length}`)
-    }
-
-    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""
-    const { rows } = await queryPostgres(
+  async updateTable(id, input, branchId, userId) {
+    const { rows } = await queryBranchFunction(
       this.pool,
-      `SELECT r.id, r.customer_name, r.customer_phone, r.customer_email,
-              r.table_id, r.reservation_date, r.party_size, r.notes, r.status,
-              CASE WHEN t.id IS NULL THEN NULL ELSE jsonb_build_object(
-                'id', t.id, 'number', t.number, 'capacity', t.capacity
-              ) END AS "table"
-       FROM public.reservations r
-       LEFT JOIN public.tables t ON t.id = r.table_id
-       ${where}
-       ORDER BY r.reservation_date
-       LIMIT 100`,
-      values,
-    )
-    return rows
-  }
-
-  async createReservation(input) {
-    const { rows } = await queryPostgres(
-      this.pool,
-      `INSERT INTO public.reservations
-         (customer_name, customer_phone, customer_email, table_id,
-          reservation_date, party_size, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, customer_name, customer_phone, customer_email,
-                 table_id, reservation_date, party_size, notes, status`,
+      "SELECT public.update_branch_table($1::uuid, $2::uuid, $3, $4::uuid, $5, $6::uuid) AS outcome",
       [
+        id,
+        branchId,
+        input.status,
+        input.current_order_id ?? null,
+        Object.hasOwn(input, "current_order_id"),
+        userId,
+      ],
+    )
+    requireOutcome(rows[0]?.outcome, "table")
+    return this.getBranchTable(id, branchId, userId)
+  }
+
+  async listReservations({ date, status }, branchId, userId) {
+    const from = date ? `${date}T00:00:00.000Z` : null
+    const to = date
+      ? new Date(Date.parse(from) + 24 * 60 * 60 * 1000).toISOString()
+      : null
+    const { rows } = await queryBranchFunction(
+      this.pool,
+      "SELECT * FROM public.list_branch_reservations($1::uuid, $2::uuid, $3::timestamptz, $4::timestamptz, $5)",
+      [branchId, userId, from, to, status ?? null],
+    )
+    return rows
+  }
+
+  async getBranchReservation(id, branchId, userId) {
+    const { rows } = await queryBranchFunction(
+      this.pool,
+      "SELECT * FROM public.get_branch_reservation($1::uuid, $2::uuid, $3::uuid)",
+      [id, branchId, userId],
+    )
+    if (!rows[0]) {
+      throw new AppError(404, "RESERVATION_NOT_FOUND", "La reserva no existe en la sucursal activa.")
+    }
+    return rows[0]
+  }
+
+  async createReservation(input, branchId, userId) {
+    const { rows } = await queryBranchFunction(
+      this.pool,
+      "SELECT * FROM public.create_branch_reservation($1::uuid, $2, $3, $4, $5::uuid, $6::timestamptz, $7, $8, $9::uuid)",
+      [
+        branchId,
         input.customer_name,
         input.customer_phone ?? null,
         input.customer_email ?? null,
@@ -99,23 +127,22 @@ export class PostgresOperationsRepository extends OperationsRepository {
         input.reservation_date,
         input.party_size,
         input.notes ?? null,
+        userId,
       ],
     )
-    return rows[0]
+    const result = rows[0]
+    requireOutcome(result?.outcome, "reservation")
+    return this.getBranchReservation(result.created_reservation_id, branchId, userId)
   }
 
-  async updateReservation(id, status) {
-    const { rows } = await queryPostgres(
+  async updateReservation(id, status, branchId, userId) {
+    const { rows } = await queryBranchFunction(
       this.pool,
-      `UPDATE public.reservations
-       SET status = $2, updated_at = now()
-       WHERE id = $1
-       RETURNING id, customer_name, customer_phone, customer_email,
-                 table_id, reservation_date, party_size, notes, status`,
-      [id, status],
+      "SELECT public.update_branch_reservation_status($1::uuid, $2::uuid, $3, $4::uuid) AS outcome",
+      [id, branchId, status, userId],
     )
-    if (!rows[0]) throw new AppError(404, "NOT_FOUND", "Reservación no encontrada.")
-    return rows[0]
+    requireOutcome(rows[0]?.outcome, "reservation")
+    return this.getBranchReservation(id, branchId, userId)
   }
 
   async listDeliveries(status, branchId, userId) {

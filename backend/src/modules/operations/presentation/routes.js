@@ -12,7 +12,9 @@ const orderStatus = z.enum(["pending", "preparing", "ready", "completed", "cance
 export function createOperationsRoutes(operations, authenticate, authorize, writesLimiter) {
   const tables = Router()
   tables.use(authenticate, authorize("staff", "admin"))
-  tables.get("/", asyncHandler(async (request, response) => response.json(await operations.listTables())))
+  tables.get("/", asyncHandler(async (request, response) => {
+    response.json(await operations.listTables(request.auth))
+  }))
   tables.post(
     "/",
     writesLimiter,
@@ -21,7 +23,7 @@ export function createOperationsRoutes(operations, authenticate, authorize, writ
       capacity: z.coerce.number().int().min(1).max(100),
     }) }),
     asyncHandler(async (request, response) => response.status(201).json(
-      await operations.createTable(request.validated.body),
+      await operations.createTable(request.validated.body, request.auth),
     )),
   )
   tables.put(
@@ -32,7 +34,11 @@ export function createOperationsRoutes(operations, authenticate, authorize, writ
       current_order_id: uuid.nullable().optional(),
     }) }),
     asyncHandler(async (request, response) => response.json(
-      await operations.updateTable(request.validated.params.id, request.validated.body),
+      await operations.updateTable(
+        request.validated.params.id,
+        request.validated.body,
+        request.auth,
+      ),
     )),
   )
 
@@ -44,7 +50,7 @@ export function createOperationsRoutes(operations, authenticate, authorize, writ
       status: reservationStatus.optional(),
     }).safeParse(request.query)
     if (!parsed.success) throw new AppError(400, "VALIDATION_ERROR", "Los filtros de reservación no son válidos.")
-    response.json(await operations.listReservations(parsed.data))
+    response.json(await operations.listReservations(parsed.data, request.auth))
   }))
   reservations.post(
     "/",
@@ -59,15 +65,19 @@ export function createOperationsRoutes(operations, authenticate, authorize, writ
       notes: z.string().trim().max(1000).optional().nullable(),
     }) }),
     asyncHandler(async (request, response) => response.status(201).json(
-      await operations.createReservation(request.validated.body),
+      await operations.createReservation(request.validated.body, request.auth),
     )),
   )
   reservations.put(
     "/:id/status",
     writesLimiter,
-    validateRequest({ params: z.object({ id: uuid }), body: z.object({ status: reservationStatus }) }),
+    validateRequest({ params: z.object({ id: uuid }), body: z.object({ status: reservationStatus }).strict() }),
     asyncHandler(async (request, response) => response.json(
-      await operations.updateReservation(request.validated.params.id, request.validated.body.status),
+      await operations.updateReservation(
+        request.validated.params.id,
+        request.validated.body.status,
+        request.auth,
+      ),
     )),
   )
 
