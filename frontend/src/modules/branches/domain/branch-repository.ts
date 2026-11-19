@@ -7,7 +7,7 @@ export interface BranchRepository {
   assignUser(branchId: string, userId: string): Promise<BranchUsersResult>
   removeUser(branchId: string, userId: string): Promise<BranchUsersResult>
   changeStatus(id: string, status: BranchStatus): Promise<Branch>
-  listLifecycleEvents(branchId: string): Promise<BranchLifecycleResult>
+  listLifecycleEvents(branchId: string, signal?: AbortSignal): Promise<BranchLifecycleResult>
   create(input: BranchInput): Promise<Branch>
   update(id: string, input: BranchUpdate): Promise<Branch>
   assignLegalEntity(branchId: string, legalEntityId: string): Promise<Branch>
