@@ -192,6 +192,29 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       runtime.query("SELECT * FROM public.organization_change_events"),
       (error) => error.code === "42501",
     )
+    await assert.rejects(
+      runtime.query(
+        "INSERT INTO public.organization_change_events " +
+        "(organization_id, resource_type, resource_id, action, after_state, actor_user_id) " +
+        "VALUES ($1, 'organization', $1, 'created', '{}'::jsonb, $2)",
+        [organizationId, organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
+    await assert.rejects(
+      runtime.query(
+        "UPDATE public.organization_change_events SET metadata = '{}'::jsonb WHERE organization_id = $1",
+        [organizationId],
+      ),
+      (error) => error.code === "42501",
+    )
+    await assert.rejects(
+      runtime.query(
+        "DELETE FROM public.organization_change_events WHERE organization_id = $1",
+        [organizationId],
+      ),
+      (error) => error.code === "42501",
+    )
 
     const extension = await runtime.query(
       "SELECT 1 FROM pg_extension WHERE extname = 'uuid-ossp'",
@@ -1351,8 +1374,13 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       (event) => event.resource_type === "legal_entity" && event.after_state?.tax_identifier,
     )
     assert.ok(legalEntitySnapshots.length > 0)
-    assert.ok(legalEntitySnapshots.every((event) => event.after_state.tax_identifier.startsWith("****")))
-    assert.ok(legalEntitySnapshots.every((event) => !event.after_state.tax_identifier.includes("900123456-7")))
+    const maskedTaxIdentifiers = legalEntitySnapshots.flatMap((event) => [
+      event.before_state?.tax_identifier,
+      event.after_state?.tax_identifier,
+    ]).filter(Boolean)
+    assert.ok(maskedTaxIdentifiers.length > 0)
+    assert.ok(maskedTaxIdentifiers.every((identifier) => identifier.startsWith("****")))
+    assert.ok(maskedTaxIdentifiers.every((identifier) => !identifier.includes("900123456-7")))
 
     const branchHistory = await runtime.query(
       "SELECT resource_type, branch_id FROM public.list_organization_history(" +
