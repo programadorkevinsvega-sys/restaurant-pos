@@ -132,12 +132,13 @@ export class PostgresCatalogRepository extends CatalogRepository {
     await this.assertOrganizationOwner(actor)
     const { rows } = await queryPostgres(this.pool, `
       SELECT category.id, category.name, category.icon, category.is_active,
-             count(product.id)::integer AS item_count
+             (
+               SELECT count(*)::integer
+               FROM public.products AS product
+               WHERE product.category_id = category.id AND product.is_active = true
+             ) AS item_count
       FROM public.categories AS category
-      LEFT JOIN public.products AS product
-        ON product.category_id = category.id AND product.is_active = true
-      GROUP BY category.id, category.name, category.icon, category.is_active
-      ORDER BY category.is_active DESC, category.name
+      ORDER BY category.is_active DESC, category.name, category.id
       LIMIT 500
     `)
     return rows

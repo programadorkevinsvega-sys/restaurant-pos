@@ -1042,6 +1042,22 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
 
     productId = product.rows[0].id
 
+    const corporateCategoryRead = await runtime.query(`
+      SELECT category.id, category.name, category.icon, category.is_active,
+             (
+               SELECT count(*)::integer
+               FROM public.products AS product
+               WHERE product.category_id = category.id AND product.is_active = true
+             ) AS item_count
+      FROM public.categories AS category
+      ORDER BY category.is_active DESC, category.name, category.id
+      LIMIT 500
+    `)
+    assert.equal(
+      corporateCategoryRead.rows.find((row) => row.id === categoryId)?.item_count,
+      1,
+    )
+
     const inheritedCatalogOne = await runtime.query(
       "SELECT id, enabled FROM public.list_branch_catalog_products($1::uuid, $2::uuid) WHERE id = $3",
       [branchId, organizationAdminId, productId],
