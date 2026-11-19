@@ -11,6 +11,7 @@ import { Footer } from "@/components/footer"
 import { Header } from "@/components/header"
 import { OperationsPanel } from "@/components/operations/operations-panel"
 import { CatalogManagementPanel } from "@/components/catalog/catalog-management-panel"
+import { RecipeManagementPanel } from "@/components/recipes/recipe-management-panel"
 import { SidebarNav, type AppSection } from "@/components/sidebar-nav"
 import { TableManagement } from "@/components/tables/table-management"
 import { toast } from "@/hooks/use-toast"
@@ -83,6 +84,8 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   const [catalogCategories, setCatalogCategories] = useState<Category[]>([])
   const [catalogBranchProducts, setCatalogBranchProducts] = useState<BranchCatalogProduct[]>([])
   const [selectedCatalogBranchId, setSelectedCatalogBranchId] = useState("")
+  const [recipeProducts, setRecipeProducts] = useState<Product[]>([])
+  const [recipesLoading, setRecipesLoading] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -301,6 +304,30 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     void loadSection()
     return () => controller.abort()
   }, [activeSection, reloadIndex, refreshCorporateStructure])
+
+  useEffect(() => {
+    if (activeSection !== "recipes") return
+    const controller = new AbortController()
+    setRecipesLoading(true)
+    void (async () => {
+      try {
+        await refreshCorporateStructure(controller.signal)
+        const productsResult = await posApplication.corporateCatalog.listProducts()
+        if (!controller.signal.aborted) setRecipeProducts(productsResult)
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          toast({
+            title: "No se pudo cargar el catálogo para recetas",
+            description: error instanceof Error ? error.message : "Error desconocido.",
+            variant: "destructive",
+          })
+        }
+      } finally {
+        if (!controller.signal.aborted) setRecipesLoading(false)
+      }
+    })()
+    return () => controller.abort()
+  }, [activeSection, refreshCorporateStructure])
 
   const refreshAvailableBranches = async () => {
     const result = await posApplication.branches.listAvailable()
@@ -591,6 +618,16 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
             ? <p className="py-16 text-center text-muted-foreground">Cargando menú…</p>
             : <FoodGrid products={visibleProducts} onAddToCart={handleAddToCart} />}
         </main>
+      )
+    }
+    if (activeSection === "recipes") {
+      return (
+        <RecipeManagementPanel
+          products={recipeProducts}
+          canManage={canManageCorporateStructure}
+          loading={recipesLoading}
+          application={posApplication.recipes}
+        />
       )
     }
     if (activeSection === "catalog") {

@@ -1042,6 +1042,50 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
 
     productId = product.rows[0].id
 
+    const recipeIngredient = await runtime.query(
+      "INSERT INTO public.ingredients (organization_id, name, unit_code, created_by_user_id, updated_by_user_id) " +
+      "VALUES ($1, $2, $3, $4, $4) RETURNING id",
+      [organizationId, "CI recipe flour", "g", organizationAdminId],
+    )
+    const recipeIngredientId = recipeIngredient.rows[0].id
+    const productRecipe = await runtime.query(
+      "INSERT INTO public.product_recipes (organization_id, product_id, preparation_instructions, created_by_user_id, updated_by_user_id) " +
+      "VALUES ($1, $2, $3, $4, $4) RETURNING id",
+      [organizationId, productId, "Mezclar y hornear.", organizationAdminId],
+    )
+    const productRecipeId = productRecipe.rows[0].id
+    await runtime.query(
+      "INSERT INTO public.recipe_ingredients (recipe_id, ingredient_id, quantity, position) VALUES ($1, $2, $3::numeric, 0)",
+      [productRecipeId, recipeIngredientId, "12.345678"],
+    )
+    const preciseRecipeQuantity = await runtime.query(
+      "SELECT quantity::text AS quantity FROM public.recipe_ingredients WHERE recipe_id = $1 AND ingredient_id = $2",
+      [productRecipeId, recipeIngredientId],
+    )
+    assert.equal(preciseRecipeQuantity.rows[0].quantity, "12.345678")
+    await assert.rejects(
+      runtime.query("UPDATE public.ingredients SET unit_code = 'kg' WHERE id = $1", [recipeIngredientId]),
+      (error) => error.code === "23514" && error.message.includes("INGREDIENT_UNIT_IN_USE"),
+    )
+    const recipeEvent = await runtime.query(
+      "INSERT INTO public.recipe_change_events (organization_id, recipe_id, event_type, snapshot, actor_user_id) " +
+      "VALUES ($1, $2, 'created', $3::jsonb, $4) RETURNING id",
+      [organizationId, productRecipeId, JSON.stringify({ product_id: productId, ingredients: [{ ingredient_id: recipeIngredientId, quantity: "12.345678" }] }), organizationAdminId],
+    )
+    await assert.rejects(
+      migrator.query("UPDATE public.recipe_change_events SET snapshot = '{}'::jsonb WHERE id = $1", [recipeEvent.rows[0].id]),
+      (error) => error.code === "55000",
+    )
+    await assert.rejects(
+      migrator.query("DELETE FROM public.recipe_change_events WHERE id = $1", [recipeEvent.rows[0].id]),
+      (error) => error.code === "55000",
+    )
+    await assert.rejects(
+      migrator.query("UPDATE public.ingredients SET is_active = false WHERE id = $1", [recipeIngredientId]),
+      (error) => error.code === "23514" && error.message.includes("INGREDIENT_IN_USE"),
+    )
+
+
     const corporateCategoryRead = await runtime.query(`
       SELECT category.id, category.name, category.icon, category.is_active,
              (
