@@ -18,6 +18,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
   let organizationId
   const legalEntityIds = []
   let branchId
+  let secondBranchId
 
   try {
     const identity = await runtime.query(
@@ -57,6 +58,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "has_table_privilege(current_user, 'public.branches', 'DELETE') AS branch_delete, " +
       "has_table_privilege(current_user, 'public.branch_legal_entities', 'SELECT') AS relation_read, " +
       "has_table_privilege(current_user, 'public.branch_legal_entities', 'INSERT') AS relation_insert, " +
+      "has_table_privilege(current_user, 'public.branch_legal_entities', 'UPDATE') AS relation_update, " +
       "has_table_privilege(current_user, 'public.branch_legal_entities', 'DELETE') AS relation_delete, " +
       "has_function_privilege(current_user, " +
       "'public.create_legal_entity(text, text, text, text, text, jsonb, text, text, uuid)'::regprocedure, 'EXECUTE') AS can_create_legal_entity, " +
@@ -78,6 +80,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       branch_delete: false,
       relation_read: true,
       relation_insert: false,
+      relation_update: false,
       relation_delete: false,
       can_create_legal_entity: true,
       can_create_branch: true,
@@ -268,6 +271,20 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     assert.equal(branchRelations.rowCount, 2)
 
+    const secondBranch = await runtime.query(
+      "SELECT * FROM public.create_branch($1, $2, $3::uuid[], $4)",
+      ["MED-01", "Chili Medellín Poblado", [legalEntityIds[0]], organizationAdminId],
+    )
+    assert.equal(secondBranch.rows[0].outcome, "CREATED")
+    secondBranchId = secondBranch.rows[0].created_branch_id
+
+    const legalEntityBranchCount = await runtime.query(
+      "SELECT count(*)::integer AS branch_count FROM public.branch_legal_entities " +
+      "WHERE organization_id = $1 AND legal_entity_id = $2",
+      [organizationId, legalEntityIds[0]],
+    )
+    assert.equal(legalEntityBranchCount.rows[0].branch_count, 2)
+
     const duplicateBranch = await runtime.query(
       "SELECT * FROM public.create_branch($1, $2, $3::uuid[], $4)",
       ["BOG-01", "Duplicate branch", legalEntityIds, organizationAdminId],
@@ -330,8 +347,54 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
 
     await assert.rejects(
       runtime.query(
+        "INSERT INTO public.branch_legal_entities " +
+        "(organization_id, branch_id, legal_entity_id, created_by_user_id) VALUES ($1, $2, $3, $4)",
+        [organizationId, branchId, legalEntityIds[0], organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "UPDATE public.branch_legal_entities SET created_at = now() WHERE organization_id = $1 AND branch_id = $2",
+        [organizationId, branchId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
         "DELETE FROM public.branch_legal_entities WHERE organization_id = $1 AND branch_id = $2",
         [organizationId, branchId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "UPDATE public.legal_entities SET legal_name = 'Direct update bypass' WHERE id = $1",
+        [legalEntityIds[0]],
+      ),
+      (error) => error.code === "42501",
+    )
+    await assert.rejects(
+      runtime.query(
+        "DELETE FROM public.legal_entities WHERE id = $1",
+        [legalEntityIds[0]],
+      ),
+      (error) => error.code === "42501",
+    )
+    await assert.rejects(
+      runtime.query(
+        "UPDATE public.branches SET name = 'Direct update bypass' WHERE id = $1",
+        [branchId],
+      ),
+      (error) => error.code === "42501",
+    )
+    await assert.rejects(
+      runtime.query(
+        "DELETE FROM public.branches WHERE id = $1",
+        [branchId],
       ),
       (error) => error.code === "42501",
     )
@@ -449,9 +512,15 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       /Invalid order type/,
     )
   } finally {
-    if (branchId) {
-      await migrator.query("DELETE FROM public.branch_legal_entities WHERE branch_id = $1", [branchId])
-      await migrator.query("DELETE FROM public.branches WHERE id = $1", [branchId])
+    if (branchId || secondBranchId) {
+      await migrator.query(
+        "DELETE FROM public.branch_legal_entities WHERE branch_id = ANY($1::uuid[])",
+        [[branchId, secondBranchId].filter(Boolean)],
+      )
+      await migrator.query(
+        "DELETE FROM public.branches WHERE id = ANY($1::uuid[])",
+        [[branchId, secondBranchId].filter(Boolean)],
+      )
     }
     if (legalEntityIds.length) {
       await migrator.query("DELETE FROM public.legal_entities WHERE id = ANY($1::uuid[])", [legalEntityIds])
