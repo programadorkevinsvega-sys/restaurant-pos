@@ -318,7 +318,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog
-AS $
+AS $$
 DECLARE
   v_delivery public.delivery_info;
 BEGIN
