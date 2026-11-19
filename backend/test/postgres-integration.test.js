@@ -1597,6 +1597,11 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     // The integration database is isolated and starts empty. Remove organization
     // audit fixtures before deleting the referenced branch/organization rows.
     await migrator.query("TRUNCATE TABLE public.organization_change_events")
+    // F2.1 catalog events are append-only for runtime callers. This TRUNCATE is
+    // restricted to teardown of the disposable integration database.
+    await migrator.query(
+      "TRUNCATE TABLE public.branch_catalog_product_events, public.branch_catalog_product_exclusions",
+    )
 
     if (branchId || secondBranchId) {
       // Isolated-test teardown only: restore fixture branches so the read-only
