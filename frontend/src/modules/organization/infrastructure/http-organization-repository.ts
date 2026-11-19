@@ -3,6 +3,8 @@ import type {
   OrganizationProfileInput,
   OrganizationProfileResult,
   OrganizationProfileUpdate,
+  OrganizationHistoryFilters,
+  OrganizationHistoryPage,
 } from "../domain/models"
 import type { OrganizationRepository } from "../domain/organization-repository"
 
@@ -19,5 +21,14 @@ export class HttpOrganizationRepository implements OrganizationRepository {
 
   update(input: OrganizationProfileUpdate) {
     return this.http.patch<OrganizationProfileResult>("/organization", input)
+  }
+
+  listHistory(filters: OrganizationHistoryFilters) {
+    const query = new URLSearchParams({ limit: String(filters.limit) })
+    if (filters.resource_type) query.set("resource_type", filters.resource_type)
+    if (filters.branch_id) query.set("branch_id", filters.branch_id)
+    if (filters.before_at) query.set("before_at", filters.before_at)
+    if (filters.before_id) query.set("before_id", filters.before_id)
+    return this.http.get<OrganizationHistoryPage>(`/organization/history?${query.toString()}`)
   }
 }
