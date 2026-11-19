@@ -16,6 +16,8 @@ import {
   HttpSettingsRepository,
   HttpTablesRepository,
 } from "@/modules/operations/infrastructure/http-operations-repository"
+import { ManageOrganizationProfile } from "@/modules/organization/application/manage-organization-profile"
+import { HttpOrganizationRepository } from "@/modules/organization/infrastructure/http-organization-repository"
 import { HttpClient } from "@/shared/infrastructure/http-client"
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL
@@ -39,4 +41,5 @@ export const posApplication = {
   deliveries: new ManageDeliveries(new HttpDeliveriesRepository(http)),
   accounting: new ReadAccountingReports(new HttpAccountingRepository(http)),
   settings: new ManageSettings(new HttpSettingsRepository(http)),
+  organization: new ManageOrganizationProfile(new HttpOrganizationRepository(http)),
 }
