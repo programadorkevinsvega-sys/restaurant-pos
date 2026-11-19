@@ -497,6 +497,19 @@ Los módulos se identifican con códigos estables. Cada fase contiene subfases n
 
 **Cierre N09:** ninguna consulta, caché, exportación, evento o trabajo en segundo plano puede filtrar información de una sucursal fuera del alcance autorizado.
 
+### Estado de implementación — contexto operativo de pedidos
+
+- N09-F1.1 y N09-F1.2 están implementadas y fusionadas en `main` (PR #9 y PR #10).
+- Esta entrega integra el contexto de sucursal y entidad legal en la creación de pedidos POS: asignación básica de usuarios a una o varias sucursales (N09-F3.2), selector de sucursal activa, selección expresa de entidad legal por pedido y validación transaccional en PostgreSQL.
+- Las nuevas operaciones quedan ligadas al actor autenticado; los pedidos existentes conservan la ausencia de sucursal y entidad legal, sin backfill ni asignación fiscal inferida.
+- La lectura y actualización de pedidos, la consulta de entregas y la asignación de repartidor se delimitan por la sucursal activa y la asignación del usuario.
+- N09-F3.3 (roles y permisos por ámbito), F1.3 (ciclo de vida de sucursal), F1.4 (configuración local) y F1.5 (historial organizacional) continúan pendientes.
+- Mesas, reservas, reportes contables y el resto de consultas/operaciones aún necesitan integración y pruebas de aislamiento por sucursal; no se consideran cerrados por este trabajo.
+- La facturación electrónica, impuestos por entidad y la contabilidad separada por entidad legal siguen sujetas al diseño y aprobación fiscal/contable correspondientes.
+
+Detalle técnico y contrato: `docs/CONTEXTO-OPERATIVO-PEDIDOS.md`. La entrega está pendiente de la revisión del PR y de CI.
+
+
 # N10 — Atención y reservas avanzada
 
 **Objetivo:** administrar el ciclo de atención en salón y otros canales, desde la reserva o llegada hasta la asignación, consumo y cierre.
