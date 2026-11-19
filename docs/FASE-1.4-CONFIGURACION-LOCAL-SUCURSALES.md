@@ -2,6 +2,12 @@
 
 ## Objetivo
 
+## Estado de implementación y validación
+
+- Implementación incluida en el commit `b43b69b64317fb61e19335d066f8b094470801e9`.
+- CI de Pull Request #46: [ejecución 44444253303](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44444253303), con los tres jobs aprobados: backend/frontend/build, PostgreSQL 16 y PostgreSQL 17.
+- PR #13 permanece abierto y sin fusionar. La aprobación de CI no autoriza merge, migración productiva ni despliegue.
+
 Registrar la información física y operativa propia de cada establecimiento: dirección de operación, zona horaria, moneda declarada, horario semanal y excepciones de calendario. Esta información pertenece a la sucursal y no sustituye los datos corporativos ni el domicilio fiscal de las entidades legales asociadas.
 
 ## Alcance implementado en esta fase
