@@ -250,7 +250,7 @@ test("N09-F2.1: productos y categorías tienen CRUD corporativo con baja lógica
   const categoryRow = page.getByText(originalCategoryName, { exact: true }).locator("xpath=../..")
   await expect(categoryRow).toBeVisible()
   await categoryRow.getByRole("button", { name: "Editar" }).click()
-  await page.getByDisplayValue(originalCategoryName).last().fill(updatedCategoryName)
+  await page.locator("form").filter({ has: page.getByRole("button", { name: "Guardar categoría" }) }).getByRole("textbox").first().fill(updatedCategoryName)
   await page.getByRole("button", { name: "Guardar categoría" }).click()
   await expect(page.getByText(updatedCategoryName, { exact: true })).toBeVisible()
   const updatedCategoryRow = page.getByText(updatedCategoryName, { exact: true }).locator("xpath=../..")
