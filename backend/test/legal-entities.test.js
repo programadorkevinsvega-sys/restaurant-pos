@@ -60,12 +60,21 @@ test("legal entity schema rejects invalid country, identifier scheme and unknown
   assert.equal(legalEntitySchema.safeParse({ ...base, tax_regime: "ordinary" }).success, false)
 })
 
-test("legal entity list is readable by an authenticated user without granting management", async () => {
+test("legal entity list is available to the registered organization owner", async () => {
   const useCases = new LegalEntityUseCases(createRepository())
-  const result = await useCases.list(admin)
+  const result = await useCases.list(owner)
 
   assert.equal(result.legal_entities.length, 1)
-  assert.deepEqual(result.permissions, { can_manage: false })
+  assert.deepEqual(result.permissions, { can_manage: true })
+})
+
+test("legacy administrators cannot read tax identifiers without an explicit owner assignment", async () => {
+  const useCases = new LegalEntityUseCases(createRepository())
+
+  await assert.rejects(
+    useCases.list(admin),
+    { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
+  )
 })
 
 test("organization owner can create a legal entity", async () => {
