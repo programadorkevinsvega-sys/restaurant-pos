@@ -2,7 +2,7 @@
 
 **Módulo:** N09 — Gestión multisucursal  
 **Subfase:** N09-F1.1 — Organización y datos corporativos  
-**Estado:** En desarrollo / pendiente de CI sobre el HEAD final  
+**Estado:** Implementada y validada por CI en el commit `da28f74a57a439aa74e48660dba758f210631348`  
 **Rama de trabajo:** `feat/fase-1-1-organizacion-corporativa`
 
 ## 1. Objetivo
@@ -164,6 +164,13 @@ Esta subfase no implementa ni autoriza:
 
 ## 8. Validación y restricciones de despliegue
 
-El workflow de PR debe ejecutar backend, frontend, build y PostgreSQL 16/17 desde una base vacía, incluyendo segunda ejecución idempotente y las pruebas del rol runtime restringido. La subfase no se declara completada hasta que los checks pasen para el HEAD final.
+El workflow de PR ejecuta backend, frontend, build y PostgreSQL 16/17 desde una base vacía, incluyendo segunda ejecución idempotente y las pruebas del rol runtime restringido.
+
+**Evidencia CI:** GitHub Actions [run #17 / 44426610418](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44426610418) terminó con `success` sobre el commit `da28f74a57a439aa74e48660dba758f210631348`. Los tres jobs aprobaron:
+- Backend, frontend y build: backend check/unit tests, TypeScript, lint y build.
+- PostgreSQL 16: migraciones desde cero, idempotencia y pruebas del rol runtime restringido.
+- PostgreSQL 17: migraciones desde cero, idempotencia y pruebas del rol runtime restringido.
+
+La ejecución valida el código de esta subfase. Cualquier nuevo commit en la rama vuelve a requerir CI sobre su propio HEAD.
 
 La migración se incorpora únicamente a CI/entornos aislados en esta etapa. **No ejecutar `006_create_organization_profile.sql` en producción** como parte de este trabajo: la inspección productiva y la restauración real de un backup siguen pendientes en Fase 0. No hubo conexión, migración, backfill, despliegue ni modificación de producción en esta subfase.
