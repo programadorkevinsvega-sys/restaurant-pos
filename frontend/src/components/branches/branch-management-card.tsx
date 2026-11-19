@@ -132,7 +132,7 @@ export function BranchManagementCard({
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                    {canManage && branch.status !== "closed" && (
+                    {canManage && branch.status === "active" && (
                       <Button
                         type="button"
                         size="sm"
@@ -199,7 +199,7 @@ export function BranchManagementCard({
                         <span>
                           {entity.legal_name} · {entity.tax_identifier_type} {entity.tax_identifier}
                         </span>
-                        {canManage && branch.status !== "closed" && branch.legal_entities.length > 1 && (
+                        {canManage && branch.status === "active" && branch.legal_entities.length > 1 && (
                           <Button
                             type="button"
                             size="sm"
