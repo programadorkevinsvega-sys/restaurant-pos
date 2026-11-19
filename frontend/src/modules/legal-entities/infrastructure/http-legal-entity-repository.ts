@@ -15,7 +15,7 @@ export class HttpLegalEntityRepository implements LegalEntityRepository {
   }
 
   async update(id: string, input: LegalEntityInput) {
-    const result = await this.http.patch<{ legal_entity: LegalEntity }>(
+    const result = await this.http.put<{ legal_entity: LegalEntity }>(
       `/legal-entities/${encodeURIComponent(id)}`,
       input,
     )
