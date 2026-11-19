@@ -1,6 +1,6 @@
 import type { HttpClient } from "@/shared/infrastructure/http-client"
 import type { CatalogRepository } from "../domain/catalog-repository"
-import type { Category, NewProduct, Product } from "../domain/models"
+import type { BranchCatalogProduct, Category, NewProduct, Product } from "../domain/models"
 
 export class HttpCatalogRepository implements CatalogRepository {
   constructor(private readonly http: HttpClient) {}
@@ -17,6 +17,23 @@ export class HttpCatalogRepository implements CatalogRepository {
         price: Number(product.price),
         discount_percentage: Number(product.discount_percentage ?? 0),
       })),
+    )
+  }
+
+  getBranchProducts(branchId: string) {
+    return this.http.get<BranchCatalogProduct[]>(
+      `/admin/catalog/branches/${encodeURIComponent(branchId)}/products`,
+    ).then((products) => products.map((product) => ({
+      ...product,
+      price: Number(product.price),
+      discount_percentage: Number(product.discount_percentage ?? 0),
+    })))
+  }
+
+  setBranchProductEnabled(branchId: string, productId: string, enabled: boolean) {
+    return this.http.put<{ success: boolean; changed: boolean }>(
+      `/admin/catalog/branches/${encodeURIComponent(branchId)}/products/${encodeURIComponent(productId)}`,
+      { enabled },
     )
   }
 

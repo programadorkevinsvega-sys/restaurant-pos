@@ -18,9 +18,9 @@ const productSchema = z.object({
   category_id: uuid,
 })
 
-export function createAdminCatalogRoutes(catalog, authenticate, authorize, writesLimiter) {
+export function createAdminCatalogRoutes(catalog, authenticate, _authorize, writesLimiter) {
   const router = Router()
-  router.use(authenticate, authorize("admin"))
+  router.use(authenticate)
   router.post("/categories", writesLimiter, validateRequest({ body: categorySchema }),
     asyncHandler(async (request, response) => response.status(201).json(
       await catalog.createCategory(request.validated.body),

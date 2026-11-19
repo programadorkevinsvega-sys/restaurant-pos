@@ -1037,7 +1037,87 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "VALUES ($1, $2, $3, $4, 0) RETURNING id",
       ["CI integration product", "12.50", "Veg", categoryId],
     )
+
     productId = product.rows[0].id
+
+    const inheritedCatalogOne = await runtime.query(
+      "SELECT id, enabled FROM public.list_branch_catalog_products($1::uuid, $2::uuid) WHERE id = $3",
+      [branchId, organizationAdminId, productId],
+    )
+    const inheritedCatalogTwo = await runtime.query(
+      "SELECT id, enabled FROM public.list_branch_catalog_products($1::uuid, $2::uuid) WHERE id = $3",
+      [secondBranchId, organizationAdminId, productId],
+    )
+    assert.equal(inheritedCatalogOne.rows[0].enabled, true)
+    assert.equal(inheritedCatalogTwo.rows[0].enabled, true)
+
+    const excludedProduct = await runtime.query(
+      "SELECT public.set_branch_catalog_product_enabled($1, $2, false, $3) AS outcome",
+      [branchId, productId, organizationAdminId],
+    )
+    assert.equal(excludedProduct.rows[0].outcome, "CHANGED")
+    const repeatedExclusion = await runtime.query(
+      "SELECT public.set_branch_catalog_product_enabled($1, $2, false, $3) AS outcome",
+      [branchId, productId, organizationAdminId],
+    )
+    assert.equal(repeatedExclusion.rows[0].outcome, "UNCHANGED")
+
+    const disabledCatalogOne = await runtime.query(
+      "SELECT id, enabled FROM public.list_branch_catalog_products($1::uuid, $2::uuid) WHERE id = $3",
+      [branchId, organizationAdminId, productId],
+    )
+    const unchangedCatalogTwo = await runtime.query(
+      "SELECT id, enabled FROM public.list_branch_catalog_products($1::uuid, $2::uuid) WHERE id = $3",
+      [secondBranchId, organizationAdminId, productId],
+    )
+    assert.equal(disabledCatalogOne.rows[0].enabled, false)
+    assert.equal(unchangedCatalogTwo.rows[0].enabled, true)
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.set_branch_catalog_product_enabled($1, $2, true, $3)",
+        [branchId, productId, organizationStaffId],
+      ),
+      (error) => error.code === "42501",
+    )
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Excluded catalog product", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null, branchId, legalEntityIds[0], organizationStaffId],
+      ),
+      (error) => error.code === "55000" && error.message.includes("PRODUCT_NOT_ENABLED_FOR_BRANCH"),
+    )
+
+    const catalogAudit = await runtime.query(
+      "SELECT previous_enabled, new_enabled, actor_user_id FROM public.branch_catalog_product_events " +
+      "WHERE branch_id = $1 AND product_id = $2 ORDER BY sequence",
+      [branchId, productId],
+    )
+    assert.equal(catalogAudit.rowCount, 1)
+    assert.equal(catalogAudit.rows[0].previous_enabled, true)
+    assert.equal(catalogAudit.rows[0].new_enabled, false)
+    assert.equal(catalogAudit.rows[0].actor_user_id, organizationAdminId)
+
+    await assert.rejects(
+      migrator.query(
+        "UPDATE public.branch_catalog_product_events SET product_name = product_name WHERE branch_id = $1 AND product_id = $2",
+        [branchId, productId],
+      ),
+      (error) => error.code === "55000",
+    )
+    await assert.rejects(
+      migrator.query(
+        "DELETE FROM public.branch_catalog_product_events WHERE branch_id = $1 AND product_id = $2",
+        [branchId, productId],
+      ),
+      (error) => error.code === "55000",
+    )
+
+    const reenabledProduct = await runtime.query(
+      "SELECT public.set_branch_catalog_product_enabled($1, $2, true, $3) AS outcome",
+      [branchId, productId, organizationAdminId],
+    )
+    assert.equal(reenabledProduct.rows[0].outcome, "CHANGED")
 
     await assert.rejects(
       runtime.query(

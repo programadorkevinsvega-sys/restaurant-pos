@@ -122,3 +122,32 @@ test("N09-F1: la navegación presenta las secciones principales sin errores de r
     process.env.E2E_BRANCH_ID || "44444444-4444-4444-8444-444444444444",
   )
 })
+
+test("N09-F2.1: el catálogo maestro permite excluir y reactivar un producto por sucursal", async ({ page }) => {
+  const productLabel = "Disponible en sucursal: Producto E2E"
+  await page.getByRole("button", { name: "Configuración" }).click()
+  await page.getByRole("tab", { name: "Menú" }).click()
+
+  const branchSelect = page.getByLabel("Sucursal del catálogo corporativo")
+  await expect(branchSelect).toHaveValue(
+    process.env.E2E_BRANCH_ID || "44444444-4444-4444-8444-444444444444",
+  )
+
+  let checkbox = page.getByRole("checkbox", { name: productLabel })
+  await expect(checkbox).toBeVisible()
+  if (!(await checkbox.isChecked())) await checkbox.check()
+
+  try {
+    await checkbox.uncheck()
+    await expect(page.getByText("Excluido de esta sucursal")).toBeVisible()
+    await page.getByRole("button", { name: "Menú", exact: true }).click()
+    await expect(page.getByText("Producto E2E", { exact: true })).toHaveCount(0)
+  } finally {
+    await page.getByRole("button", { name: "Configuración" }).click()
+    await page.getByRole("tab", { name: "Menú" }).click()
+    checkbox = page.getByRole("checkbox", { name: productLabel })
+    await expect(checkbox).toBeVisible()
+    if (!(await checkbox.isChecked())) await checkbox.check()
+    await expect(page.getByText("Heredado y habilitado")).toBeVisible()
+  }
+})

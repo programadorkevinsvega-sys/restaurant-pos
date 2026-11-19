@@ -26,8 +26,18 @@ export async function queryPostgres(client, query, values = []) {
       throw new AppError(
         409,
         "BRANCH_NOT_ACTIVE",
-        "La sucursal está suspendida o cerrada. Sus pedidos y detalles permanecen disponibles solo para consulta.",
+        "La sucursal está suspendida o cerrada. Sus datos permanecen disponibles solo para consulta.",
       )
+    }
+    if (error.code === "55000" && String(error.message).includes("PRODUCT_NOT_ENABLED_FOR_BRANCH")) {
+      throw new AppError(
+        409,
+        "PRODUCT_NOT_ENABLED_FOR_BRANCH",
+        "El producto no está habilitado para la sucursal del pedido.",
+      )
+    }
+    if (error.code === "42501" && String(error.message).includes("Active organization owner required")) {
+      throw new AppError(403, "ORGANIZATION_OWNER_REQUIRED", "Solo el propietario corporativo puede administrar el catálogo maestro.")
     }
     const appError = new AppError(500, "PERSISTENCE_ERROR", "No se pudo completar la operación.")
     Object.defineProperty(appError, "cause", { value: error })

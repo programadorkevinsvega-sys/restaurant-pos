@@ -19,7 +19,7 @@ const productSchema = z.object({
   category_id: uuid,
 })
 
-export function createCatalogRoutes(catalog, authenticate, authorize) {
+export function createCatalogRoutes(catalog, authenticate) {
   const categories = Router()
   categories.get("/", asyncHandler(async (request, response) => {
     response.json(await catalog.listCategories())
@@ -27,7 +27,6 @@ export function createCatalogRoutes(catalog, authenticate, authorize) {
   categories.post(
     "/",
     authenticate,
-    authorize("admin"),
     validateRequest({ body: categorySchema }),
     asyncHandler(async (request, response) => {
       response.status(201).json(await catalog.createCategory(request.validated.body))
