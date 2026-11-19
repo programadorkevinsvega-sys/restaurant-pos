@@ -40,6 +40,7 @@ export function Cart({
   const [deliveryPhone, setDeliveryPhone] = useState("")
   const [legalEntitySelection, setLegalEntitySelection] = useState<{ branchId: string; legalEntityId: string } | null>(null)
 
+  const activeBranchId = activeBranch?.id
   const legalEntities = activeBranch?.legal_entities ?? []
   const legalEntityId = activeBranch && legalEntitySelection
     && legalEntitySelection.branchId === activeBranch.id
@@ -50,12 +51,12 @@ export function Cart({
   const total = subtotal + tax
 
   useEffect(() => {
-    if (activeBranch && legalEntities.length === 1) {
-      setLegalEntitySelection({ branchId: activeBranch.id, legalEntityId: legalEntities[0].id })
+    if (activeBranchId && legalEntities.length === 1) {
+      setLegalEntitySelection({ branchId: activeBranchId, legalEntityId: legalEntities[0].id })
     } else {
       setLegalEntitySelection(null)
     }
-  }, [activeBranch?.id, legalEntities.length, legalEntities[0]?.id])
+  }, [activeBranchId, legalEntities.length, legalEntities[0]?.id])
 
   const handlePlaceOrder = async () => {
     if (!activeBranch) return
