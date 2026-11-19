@@ -87,7 +87,7 @@ CREATE FUNCTION public.bootstrap_organization_profile(
 RETURNS SETOF public.organizations
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, public
+SET search_path = pg_catalog
 AS $$
 DECLARE
   v_profile public.organizations;
@@ -154,7 +154,7 @@ CREATE FUNCTION public.update_organization_profile(
 RETURNS SETOF public.organizations
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, public
+SET search_path = pg_catalog
 AS $$
 DECLARE
   v_profile public.organizations;
