@@ -35,15 +35,22 @@ export function Cart({
   const [activeMode, setActiveMode] = useState<OrderType>("Comer aquí")
   const [tableNumber, setTableNumber] = useState("1")
   const [customerName, setCustomerName] = useState("")
-  const [legalEntityId, setLegalEntityId] = useState("")
+  const [legalEntitySelection, setLegalEntitySelection] = useState<{ branchId: string; legalEntityId: string } | null>(null)
 
   const legalEntities = activeBranch?.legal_entities ?? []
+  const legalEntityId = legalEntitySelection?.branchId === activeBranch?.id
+    ? legalEntitySelection.legalEntityId
+    : ""
   const subtotal = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
   const tax = subtotal * 0.05
   const total = subtotal + tax
 
   useEffect(() => {
-    setLegalEntityId(legalEntities.length === 1 ? legalEntities[0].id : "")
+    if (activeBranch && legalEntities.length === 1) {
+      setLegalEntitySelection({ branchId: activeBranch.id, legalEntityId: legalEntities[0].id })
+    } else {
+      setLegalEntitySelection(null)
+    }
   }, [activeBranch?.id, legalEntities.length, legalEntities[0]?.id])
 
   const handlePlaceOrder = async () => {
@@ -92,7 +99,11 @@ export function Cart({
           <select
             className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
             value={legalEntityId}
-            onChange={(event) => setLegalEntityId(event.target.value)}
+            onChange={(event) => {
+              if (activeBranch) {
+                setLegalEntitySelection({ branchId: activeBranch.id, legalEntityId: event.target.value })
+              }
+            }}
             disabled={!activeBranch || legalEntities.length <= 1}
             aria-label="Entidad legal responsable del pedido"
           >
