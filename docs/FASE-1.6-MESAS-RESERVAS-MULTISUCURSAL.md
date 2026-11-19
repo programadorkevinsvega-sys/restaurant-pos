@@ -1,5 +1,14 @@
 # N09-F1.6 — Atribución multisucursal de mesas y reservas
 
+## Estado de integración y despliegue
+
+- PR #15: [N09-F1.6 — Atribución multisucursal de mesas y reservas](https://github.com/programadorkevinsvega-sys/restaurant-pos/pull/15), fusionado el 19 de noviembre de 2026 a las 04:32:23 UTC.
+- Merge commit en `main`: `f46873732adfe4ad5f0263228f3573486681a58c`.
+- CI #53: [ejecución 44458796849](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44458796849), backend/frontend/build y PostgreSQL 16/17 aprobados.
+- CI #54: [ejecución 44459010838](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44459010838), todos los jobs aprobados sobre el HEAD integrado del PR.
+- Producción: [ejecución 44459019271](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44459019271), finalizada correctamente. Los jobs `Verify and build` y `Deploy to application VM` aprobaron sobre el merge commit.
+- La migración 011 fue aplicada por el despliegue automatizado en la VM. No se ejecutó backfill de mesas ni reservas históricas.
+
 ## Objetivo
 
 Cada mesa y reserva nueva pertenece a una organización y a una sucursal concreta. Las operaciones solo pueden consultar o modificar recursos de la sucursal activa a la que el usuario autenticado esté asignado. Una reserva no puede apuntar a una mesa de otra sucursal.
