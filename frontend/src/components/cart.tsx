@@ -41,7 +41,8 @@ export function Cart({
   const [legalEntitySelection, setLegalEntitySelection] = useState<{ branchId: string; legalEntityId: string } | null>(null)
 
   const legalEntities = activeBranch?.legal_entities ?? []
-  const legalEntityId = legalEntitySelection?.branchId === activeBranch?.id
+  const legalEntityId = activeBranch && legalEntitySelection
+    && legalEntitySelection.branchId === activeBranch.id
     ? legalEntitySelection.legalEntityId
     : ""
   const subtotal = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
