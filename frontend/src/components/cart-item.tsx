@@ -22,10 +22,10 @@ export function CartItem({ item, onUpdateQuantity, onRemoveItem }: CartItemProps
         <div className="flex items-center justify-between gap-2">
           <span className="font-bold text-green-600">${item.product.price.toFixed(2)}</span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" className="h-6 w-6 rounded-full bg-transparent" onClick={() => onUpdateQuantity(item.lineId, item.quantity - 1)} aria-label={"Reducir " + item.product.name}><Minus className="h-3 w-3" /></Button>
+            <Button variant="outline" size="icon" className="h-6 w-6 rounded-full bg-transparent" onClick={() => onUpdateQuantity(item.lineId, item.quantity - 1)} aria-label={`Reducir ${item.product.name}`}><Minus className="h-3 w-3" /></Button>
             <span className="text-sm font-medium">{item.quantity}</span>
-            <Button variant="outline" size="icon" className="h-6 w-6 rounded-full bg-transparent" onClick={() => onUpdateQuantity(item.lineId, item.quantity + 1)} aria-label={"Aumentar " + item.product.name}><Plus className="h-3 w-3" /></Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full text-red-500" onClick={() => onRemoveItem(item.lineId)} aria-label={"Quitar " + item.product.name}><Trash2 className="h-3 w-3" /></Button>
+            <Button variant="outline" size="icon" className="h-6 w-6 rounded-full bg-transparent" onClick={() => onUpdateQuantity(item.lineId, item.quantity + 1)} aria-label={`Aumentar ${item.product.name}`}><Plus className="h-3 w-3" /></Button>
+            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full text-red-500" onClick={() => onRemoveItem(item.lineId)} aria-label={`Quitar ${item.product.name}`}><Trash2 className="h-3 w-3" /></Button>
           </div>
         </div>
       </div>

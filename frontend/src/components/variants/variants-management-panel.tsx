@@ -133,10 +133,10 @@ export function VariantsManagementPanel({
     return run(() => application.updateGroup(group.id, input), "Grupo actualizado.")
   }
   const saveGroupFromInputs = (group: ProductOptionGroup, isActive: boolean) => {
-    const name = document.getElementById("option-group-name-" + group.id) as HTMLInputElement | null
-    const kind = document.getElementById("option-group-kind-" + group.id) as HTMLSelectElement | null
-    const minimum = document.getElementById("option-group-min-" + group.id) as HTMLInputElement | null
-    const maximum = document.getElementById("option-group-max-" + group.id) as HTMLInputElement | null
+    const name = document.getElementById(`option-group-name-${group.id}`) as HTMLInputElement | null
+    const kind = document.getElementById(`option-group-kind-${group.id}`) as HTMLSelectElement | null
+    const minimum = document.getElementById(`option-group-min-${group.id}`) as HTMLInputElement | null
+    const maximum = document.getElementById(`option-group-max-${group.id}`) as HTMLInputElement | null
     if (!name || !kind || !minimum || !maximum) return
     const input: ProductOptionGroupInput = {
       kind: kind.value as ProductOptionGroupInput["kind"],
@@ -256,16 +256,16 @@ export function VariantsManagementPanel({
               <article key={group.id} className="space-y-3 rounded-lg border bg-card p-4">
                 <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_160px_110px_110px_auto] md:items-end">
                   <label htmlFor={"option-group-name-" + group.id} className="grid gap-1 text-xs text-muted-foreground">Nombre del grupo</label>
-                  <Input defaultValue={group.name} maxLength={100} id={"option-group-name-" + group.id} />
+                  <Input defaultValue={group.name} maxLength={100} id={`option-group-name-${group.id}`} />
                   <label className="grid gap-1 text-xs text-muted-foreground">Tipo
-                    <select className="h-10 rounded-md border bg-background px-2 text-sm" defaultValue={group.kind} id={"option-group-kind-" + group.id}>
+                    <select className="h-10 rounded-md border bg-background px-2 text-sm" defaultValue={group.kind} id={`option-group-kind-${group.id}`}>
                       <option value="presentation">Presentación</option><option value="modifier">Modificadores</option>
                     </select>
                   </label>
                   <label htmlFor={"option-group-min-" + group.id} className="grid gap-1 text-xs text-muted-foreground">Mínimo</label>
-                  <Input type="number" min="0" max="10" defaultValue={group.min_selections} id={"option-group-min-" + group.id} />
+                  <Input type="number" min="0" max="10" defaultValue={group.min_selections} id={`option-group-min-${group.id}`} />
                   <label htmlFor={"option-group-max-" + group.id} className="grid gap-1 text-xs text-muted-foreground">Máximo</label>
-                  <Input type="number" min="1" max="10" defaultValue={group.max_selections} id={"option-group-max-" + group.id} />
+                  <Input type="number" min="1" max="10" defaultValue={group.max_selections} id={`option-group-max-${group.id}`} />
                   <div className="flex flex-wrap gap-1">
                     <Button disabled={busy} variant="outline" onClick={() => saveGroupFromInputs(group, group.is_active)}>Guardar cambios</Button>
                     <Button disabled={busy} variant={group.is_active ? "ghost" : "default"} onClick={() => saveGroupFromInputs(group, !group.is_active)}>
@@ -321,9 +321,8 @@ export function VariantsManagementPanel({
                 <p className="font-medium">{row.state === "inherited" ? "Heredado" : row.state === "enabled" ? "Habilitado localmente" : "Restringido localmente"}</p>
                 <p className="text-xs text-muted-foreground">{row.effective_enabled ? "Disponible" : "No disponible"}</p>
               </div>
-              <label className="grid gap-1 text-xs text-muted-foreground">Motivo de la excepción
-                <Input value={reasons[row.option_id] ?? ""} maxLength={500} onChange={(event) => setReasons((current) => ({ ...current, [row.option_id]: event.target.value }))} placeholder="Motivo obligatorio" />
-              </label>
+              <label htmlFor={`branch-option-reason-${row.option_id}`} className="grid gap-1 text-xs text-muted-foreground">Motivo de la excepción</label>
+              <Input id={`branch-option-reason-${row.option_id}`} value={reasons[row.option_id] ?? ""} maxLength={500} onChange={(event) => setReasons((current) => ({ ...current, [row.option_id]: event.target.value }))} placeholder="Motivo obligatorio" />
               <div className="flex flex-wrap gap-1">
                 <Button size="sm" variant="outline" disabled={busy || !row.product_enabled || !row.group_is_active || !row.option_is_active || row.state === "enabled"} onClick={() => void changeBranchOption(row, true)}>Habilitar</Button>
                 <Button size="sm" variant="outline" disabled={busy || !row.product_enabled || !row.group_is_active || !row.option_is_active || row.state === "disabled"} onClick={() => void changeBranchOption(row, false)}>Restringir</Button>
@@ -358,7 +357,7 @@ function OptionEditor({
   useEffect(() => { setDraft(name); setEnabled(active) }, [active, name])
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md bg-muted/30 p-2">
-      <Input className="max-w-sm" value={draft} maxLength={100} onChange={(event) => setDraft(event.target.value)} aria-label={"Nombre de opción " + name} />
+      <Input className="max-w-sm" value={draft} maxLength={100} onChange={(event) => setDraft(event.target.value)} aria-label={`Nombre de opción ${name}`} />
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
         Activa

@@ -393,7 +393,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
 
   const addConfiguredProduct = useCallback((product: Product, selectedOptions: ProductOptionSelection[]) => {
     const optionIds = selectedOptions.map((option) => option.id).sort()
-    const lineId = product.id + ":" + (optionIds.join(".") || "default")
+    const lineId = `${product.id}:${optionIds.join(".") || "default"}`
     setCartItems((current) => {
       const existing = current.find((item) => item.lineId === lineId)
       return existing
