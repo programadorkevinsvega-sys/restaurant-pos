@@ -36,3 +36,41 @@ export interface OrganizationProfileResult {
     can_update: boolean
   }
 }
+
+export type OrganizationHistoryResourceType =
+  | "organization"
+  | "legal_entity"
+  | "branch"
+  | "branch_legal_entity"
+
+export interface OrganizationHistoryCursor {
+  before_at: string
+  before_id: string
+}
+
+export interface OrganizationHistoryFilters {
+  limit: number
+  resource_type?: OrganizationHistoryResourceType
+  branch_id?: string
+  before_at?: string
+  before_id?: string
+}
+
+export interface OrganizationHistoryEvent {
+  id: string
+  resource_type: OrganizationHistoryResourceType
+  resource_id: string
+  branch_id: string | null
+  action: string
+  before_state: Record<string, unknown> | null
+  after_state: Record<string, unknown> | null
+  metadata: Record<string, unknown>
+  actor_user_id: string
+  actor_email: string
+  occurred_at: string
+}
+
+export interface OrganizationHistoryPage {
+  events: OrganizationHistoryEvent[]
+  next_cursor: OrganizationHistoryCursor | null
+}
