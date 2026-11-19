@@ -81,4 +81,20 @@ export class PostgresOrganizationRepository {
     `, values)
     return mapProfile(result.rows[0])
   }
+  async listHistory(filters, actorUserId) {
+    const result = await queryPostgres(this.pool, `
+      SELECT * FROM public.list_organization_history(
+        $1::uuid, $2::integer, $3::timestamptz, $4::uuid, $5, $6::uuid
+      )
+    `, [
+      actorUserId,
+      filters.limit,
+      filters.before_at ?? null,
+      filters.before_id ?? null,
+      filters.resource_type ?? null,
+      filters.branch_id ?? null,
+    ])
+    return result.rows
+  }
+
 }
