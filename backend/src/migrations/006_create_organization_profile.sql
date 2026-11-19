@@ -18,11 +18,17 @@ CREATE TABLE public.organizations (
   CONSTRAINT organizations_installation_slot_unique
     UNIQUE (installation_slot),
   CONSTRAINT organizations_name_length
-    CHECK (char_length(btrim(name)) BETWEEN 2 AND 160),
+    CHECK (
+      char_length(btrim(name)) BETWEEN 2 AND 160
+      AND name = btrim(name)
+    ),
   CONSTRAINT organizations_commercial_name_length
     CHECK (
       commercial_name IS NULL
-      OR char_length(btrim(commercial_name)) BETWEEN 1 AND 160
+      OR (
+        char_length(btrim(commercial_name)) BETWEEN 1 AND 160
+        AND commercial_name = btrim(commercial_name)
+      )
     ),
   CONSTRAINT organizations_contact_email_format
     CHECK (
@@ -35,10 +41,20 @@ CREATE TABLE public.organizations (
   CONSTRAINT organizations_contact_phone_length
     CHECK (
       contact_phone IS NULL
-      OR char_length(btrim(contact_phone)) BETWEEN 7 AND 32
+      OR (
+        char_length(btrim(contact_phone)) BETWEEN 7 AND 32
+        AND contact_phone = btrim(contact_phone)
+      )
     ),
   CONSTRAINT organizations_website_url_length
-    CHECK (website_url IS NULL OR char_length(btrim(website_url)) <= 2048),
+    CHECK (
+      website_url IS NULL
+      OR (
+        char_length(btrim(website_url)) <= 2048
+        AND website_url = btrim(website_url)
+        AND website_url ~ '^https?://'
+      )
+    ),
   CONSTRAINT organizations_headquarters_address_object
     CHECK (
       headquarters_address IS NULL
