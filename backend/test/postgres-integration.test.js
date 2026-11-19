@@ -99,11 +99,21 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       (error) => error.code === "42501",
     )
 
-    const bootstrapped = await runtime.query(
-      "SELECT * FROM public.bootstrap_organization_profile($1, $2, $3, $4, $5, $6::jsonb, $7)",
-      [...bootstrapArguments, organizationAdminId],
+    const concurrentBootstrap = await Promise.all([
+      runtime.query(
+        "SELECT * FROM public.bootstrap_organization_profile($1, $2, $3, $4, $5, $6::jsonb, $7)",
+        [...bootstrapArguments, organizationAdminId],
+      ),
+      runtime.query(
+        "SELECT * FROM public.bootstrap_organization_profile($1, $2, $3, $4, $5, $6::jsonb, $7)",
+        [...bootstrapArguments, organizationAdminId],
+      ),
+    ])
+    assert.deepEqual(
+      concurrentBootstrap.map((result) => result.rowCount).sort(),
+      [0, 1],
     )
-    assert.equal(bootstrapped.rowCount, 1)
+    const bootstrapped = concurrentBootstrap.find((result) => result.rowCount === 1)
     organizationId = bootstrapped.rows[0].id
     assert.equal(bootstrapped.rows[0].owner_user_id, organizationAdminId)
     assert.equal(bootstrapped.rows[0].name, "Chili POS Group")
@@ -129,6 +139,15 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       [organizationStaffId, "Unauthorized Change"],
     )
     assert.equal(nonOwnerUpdate.rowCount, 0)
+
+    await assert.rejects(
+      runtime.query(
+        "INSERT INTO public.organizations (name, owner_user_id, updated_by_user_id) " +
+        "VALUES ('Direct insert bypass', $1, $1)",
+        [organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
 
     await assert.rejects(
       runtime.query(
