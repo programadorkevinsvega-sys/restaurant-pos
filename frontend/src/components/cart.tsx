@@ -122,7 +122,7 @@ export function Cart({
             </option>
             {legalEntities.map((entity) => (
               <option key={entity.id} value={entity.id}>
-                {entity.commercial_name || entity.legal_name}
+                {entity.commercial_name ? `${entity.legal_name} · ${entity.commercial_name}` : entity.legal_name}
               </option>
             ))}
           </select>
