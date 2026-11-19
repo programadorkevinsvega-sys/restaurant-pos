@@ -40,6 +40,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     const privileges = await runtime.query(
       "SELECT has_table_privilege(current_user, 'public.products', 'SELECT') AS can_read_products, " +
       "has_table_privilege(current_user, 'public.products', 'INSERT') AS can_insert_products, " +
+      "has_table_privilege(current_user, 'public.orders', 'INSERT') AS can_insert_orders, " +
       "has_function_privilege(current_user, " +
       "'public.create_pos_order(text, text, text, jsonb, text, text)'::regprocedure, 'EXECUTE') AS can_create_orders_legacy, " +
       "has_function_privilege(current_user, " +
@@ -51,6 +52,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     assert.equal(privileges.rows[0].can_read_products, true)
     assert.equal(privileges.rows[0].can_insert_products, true)
+    assert.equal(privileges.rows[0].can_insert_orders, false)
     assert.equal(privileges.rows[0].can_create_orders_legacy, false)
     assert.equal(privileges.rows[0].can_create_orders, true)
     assert.equal(privileges.rows[0].can_assign_delivery, true)
@@ -589,6 +591,14 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         ["Wrong legal entity for branch", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null, secondBranchId, legalEntityIds[1], organizationStaffId],
       ),
       (error) => error.code === "23503",
+    )
+
+    await assert.rejects(
+      migrator.query(
+        "INSERT INTO public.orders (table_number, order_type, total_amount, status) VALUES ($1, $2, $3, $4)",
+        ["Unattributed direct insert", "Para llevar", 1, "pending"],
+      ),
+      (error) => error.code === "23514",
     )
 
     const order = await runtime.query(
