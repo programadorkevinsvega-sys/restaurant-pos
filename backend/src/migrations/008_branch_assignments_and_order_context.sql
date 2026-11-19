@@ -18,9 +18,6 @@ REVOKE ALL ON TABLE public.branch_user_assignments FROM PUBLIC;
 REVOKE ALL ON TABLE public.branch_user_assignments FROM restaurant_pos_app;
 GRANT SELECT ON TABLE public.branch_user_assignments TO restaurant_pos_app;
 
-REVOKE ALL ON FUNCTION public.assign_user_to_branch(uuid, uuid, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.remove_user_from_branch(uuid, uuid, uuid) FROM PUBLIC;
-
 CREATE FUNCTION public.assign_user_to_branch(
   p_branch_id uuid,
   p_user_id uuid,
@@ -295,6 +292,8 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.assign_user_to_branch(uuid, uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.remove_user_from_branch(uuid, uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.create_pos_order(text, text, text, jsonb, text, text, uuid, uuid, uuid)
   FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.assign_user_to_branch(uuid, uuid, uuid)
