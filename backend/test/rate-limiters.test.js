@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { ipKeyGenerator } from "express-rate-limit"
-import { createRateLimitKeyGenerator } from "../src/shared/presentation/http/rate-limiters.js"
+import { createRateLimitKeyGenerator, globalRateLimitFor } from "../src/shared/presentation/http/rate-limiters.js"
 
 function request({ remoteAddress, requestIp, cloudflareIp }) {
   return {
@@ -51,4 +51,10 @@ test("rate limits normalize IPv4-mapped trusted proxy addresses", () => {
     })),
     ipKeyGenerator("2001:db8:abcd:1200::1"),
   )
+})
+
+test("the elevated global request budget is restricted to test mode", () => {
+  assert.equal(globalRateLimitFor("test"), 5000)
+  assert.equal(globalRateLimitFor("development"), 300)
+  assert.equal(globalRateLimitFor("production"), 300)
 })
