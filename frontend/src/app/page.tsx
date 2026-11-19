@@ -580,7 +580,8 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
       return (
         <main className="min-w-0 flex-1 space-y-4 overflow-auto p-4">
           <CategoryFilter
-                activeCategory={activeCategory}
+            categories={categories}
+            activeCategory={activeCategory}
             onSelectCategory={(categoryId) => {
               setIsLoading(true)
               setActiveCategory(categoryId)
@@ -648,7 +649,6 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         salesReport={salesReport}
         bestSellingProducts={bestSellingProducts}
         settings={settings}
-        categories={categories}
         onCreateReservation={handleCreateReservation}
         onUpdateReservationStatus={handleUpdateReservationStatus}
         onListReservations={handleListReservations}
