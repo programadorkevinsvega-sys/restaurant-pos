@@ -1327,7 +1327,9 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     assert.ok(organizationHistory.rowCount > 10)
     assert.ok(organizationHistory.rows.every((event) => event.actor_user_id === organizationAdminId))
-    assert.ok(organizationHistory.rows.every((event) => event.actor_email === "org-admin-" + organizationAdminId + "@example.invalid") === false)
+    assert.ok(organizationHistory.rows.every(
+      (event) => event.actor_email.startsWith("org-admin-") && event.actor_email.endsWith("@example.invalid"),
+    ))
     const historyKinds = organizationHistory.rows.map((event) => `${event.resource_type}:${event.action}`)
     for (const expected of [
       "organization:created",
