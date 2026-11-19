@@ -5,6 +5,7 @@ import { PostgresOrderRepository } from "../src/modules/orders/infrastructure/po
 import { PostgresOperationsRepository } from "../src/modules/operations/infrastructure/postgres-operations-repository.js"
 import { PostgresAccountingRepository } from "../src/modules/accounting/infrastructure/postgres-accounting-repository.js"
 import { PostgresAuthRepository } from "../src/modules/auth/infrastructure/postgres-auth-repository.js"
+import { PostgresBranchRepository } from "../src/modules/branches/infrastructure/postgres-branch-repository.js"
 
 test("catalog filters use bound parameters and normalize numeric prices", async () => {
   let queryCall
@@ -20,6 +21,22 @@ test("catalog filters use bound parameters and normalize numeric prices", async 
   assert.equal(queryCall[1][0], "category-id")
   assert.match(queryCall[0], /p\.category_id = \$1::uuid/)
   assert.equal(products[0].price, 12.5)
+})
+
+test("available branches exclude inactive users and non-installation organizations", async () => {
+  let queryCall
+  const repository = new PostgresBranchRepository({
+    query: async (...args) => {
+      queryCall = args
+      return { rows: [] }
+    },
+  })
+
+  await repository.listAvailableBranches("staff-id")
+
+  assert.match(queryCall[0], /assigned_user\.is_active = true/)
+  assert.match(queryCall[0], /organization\.installation_slot = 1/)
+  assert.deepEqual(queryCall[1], ["staff-id"])
 })
 
 test("order creation sends only trusted identifiers and quantities to PostgreSQL", async () => {
