@@ -235,14 +235,17 @@ export function VariantsManagementPanel({
                 <option value="modifier">Modificadores (mínimo y máximo)</option>
               </select>
             </label>
-            <label htmlFor="new-option-group-name" className="grid gap-1 text-sm">Nombre del grupo</label>
-            <Input id="new-option-group-name" value={newGroup.name} maxLength={100} onChange={(event) => setNewGroup((current) => ({ ...current, name: event.target.value }))} placeholder="Ej. Tamaño o Extras" />
+            <div className="grid gap-1 text-sm"><span>Nombre del grupo</span>
+              <Input id="new-option-group-name" aria-label="Nombre del grupo" value={newGroup.name} maxLength={100} onChange={(event) => setNewGroup((current) => ({ ...current, name: event.target.value }))} placeholder="Ej. Tamaño o Extras" />
+            </div>
             {newGroup.kind === "modifier" && (
               <>
-                <label htmlFor="new-option-group-min" className="grid gap-1 text-sm">Mínimo de selecciones</label>
-                <Input id="new-option-group-min" type="number" min="0" max="10" value={newGroup.min_selections} onChange={(event) => setNewGroup((current) => ({ ...current, min_selections: Number(event.target.value) }))} />
-                <label htmlFor="new-option-group-max" className="grid gap-1 text-sm">Máximo de selecciones</label>
-                <Input id="new-option-group-max" type="number" min="1" max="10" value={newGroup.max_selections} onChange={(event) => setNewGroup((current) => ({ ...current, max_selections: Number(event.target.value) }))} />
+                <div className="grid gap-1 text-sm"><span>Mínimo de selecciones</span>
+                  <Input id="new-option-group-min" aria-label="Mínimo de selecciones" type="number" min="0" max="10" value={newGroup.min_selections} onChange={(event) => setNewGroup((current) => ({ ...current, min_selections: Number(event.target.value) }))} />
+                </div>
+                <div className="grid gap-1 text-sm"><span>Máximo de selecciones</span>
+                  <Input id="new-option-group-max" aria-label="Máximo de selecciones" type="number" min="1" max="10" value={newGroup.max_selections} onChange={(event) => setNewGroup((current) => ({ ...current, max_selections: Number(event.target.value) }))} />
+                </div>
               </>
             )}
             <Button type="submit" className="md:col-span-2" disabled={busy || !productId || !newGroup.name.trim() || newGroup.min_selections > newGroup.max_selections}>
@@ -262,10 +265,12 @@ export function VariantsManagementPanel({
                       <option value="presentation">Presentación</option><option value="modifier">Modificadores</option>
                     </select>
                   </label>
-                  <label htmlFor={"option-group-min-" + group.id} className="grid gap-1 text-xs text-muted-foreground">Mínimo</label>
-                  <Input type="number" min="0" max="10" defaultValue={group.min_selections} id={`option-group-min-${group.id}`} />
-                  <label htmlFor={"option-group-max-" + group.id} className="grid gap-1 text-xs text-muted-foreground">Máximo</label>
-                  <Input type="number" min="1" max="10" defaultValue={group.max_selections} id={`option-group-max-${group.id}`} />
+                  <div className="grid gap-1 text-xs text-muted-foreground"><span>Mínimo</span>
+                    <Input type="number" min="0" max="10" defaultValue={group.min_selections} id={`option-group-min-${group.id}`} aria-label={`Mínimo de ${group.name}`} />
+                  </div>
+                  <div className="grid gap-1 text-xs text-muted-foreground"><span>Máximo</span>
+                    <Input type="number" min="1" max="10" defaultValue={group.max_selections} id={`option-group-max-${group.id}`} aria-label={`Máximo de ${group.name}`} />
+                  </div>
                   <div className="flex flex-wrap gap-1">
                     <Button disabled={busy} variant="outline" onClick={() => saveGroupFromInputs(group, group.is_active)}>Guardar cambios</Button>
                     <Button disabled={busy} variant={group.is_active ? "ghost" : "default"} onClick={() => saveGroupFromInputs(group, !group.is_active)}>
@@ -321,8 +326,9 @@ export function VariantsManagementPanel({
                 <p className="font-medium">{row.state === "inherited" ? "Heredado" : row.state === "enabled" ? "Habilitado localmente" : "Restringido localmente"}</p>
                 <p className="text-xs text-muted-foreground">{row.effective_enabled ? "Disponible" : "No disponible"}</p>
               </div>
-              <label htmlFor={`branch-option-reason-${row.option_id}`} className="grid gap-1 text-xs text-muted-foreground">Motivo de la excepción</label>
-              <Input id={`branch-option-reason-${row.option_id}`} value={reasons[row.option_id] ?? ""} maxLength={500} onChange={(event) => setReasons((current) => ({ ...current, [row.option_id]: event.target.value }))} placeholder="Motivo obligatorio" />
+              <div className="grid gap-1 text-xs text-muted-foreground"><span>Motivo de la excepción</span>
+                <Input id={`branch-option-reason-${row.option_id}`} aria-label={`Motivo de excepción para ${row.option_name}`} value={reasons[row.option_id] ?? ""} maxLength={500} onChange={(event) => setReasons((current) => ({ ...current, [row.option_id]: event.target.value }))} placeholder="Motivo obligatorio" />
+              </div>
               <div className="flex flex-wrap gap-1">
                 <Button size="sm" variant="outline" disabled={busy || !row.product_enabled || !row.group_is_active || !row.option_is_active || row.state === "enabled"} onClick={() => void changeBranchOption(row, true)}>Habilitar</Button>
                 <Button size="sm" variant="outline" disabled={busy || !row.product_enabled || !row.group_is_active || !row.option_is_active || row.state === "disabled"} onClick={() => void changeBranchOption(row, false)}>Restringir</Button>
