@@ -384,6 +384,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   const handleUpdateLegalEntity = async (id: string, input: LegalEntityInput) => {
     await posApplication.legalEntities.update(id, input)
     await refreshCorporateStructure()
+    await refreshAvailableBranches()
     toast({ title: "Entidad legal actualizada" })
   }
 
@@ -397,18 +398,21 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   const handleUpdateBranch = async (id: string, input: BranchUpdate) => {
     await posApplication.branches.update(id, input)
     await refreshCorporateStructure()
+    await refreshAvailableBranches()
     toast({ title: "Sucursal actualizada" })
   }
 
   const handleAssignBranchLegalEntity = async (branchId: string, legalEntityId: string) => {
     await posApplication.branches.assignLegalEntity(branchId, legalEntityId)
     await refreshCorporateStructure()
+    await refreshAvailableBranches()
     toast({ title: "Entidad legal asociada a la sucursal" })
   }
 
   const handleRemoveBranchLegalEntity = async (branchId: string, legalEntityId: string) => {
     await posApplication.branches.removeLegalEntity(branchId, legalEntityId)
     await refreshCorporateStructure()
+    await refreshAvailableBranches()
     toast({ title: "Asociación legal retirada" })
   }
 
