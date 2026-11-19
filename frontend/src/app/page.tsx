@@ -46,6 +46,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   const [organization, setOrganization] = useState<OrganizationProfile | null>(null)
   const [canUpdateOrganization, setCanUpdateOrganization] = useState(false)
   const [organizationLoading, setOrganizationLoading] = useState(false)
+  const [organizationLoadError, setOrganizationLoadError] = useState<string | null>(null)
   const [operationError, setOperationError] = useState("")
   const [reloadIndex, setReloadIndex] = useState(0)
 
@@ -116,6 +117,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         }
         if (activeSection === "settings") {
           setOrganizationLoading(true)
+          setOrganizationLoadError(null)
           try {
             setSettings(await posApplication.settings.get(controller.signal))
             try {
@@ -130,6 +132,12 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
                 throw error
               }
             }
+          } catch (error) {
+            if (!(error instanceof HttpError && error.status === 404)) {
+              const message = error instanceof Error ? error.message : "No se pudo cargar el perfil corporativo."
+              setOrganizationLoadError(message)
+            }
+            throw error
           } finally {
             if (!controller.signal.aborted) setOrganizationLoading(false)
           }
@@ -266,6 +274,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     const result = await posApplication.organization.bootstrap(input)
     setOrganization(result.organization)
     setCanUpdateOrganization(result.permissions.can_update)
+    setOrganizationLoadError(null)
     toast({ title: "Organización creada", description: "Los datos corporativos quedaron registrados." })
   }
 
@@ -273,6 +282,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     const result = await posApplication.organization.update(input)
     setOrganization(result.organization)
     setCanUpdateOrganization(result.permissions.can_update)
+    setOrganizationLoadError(null)
     toast({ title: "Datos corporativos guardados" })
   }
 
@@ -329,6 +339,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         organizationLoading={organizationLoading}
         canUpdateOrganization={canUpdateOrganization}
         canBootstrapOrganization={user.role === "admin"}
+        organizationLoadError={organizationLoadError}
         onBootstrapOrganization={handleBootstrapOrganization}
         onUpdateOrganization={handleUpdateOrganization}
       />
