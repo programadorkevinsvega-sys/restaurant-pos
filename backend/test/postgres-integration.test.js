@@ -14,6 +14,9 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
   let productId
   let orderId
   let deliveryOrderId
+  let variantProductId
+  let secondProductId
+  let variantOrderId
   let organizationAdminId
   let organizationStaffId
   let organizationId
@@ -1027,6 +1030,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "014_corporate_catalog_crud_and_order_snapshots.sql",
         "015_recipes_and_ingredients.sql",
         "016_recipe_component_integrity.sql",
+        "017_product_variants_and_branch_options.sql",
       ],
     )
 
@@ -1043,6 +1047,73 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
 
     productId = product.rows[0].id
+
+    const variantProduct = await runtime.query(
+      "INSERT INTO public.products (name, price, type, category_id, discount_percentage) " +
+      "VALUES ($1, $2, $3, $4, 0) RETURNING id",
+      ["CI configurable product", "8.75", "Veg", categoryId],
+    )
+    variantProductId = variantProduct.rows[0].id
+    const presentationGroup = await runtime.query(
+      "INSERT INTO public.product_option_groups " +
+      "(organization_id, product_id, kind, name, min_selections, max_selections, position, is_active, created_by_user_id, updated_by_user_id) " +
+      "VALUES ($1, $2, 'presentation', 'Presentación CI', 1, 1, 0, false, $3, $3) RETURNING id",
+      [organizationId, variantProductId, organizationAdminId],
+    )
+    const presentationGroupId = presentationGroup.rows[0].id
+    const presentationOptions = await runtime.query(
+      "INSERT INTO public.product_options (group_id, name, position, is_active, created_by_user_id, updated_by_user_id) " +
+      "VALUES ($1, 'Mediana CI', 0, true, $2, $2), ($1, 'Grande CI', 1, true, $2, $2) RETURNING id, name",
+      [presentationGroupId, organizationAdminId],
+    )
+    const mediumOptionId = presentationOptions.rows.find((row) => row.name === "Mediana CI").id
+    const largeOptionId = presentationOptions.rows.find((row) => row.name === "Grande CI").id
+    await runtime.query("UPDATE public.product_option_groups SET is_active = true WHERE id = $1", [presentationGroupId])
+
+    const modifierGroup = await runtime.query(
+      "INSERT INTO public.product_option_groups " +
+      "(organization_id, product_id, kind, name, min_selections, max_selections, position, is_active, created_by_user_id, updated_by_user_id) " +
+      "VALUES ($1, $2, 'modifier', 'Extras CI', 0, 2, 1, true, $3, $3) RETURNING id",
+      [organizationId, variantProductId, organizationAdminId],
+    )
+    const modifierGroupId = modifierGroup.rows[0].id
+    const modifierOptions = await runtime.query(
+      "INSERT INTO public.product_options (group_id, name, position, is_active, created_by_user_id, updated_by_user_id) " +
+      "VALUES ($1, 'Queso CI', 0, true, $2, $2), ($1, 'Tocino CI', 1, true, $2, $2) RETURNING id, name",
+      [modifierGroupId, organizationAdminId],
+    )
+    const cheeseOptionId = modifierOptions.rows.find((row) => row.name === "Queso CI").id
+    const baconOptionId = modifierOptions.rows.find((row) => row.name === "Tocino CI").id
+
+    const secondProduct = await runtime.query(
+      "INSERT INTO public.products (name, price, type, category_id, discount_percentage) " +
+      "VALUES ($1, $2, $3, $4, 0) RETURNING id",
+      ["CI another product", "4.00", "Veg", categoryId],
+    )
+    secondProductId = secondProduct.rows[0].id
+    const foreignGroup = await runtime.query(
+      "INSERT INTO public.product_option_groups " +
+      "(organization_id, product_id, kind, name, min_selections, max_selections, position, is_active, created_by_user_id, updated_by_user_id) " +
+      "VALUES ($1, $2, 'modifier', 'Otro grupo CI', 0, 1, 0, true, $3, $3) RETURNING id",
+      [organizationId, secondProductId, organizationAdminId],
+    )
+    const foreignOption = await runtime.query(
+      "INSERT INTO public.product_options (group_id, name, position, is_active, created_by_user_id, updated_by_user_id) " +
+      "VALUES ($1, 'Opción externa CI', 0, true, $2, $2) RETURNING id",
+      [foreignGroup.rows[0].id, organizationAdminId],
+    )
+    const foreignOptionId = foreignOption.rows[0].id
+
+    const globalOptionEvent = await runtime.query(
+      "INSERT INTO public.product_option_change_events " +
+      "(organization_id, product_id, resource_type, resource_id, event_type, snapshot, actor_user_id) " +
+      "VALUES ($1, $2, 'group', $3, 'created', $4::jsonb, $5) RETURNING id",
+      [organizationId, variantProductId, presentationGroupId, JSON.stringify({ name: "Presentación CI" }), organizationAdminId],
+    )
+    await assert.rejects(
+      migrator.query("UPDATE public.product_option_change_events SET snapshot = '{}'::jsonb WHERE id = $1", [globalOptionEvent.rows[0].id]),
+      (error) => error.code === "55000",
+    )
 
     const recipeIngredient = await runtime.query(
       "INSERT INTO public.ingredients (organization_id, name, unit_code, created_by_user_id, updated_by_user_id) " +
@@ -1296,6 +1367,167 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       [deliveryOrderId, "CI Driver", "+573000000001", 25, branchId, organizationStaffId],
     )
     assert.equal(deliveryAssignment.rows[0].delivery.driver_name, "CI Driver")
+
+    // Branch exceptions require the organization owner and are isolated to one branch.
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.set_branch_product_option_availability($1, $2, false, $3, $4) AS outcome",
+        [branchId, baconOptionId, "No disponible en esta sucursal", organizationStaffId],
+      ),
+      (error) => error.code === "42501",
+    )
+    const restrictedBacon = await runtime.query(
+      "SELECT public.set_branch_product_option_availability($1, $2, false, $3, $4) AS outcome",
+      [branchId, baconOptionId, "No disponible temporalmente", organizationAdminId],
+    )
+    assert.equal(restrictedBacon.rows[0].outcome, "CHANGED")
+    const otherBranchOption = await runtime.query(
+      "SELECT coalesce(override.is_enabled, true) AS enabled FROM public.branches AS branch " +
+      "LEFT JOIN public.branch_product_option_overrides AS override " +
+      "ON override.organization_id = branch.organization_id AND override.branch_id = branch.id AND override.option_id = $2 " +
+      "WHERE branch.id = $1",
+      [secondBranchId, baconOptionId],
+    )
+    assert.equal(otherBranchOption.rows[0].enabled, true)
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Restricted option", "Integration test", "Para llevar",
+          JSON.stringify([{ id: variantProductId, quantity: 1, option_ids: [mediumOptionId, baconOptionId] }]),
+          null, null, branchId, legalEntityIds[0], organizationStaffId],
+      ),
+      (error) => error.code === "23514" && error.message.includes("PRODUCT_OPTION_INVALID_INACTIVE_OR_NOT_AVAILABLE_FOR_BRANCH"),
+    )
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Missing presentation", "Integration test", "Para llevar",
+          JSON.stringify([{ id: variantProductId, quantity: 1, option_ids: [] }]),
+          null, null, branchId, legalEntityIds[0], organizationStaffId],
+      ),
+      (error) => error.code === "23514" && error.message.includes("PRODUCT_OPTION_GROUP_CARDINALITY_INVALID"),
+    )
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Wrong product option", "Integration test", "Para llevar",
+          JSON.stringify([{ id: variantProductId, quantity: 1, option_ids: [mediumOptionId, foreignOptionId] }]),
+          null, null, branchId, legalEntityIds[0], organizationStaffId],
+      ),
+      (error) => error.code === "23514" && error.message.includes("PRODUCT_OPTION_INVALID_INACTIVE_OR_NOT_AVAILABLE_FOR_BRANCH"),
+    )
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Duplicate option", "Integration test", "Para llevar",
+          JSON.stringify([{ id: variantProductId, quantity: 1, option_ids: [mediumOptionId, mediumOptionId] }]),
+          null, null, branchId, legalEntityIds[0], organizationStaffId],
+      ),
+      (error) => error.code === "23514" && error.message.includes("Duplicate product option selection"),
+    )
+
+    const variantOrder = await runtime.query(
+      "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid) AS order_id",
+      ["CI variant table", "Variant integration", "Para llevar",
+        JSON.stringify([{ id: variantProductId, quantity: 1, option_ids: [mediumOptionId, cheeseOptionId] }]),
+        null, null, branchId, legalEntityIds[0], organizationStaffId],
+    )
+    variantOrderId = variantOrder.rows[0].order_id
+    const variantSnapshot = await runtime.query(
+      "SELECT product_name_at_order, price_at_order::text AS price_at_order, selected_option_ids, variant_selection_snapshot " +
+      "FROM public.order_items WHERE order_id = $1",
+      [variantOrderId],
+    )
+    assert.equal(variantSnapshot.rows[0].product_name_at_order, "CI configurable product")
+    assert.equal(variantSnapshot.rows[0].price_at_order, "8.75")
+    assert.deepEqual(variantSnapshot.rows[0].selected_option_ids.sort(), [mediumOptionId, cheeseOptionId].sort())
+    assert.equal(variantSnapshot.rows[0].variant_selection_snapshot[0].name, "Mediana CI")
+    assert.equal(variantSnapshot.rows[0].variant_selection_snapshot[1].name, "Queso CI")
+    await migrator.query("UPDATE public.product_options SET name = 'Queso renombrado CI' WHERE id = $1", [cheeseOptionId])
+    await migrator.query("UPDATE public.product_option_groups SET name = 'Extras renombrados CI' WHERE id = $1", [modifierGroupId])
+    const preservedVariantSnapshot = await runtime.query(
+      "SELECT variant_selection_snapshot FROM public.order_items WHERE order_id = $1",
+      [variantOrderId],
+    )
+    assert.equal(preservedVariantSnapshot.rows[0].variant_selection_snapshot[1].name, "Queso CI")
+    assert.equal(preservedVariantSnapshot.rows[0].variant_selection_snapshot[1].group_name, "Extras CI")
+    await assert.rejects(
+      migrator.query("UPDATE public.order_items SET variant_selection_snapshot = '[]'::jsonb WHERE order_id = $1", [variantOrderId]),
+      (error) => error.code === "23514",
+    )
+
+    const restrictMedium = await runtime.query(
+      "SELECT public.set_branch_product_option_availability($1, $2, false, $3, $4) AS outcome",
+      [branchId, mediumOptionId, "Probar mínimo por sucursal", organizationAdminId],
+    )
+    assert.equal(restrictMedium.rows[0].outcome, "CHANGED")
+    await assert.rejects(
+      runtime.query("SELECT public.set_branch_product_option_availability($1, $2, false, $3, $4)",
+        [branchId, largeOptionId, "No debe quedar sin presentación", organizationAdminId]),
+      (error) => error.code === "23514" && error.message.includes("BRANCH_OPTION_WOULD_VIOLATE_GROUP_MINIMUM"),
+    )
+    const restoreMedium = await runtime.query(
+      "SELECT public.clear_branch_product_option_override($1, $2, $3, $4) AS outcome",
+      [branchId, mediumOptionId, "Restaurar herencia de presentación", organizationAdminId],
+    )
+    assert.equal(restoreMedium.rows[0].outcome, "CHANGED")
+    const clearBacon = await runtime.query(
+      "SELECT public.clear_branch_product_option_override($1, $2, $3, $4) AS outcome",
+      [branchId, baconOptionId, "Restaurar herencia de tocino", organizationAdminId],
+    )
+    assert.equal(clearBacon.rows[0].outcome, "CHANGED")
+    const optionHistory = await runtime.query(
+      "SELECT previous_state, new_state, reason, actor_user_id FROM public.branch_product_option_events " +
+      "WHERE branch_id = $1 AND option_id = $2 ORDER BY sequence",
+      [branchId, baconOptionId],
+    )
+    assert.deepEqual(optionHistory.rows.map((row) => [row.previous_state, row.new_state]), [
+      ["inherited", "disabled"], ["disabled", "inherited"],
+    ])
+    assert.equal(optionHistory.rows[0].actor_user_id, organizationAdminId)
+    await assert.rejects(
+      migrator.query("UPDATE public.branch_product_option_events SET reason = reason WHERE branch_id = $1", [branchId]),
+      (error) => error.code === "55000",
+    )
+    await assert.rejects(
+      runtime.query(
+        "INSERT INTO public.branch_product_option_overrides (organization_id, branch_id, option_id, is_enabled, reason, changed_by_user_id) " +
+        "VALUES ($1, $2, $3, false, 'bypass', $4)",
+        [organizationId, branchId, baconOptionId, organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
+    await runtime.query(
+      "SELECT public.set_branch_product_option_availability($1, $2, false, $3, $4)",
+      [branchId, baconOptionId, "Desactivar temporalmente para validar reactivación de surtido", organizationAdminId],
+    )
+    const excludedVariantProduct = await runtime.query(
+      "SELECT public.set_branch_catalog_product_enabled($1, $2, false, $3) AS outcome",
+      [branchId, variantProductId, organizationAdminId],
+    )
+    assert.equal(excludedVariantProduct.rows[0].outcome, "CHANGED")
+    await migrator.query(
+      "UPDATE public.product_option_groups SET min_selections = 2, max_selections = 2, updated_by_user_id = $2 WHERE id = $1",
+      [modifierGroupId, organizationAdminId],
+    )
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.set_branch_catalog_product_enabled($1, $2, true, $3)",
+        [branchId, variantProductId, organizationAdminId],
+      ),
+      (error) => error.code === "23514" && error.message.includes("BRANCH_PRODUCT_OPTION_MINIMUM_REQUIRED"),
+    )
+    const restoreBranchOption = await runtime.query(
+      "SELECT public.clear_branch_product_option_override($1, $2, $3, $4) AS outcome",
+      [branchId, baconOptionId, "Restaurar opción antes de volver a habilitar el producto", organizationAdminId],
+    )
+    assert.equal(restoreBranchOption.rows[0].outcome, "CHANGED")
+    const reenabledVariantProduct = await runtime.query(
+      "SELECT public.set_branch_catalog_product_enabled($1, $2, true, $3) AS outcome",
+      [branchId, variantProductId, organizationAdminId],
+    )
+    assert.equal(reenabledVariantProduct.rows[0].outcome, "CHANGED")
+
 
     await assert.rejects(
       runtime.query(
@@ -1716,6 +1948,8 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     await migrator.query(
       "TRUNCATE TABLE public.branch_catalog_product_events, public.branch_catalog_product_exclusions",
     )
+    // F2.2 variant and branch-exception fixtures are append-only and scoped; clear the ephemeral database.
+    await migrator.query("TRUNCATE TABLE public.branch_product_option_events, public.branch_product_option_overrides, public.product_option_change_events, public.product_options, public.product_option_groups")
     // F2.2 recipe fixtures belong to the organization; clear their full
     // dependency graph in the disposable database before deleting the owner.
     await migrator.query(
@@ -1738,10 +1972,10 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     if (legacyTableId) {
       await migrator.query("DELETE FROM public.tables WHERE id = $1", [legacyTableId])
     }
-    if (orderId || deliveryOrderId) {
+    if (orderId || deliveryOrderId || variantOrderId) {
       await migrator.query(
         "DELETE FROM public.orders WHERE id = ANY($1::uuid[])",
-        [[orderId, deliveryOrderId].filter(Boolean)],
+        [[orderId, deliveryOrderId, variantOrderId].filter(Boolean)],
       )
     }
     if (branchId || secondBranchId) {
@@ -1788,6 +2022,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         [[organizationAdminId, organizationStaffId].filter(Boolean)],
       )
     }
+    if (variantProductId || secondProductId) await runtime.query("DELETE FROM public.products WHERE id = ANY($1::uuid[])", [[variantProductId, secondProductId].filter(Boolean)])
     if (productId) await runtime.query("DELETE FROM public.products WHERE id = $1", [productId])
     if (categoryId) await runtime.query("DELETE FROM public.categories WHERE id = $1", [categoryId])
     await Promise.all([runtime.end(), migrator.end()])

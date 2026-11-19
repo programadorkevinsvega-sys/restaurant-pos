@@ -470,7 +470,7 @@ Los módulos se identifican con códigos estables. Cada fase contiene subfases n
 
 ### N09-F2 — Recursos y políticas compartidas
 - N09-F2.1: catálogo corporativo con habilitación por sucursal.
-- N09-F2.2: recetas y variantes con excepciones controladas.
+- N09-F2.2: recetas y variantes con excepciones controladas. Incremento 1 (ingredientes y fichas técnicas) integrado en `main` y desplegado en la VM el 2026-11-19, confirmado por el usuario. Incremento 2 (variantes/presentaciones/modificadores, selección POS, snapshots inmutables y excepciones auditables por sucursal) en implementación full-stack en una rama independiente; requiere CI verde, revisión, integración, despliegue autorizado y aceptación. F2.2 permanece abierta.
 - N09-F2.3: listas de precios, impuestos y promociones por ámbito.
 - N09-F2.4: proveedores, compras y almacén central.
 - N09-F2.5: publicación/versionado de configuración y propagación segura.

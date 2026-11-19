@@ -27,6 +27,8 @@ import { HttpLegalEntityRepository } from "@/modules/legal-entities/infrastructu
 import { ManageBranches } from "@/modules/branches/application/manage-branches"
 import { HttpBranchRepository } from "@/modules/branches/infrastructure/http-branch-repository"
 import { HttpClient } from "@/shared/infrastructure/http-client"
+import { ManageVariants } from "@/modules/variants/application/manage-variants"
+import { HttpVariantsRepository } from "@/modules/variants/infrastructure/http-variants-repository"
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL
 if (!apiUrl) {
@@ -36,6 +38,7 @@ const http = new HttpClient(apiUrl)
 const catalogRepository = new HttpCatalogRepository(http)
 const orderRepository = new HttpOrderRepository(http)
 const recipesRepository = new HttpRecipesRepository(http)
+const variantsRepository = new HttpVariantsRepository(http)
 export const posApplication = {
   auth: {
     login: (email: string, password: string) => http.login(email, password),
@@ -45,6 +48,7 @@ export const posApplication = {
   listCatalog: new ListCatalog(catalogRepository),
   corporateCatalog: new ManageCorporateCatalog(catalogRepository),
   recipes: new ManageRecipes(recipesRepository),
+  variants: new ManageVariants(variantsRepository),
   createProduct: new CreateProduct(catalogRepository),
   createCategory: new CreateCategory(catalogRepository),
   createOrder: new CreateOrder(orderRepository),
