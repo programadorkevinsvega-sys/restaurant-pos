@@ -42,12 +42,18 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "has_function_privilege(current_user, " +
       "'public.create_pos_order(text, text, text, jsonb, text, text)'::regprocedure, 'EXECUTE') AS can_create_orders_legacy, " +
       "has_function_privilege(current_user, " +
-      "'public.create_pos_order(text, text, text, jsonb, text, text, uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_create_orders",
+      "'public.create_pos_order(text, text, text, jsonb, text, text, uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_create_orders, " +
+      "has_function_privilege(current_user, " +
+      "'public.assign_delivery_driver(uuid, text, text, integer, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_assign_delivery, " +
+      "has_function_privilege(current_user, " +
+      "'public.assign_delivery_driver(uuid, text, text, integer)'::regprocedure, 'EXECUTE') AS can_assign_delivery_legacy",
     )
     assert.equal(privileges.rows[0].can_read_products, true)
     assert.equal(privileges.rows[0].can_insert_products, true)
     assert.equal(privileges.rows[0].can_create_orders_legacy, false)
     assert.equal(privileges.rows[0].can_create_orders, true)
+    assert.equal(privileges.rows[0].can_assign_delivery, true)
+    assert.equal(privileges.rows[0].can_assign_delivery_legacy, false)
 
     const legalStructurePrivileges = await runtime.query(
       "SELECT " +
@@ -71,6 +77,8 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "'public.assign_user_to_branch(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_assign_user, " +
       "has_function_privilege(current_user, " +
       "'public.remove_user_from_branch(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_remove_user, " +
+      "has_function_privilege('public', 'public.assign_user_to_branch(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS public_can_assign_user, " +
+      "has_function_privilege('public', 'public.create_pos_order(text, text, text, jsonb, text, text, uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS public_can_create_order, " +
       "has_function_privilege(current_user, "
       "'public.create_legal_entity(text, text, text, text, text, jsonb, text, text, uuid)'::regprocedure, 'EXECUTE') AS can_create_legal_entity, " +
       "has_function_privilege(current_user, " +
@@ -99,6 +107,8 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       assignment_delete: false,
       can_assign_user: true,
       can_remove_user: true,
+      public_can_assign_user: false,
+      public_can_create_order: false,
       can_create_legal_entity: true,
       can_create_branch: true,
       can_assign_entity: true,
@@ -453,6 +463,14 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
 
     await assert.rejects(
       runtime.query(
+        "INSERT INTO public.branch_user_assignments (organization_id, branch_id, user_id, assigned_by_user_id) VALUES ($1, $2, $3, $4)",
+        [organizationId, branchId, organizationStaffId, organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
         "UPDATE public.legal_entities SET legal_name = 'Direct update bypass' WHERE id = $1",
         [legalEntityIds[0]],
       ),
@@ -604,7 +622,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
 
     await assert.rejects(
       runtime.query(
-        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6)",
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
         [
           "CI invalid order",
           "Integration test",
@@ -612,6 +630,9 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
           JSON.stringify([{ id: productId, quantity: 1 }]),
           null,
           null,
+          branchId,
+          legalEntityIds[0],
+          organizationStaffId,
         ],
       ),
       /Invalid order type/,
