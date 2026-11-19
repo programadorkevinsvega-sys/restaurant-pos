@@ -69,6 +69,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         const initialBranchId = assignedBranches.length === 1 ? assignedBranches[0].id : null
         setActiveBranchId(initialBranchId)
         posApplication.setActiveBranchId(initialBranchId)
+        setReloadIndex((current) => current + 1)
       })
       .catch((error: unknown) => {
         if (error instanceof Error && error.name === "AbortError") return
@@ -238,6 +239,9 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     if (!availableBranches.some((branch) => branch.id === branchId)) return
     setActiveBranchId(branchId)
     posApplication.setActiveBranchId(branchId)
+    setDeliveries([])
+    setOperationError("")
+    setReloadIndex((current) => current + 1)
   }
 
   const visibleProducts = useMemo(() => {
