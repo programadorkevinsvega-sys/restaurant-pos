@@ -157,4 +157,34 @@ export class BranchUseCases {
       return toBranchDto(branch)
     })
   }
+
+  changeStatus(id, status, actor) {
+    return traceOperation("branches.change_status", async () => {
+      await this.requireOrganizationOwner(actor)
+      const result = await this.repository.changeBranchStatus(id, status, actor.userId)
+      if (result === "BRANCH_NOT_FOUND") {
+        throw new AppError(404, "BRANCH_NOT_FOUND", "No se encontró la sucursal indicada.")
+      }
+      if (result === "BRANCH_CLOSED") {
+        throw new AppError(409, "BRANCH_CLOSED_PERMANENTLY", "Una sucursal cerrada no puede reactivarse.")
+      }
+      if (result === "INVALID_STATUS") {
+        throw new AppError(400, "INVALID_BRANCH_STATUS", "El estado solicitado no es válido.")
+      }
+      if (!result?.branch) {
+        throw new AppError(409, "BRANCH_STATUS_CHANGE_CONFLICT", "No se pudo actualizar el estado de la sucursal.")
+      }
+      return toBranchDto(result.branch)
+    })
+  }
+
+  listLifecycleEvents(id, actor) {
+    return traceOperation("branches.list_lifecycle_events", async () => {
+      await this.requireOrganizationOwner(actor)
+      if (!await this.repository.findBranchById(id)) {
+        throw new AppError(404, "BRANCH_NOT_FOUND", "No se encontró la sucursal indicada.")
+      }
+      return { events: await this.repository.listLifecycleEvents(id) }
+    })
+  }
 }
