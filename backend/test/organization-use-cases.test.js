@@ -320,3 +320,33 @@ test("organization history query schema validates filters and complete cursors",
   assert.equal(organizationHistoryQuerySchema.safeParse({ limit: "101" }).success, false)
   assert.equal(organizationHistoryQuerySchema.safeParse({ unknown: "value" }).success, false)
 })
+
+
+test("PostgreSQL organization repository reads history through its protected function", async () => {
+  let queryCall
+  const repository = new PostgresOrganizationRepository({
+    query: async (...args) => {
+      queryCall = args
+      return { rows: [{ id: "event-id", actor_email: "owner@example.invalid" }] }
+    },
+  })
+
+  const rows = await repository.listHistory({
+    limit: 51,
+    before_at: "2027-01-02T00:00:00.000Z",
+    before_id: "22222222-2222-4222-8222-222222222222",
+    resource_type: "branch",
+    branch_id: "11111111-1111-4111-8111-111111111111",
+  }, owner.userId)
+
+  assert.match(queryCall[0], /public\\.list_organization_history/)
+  assert.deepEqual(queryCall[1], [
+    owner.userId,
+    51,
+    "2027-01-02T00:00:00.000Z",
+    "22222222-2222-4222-8222-222222222222",
+    "branch",
+    "11111111-1111-4111-8111-111111111111",
+  ])
+  assert.equal(rows[0].actor_email, "owner@example.invalid")
+})
