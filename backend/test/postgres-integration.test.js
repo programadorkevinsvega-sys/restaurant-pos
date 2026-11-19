@@ -1276,6 +1276,25 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       (error) => error.code === "23514",
     )
 
+    await migrator.query("UPDATE public.products SET is_active = false WHERE id = $1", [productId])
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.set_branch_catalog_product_enabled($1, $2, false, $3)",
+        [branchId, productId, organizationAdminId],
+      ),
+      (error) => error.code === "23514" && error.message.includes("PRODUCT_NOT_ACTIVE"),
+    )
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Inactive product", "Integration test", "Para llevar",
+          JSON.stringify([{ id: productId, quantity: 1 }]), null, null,
+          branchId, legalEntityIds[0], organizationStaffId],
+      ),
+      (error) => error.code === "23514" && error.message.includes("PRODUCT_NOT_ACTIVE"),
+    )
+    await migrator.query("UPDATE public.products SET is_active = true WHERE id = $1", [productId])
+
     await assert.rejects(
       migrator.query(
         "UPDATE public.orders SET legal_entity_id = $2 WHERE id = $1",
@@ -1620,13 +1639,6 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
 
     await migrator.query("UPDATE public.products SET is_active = false WHERE id = $1", [productId])
-    await assert.rejects(
-      migrator.query(
-        "INSERT INTO public.order_items (order_id, product_id, quantity, price_at_order) VALUES ($1, $2, 1, 12.50)",
-        [orderId, productId],
-      ),
-      (error) => error.code === "23514" && error.message.includes("PRODUCT_NOT_ACTIVE"),
-    )
     await migrator.query("UPDATE public.categories SET is_active = false WHERE id = $1", [categoryId])
     const preservedSnapshotAfterDeactivation = await runtime.query(
       "SELECT product_name_at_order FROM public.order_items WHERE order_id = $1",
