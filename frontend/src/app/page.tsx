@@ -80,7 +80,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         })
       })
     return () => controller.abort()
-  }, [user.id])
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
