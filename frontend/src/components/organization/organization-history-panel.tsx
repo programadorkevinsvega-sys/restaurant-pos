@@ -14,6 +14,7 @@ import type {
 interface OrganizationHistoryPanelProps {
   branches: Branch[]
   onListHistory: (filters: OrganizationHistoryFilters) => Promise<OrganizationHistoryPage>
+  canViewHistory: boolean
 }
 
 const resourceLabels: Record<OrganizationHistoryResourceType, string> = {
@@ -46,7 +47,13 @@ function stateSummary(value: Record<string, unknown> | null) {
     .join(" · ")
 }
 
-function HistoryEventCard({ event }: { event: OrganizationHistoryEvent }) {
+function HistoryEventCard({
+  event,
+  branchLabel,
+}: {
+  event: OrganizationHistoryEvent
+  branchLabel?: string
+}) {
   return (
     <Card>
       <CardHeader className="space-y-1 pb-3">
@@ -65,7 +72,7 @@ function HistoryEventCard({ event }: { event: OrganizationHistoryEvent }) {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         {event.branch_id && (
-          <p className="text-muted-foreground">Sucursal: {event.branch_id}</p>
+          <p className="text-muted-foreground">Sucursal: {branchLabel ?? event.branch_id}</p>
         )}
         <details className="rounded-md border p-3">
           <summary className="cursor-pointer font-medium">Ver estado anterior y nuevo</summary>
@@ -93,6 +100,7 @@ function HistoryEventCard({ event }: { event: OrganizationHistoryEvent }) {
 export function OrganizationHistoryPanel({
   branches,
   onListHistory,
+  canViewHistory,
 }: OrganizationHistoryPanelProps) {
   const [resourceType, setResourceType] = useState<OrganizationHistoryResourceType | "all">("all")
   const [branchId, setBranchId] = useState("all")
@@ -103,6 +111,12 @@ export function OrganizationHistoryPanel({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!canViewHistory) {
+      setLoading(false)
+      setEvents([])
+      setNextCursor(null)
+      return
+    }
     let cancelled = false
     setLoading(true)
     setError(null)
@@ -132,7 +146,7 @@ export function OrganizationHistoryPanel({
     return () => {
       cancelled = true
     }
-  }, [branchId, onListHistory, resourceType])
+  }, [branchId, canViewHistory, onListHistory, resourceType])
 
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return
@@ -197,13 +211,28 @@ export function OrganizationHistoryPanel({
         </label>
       </div>
 
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {loading ? (
+      {!canViewHistory ? (
+        <p className="text-sm text-muted-foreground">
+          Solo el propietario corporativo registrado puede consultar el historial organizacional.
+        </p>
+      ) : error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+      {canViewHistory && loading ? (
         <p className="text-sm text-muted-foreground">Cargando historial…</p>
-      ) : events.length > 0 ? (
+      ) : canViewHistory && events.length > 0 ? (
         <>
           <div className="grid gap-3">
-            {events.map((event) => <HistoryEventCard key={event.id} event={event} />)}
+            {events.map((event) => (
+              <HistoryEventCard
+                key={event.id}
+                event={event}
+                branchLabel={branches.find((branch) => branch.id === event.branch_id)
+                  ? (() => {
+                    const branch = branches.find((item) => item.id === event.branch_id)
+                    return branch ? `${branch.code} · ${branch.name}` : undefined
+                  })()
+                  : undefined}
+              />
+            ))}
           </div>
           {nextCursor && (
             <Button type="button" variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
@@ -211,9 +240,9 @@ export function OrganizationHistoryPanel({
             </Button>
           )}
         </>
-      ) : (
+      ) : canViewHistory && !loading ? (
         <p className="text-sm text-muted-foreground">No hay cambios registrados para estos filtros.</p>
-      )}
+      ) : null}
     </section>
   )
 }
