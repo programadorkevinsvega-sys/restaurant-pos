@@ -25,3 +25,29 @@ export interface OrderReceipt {
   orderId: string
   message?: string
 }
+
+
+export type OrderStatus = "pending" | "preparing" | "ready" | "completed" | "cancelled"
+
+export interface OrderListFilters {
+  status?: OrderStatus
+  limit?: number
+}
+
+export interface OrderSummary {
+  id: string
+  table_number: string
+  customer_name: string | null
+  order_type: OrderType
+  total_amount: number
+  status: OrderStatus
+  created_at: string
+  branch_id: string
+  legal_entity_id: string
+  order_items: Array<{
+    id: string
+    quantity: number
+    price_at_order: number
+    products: { id: string; name: string; image_url: string | null }
+  }>
+}
