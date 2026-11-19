@@ -35,10 +35,16 @@ function repositoryStub(overrides = {}) {
     listCategories: async () => [],
     listProducts: async () => [],
     findProduct: async () => null,
+    listCorporateProducts: async () => [],
+    listCorporateCategories: async () => [],
     listBranchProducts: async () => [],
     setBranchProductEnabled: async () => ({ success: true, changed: true }),
     createCategory: async (input) => input,
     createProduct: async (input) => input,
+    updateProduct: async (id, input) => ({ id, ...input }),
+    deactivateProduct: async (id) => ({ success: true, deactivated: true, id }),
+    updateCategory: async (id, input) => ({ id, ...input }),
+    deactivateCategory: async (id) => ({ success: true, deactivated: true, id }),
     ...overrides,
   }
 }
@@ -143,6 +149,58 @@ test("Redis write failures do not hide successful PostgreSQL reads", async () =>
   assert.deepEqual(await repository.listProducts(undefined, actor), expected)
   assert.equal(warnings.length, 1)
   assert.equal(warnings[0][0].operation, "write-value")
+})
+
+test("corporate category reads delegate to PostgreSQL without requiring a branch cache key", async () => {
+  const expected = [{ id: "category-id", name: "Drinks", is_active: true, item_count: 2 }]
+  let receivedActor
+  const { repository } = createRepository({
+    repository: repositoryStub({
+      listCorporateCategories: async (currentActor) => {
+        receivedActor = currentActor
+        return expected
+      },
+    }),
+  })
+
+  assert.deepEqual(await repository.listCorporateCategories(actor), expected)
+  assert.deepEqual(receivedActor, actor)
+})
+
+test("corporate product and category mutations invalidate branch catalog caches after persistence", async () => {
+  const invalidations = []
+  const { repository } = createRepository({
+    repository: repositoryStub(),
+    redisOverrides: {
+      incr: async (key) => {
+        invalidations.push(key)
+        return invalidations.length
+      },
+    },
+  })
+
+  await repository.updateProduct("product-id", { name: "Updated product" }, actor)
+  await repository.deactivateProduct("product-id", actor)
+  await repository.updateCategory("category-id", { name: "Updated category" }, actor)
+  await repository.deactivateCategory("category-id", actor)
+
+  assert.equal(invalidations.length, 4)
+  assert.ok(invalidations.every((key) => key === `${namespace}:version`))
+})
+
+test("failed corporate catalog mutations do not invalidate caches", async () => {
+  let invalidations = 0
+  const { repository } = createRepository({
+    repository: repositoryStub({
+      updateProduct: async () => { throw new Error("Persistence failed") },
+    }),
+    redisOverrides: {
+      incr: async () => { invalidations += 1; return invalidations },
+    },
+  })
+
+  await assert.rejects(repository.updateProduct("product-id", { name: "Updated product" }, actor), /Persistence failed/)
+  assert.equal(invalidations, 0)
 })
 
 test("branch availability changes invalidate cached catalogs after PostgreSQL confirms a change", async () => {
