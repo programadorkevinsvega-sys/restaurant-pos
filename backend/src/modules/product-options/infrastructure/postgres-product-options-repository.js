@@ -12,6 +12,7 @@ const groupSelect = `
          ) ORDER BY option.position, option.name)
          FILTER (WHERE option.id IS NOT NULL), '[]'::jsonb) AS options
   FROM public.product_option_groups AS option_group
+  LEFT JOIN public.product_options AS option ON option.group_id = option_group.id
 `
 
 export class PostgresProductOptionsRepository extends PostgresBranchProductOptionsRepository {

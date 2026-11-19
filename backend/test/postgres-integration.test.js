@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import pg from "pg"
+import { PostgresProductOptionsRepository } from "../src/modules/product-options/infrastructure/postgres-product-options-repository.js"
 
 const { Pool } = pg
 const runtimeUrl = process.env.DATABASE_URL
@@ -1103,6 +1104,18 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       [foreignGroup.rows[0].id, organizationAdminId],
     )
     const foreignOptionId = foreignOption.rows[0].id
+
+    const configuredOptions = await new PostgresProductOptionsRepository(runtime).listProductOptions(
+      variantProductId,
+      { userId: organizationAdminId },
+    )
+    assert.equal(configuredOptions.product_id, variantProductId)
+    assert.equal(configuredOptions.groups.length, 2)
+    const configuredPresentation = configuredOptions.groups.find((group) => group.id === presentationGroupId)
+    assert.deepEqual(
+      configuredPresentation.options.map((option) => option.name),
+      ["Mediana CI", "Grande CI"],
+    )
 
     const globalOptionEvent = await runtime.query(
       "INSERT INTO public.product_option_change_events " +
