@@ -524,3 +524,136 @@ GRANT EXECUTE ON FUNCTION public.update_branch_table(uuid, uuid, text, uuid, boo
 GRANT EXECUTE ON FUNCTION public.list_branch_reservations(uuid, uuid, timestamptz, timestamptz, text) TO restaurant_pos_app;
 GRANT EXECUTE ON FUNCTION public.create_branch_reservation(uuid, text, text, text, uuid, timestamptz, integer, text, uuid) TO restaurant_pos_app;
 GRANT EXECUTE ON FUNCTION public.update_branch_reservation_status(uuid, uuid, text, uuid) TO restaurant_pos_app;
+
+
+CREATE FUNCTION public.get_branch_table(
+  p_table_id uuid,
+  p_branch_id uuid,
+  p_actor_user_id uuid
+)
+RETURNS TABLE(
+  id uuid,
+  number text,
+  capacity integer,
+  status text,
+  current_order jsonb,
+  branch_id uuid
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.branches AS b
+    JOIN public.branch_user_assignments AS assignment
+      ON assignment.organization_id = b.organization_id
+      AND assignment.branch_id = b.id
+    JOIN public.app_users AS actor
+      ON actor.id = assignment.user_id
+      AND actor.is_active = true
+    WHERE b.id = p_branch_id
+      AND assignment.user_id = p_actor_user_id
+  ) THEN
+    RAISE EXCEPTION 'Active branch assignment required'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    t.id,
+    t.number,
+    t.capacity,
+    t.status,
+    CASE WHEN o.id IS NULL THEN NULL ELSE jsonb_build_object(
+      'id', o.id,
+      'total_amount', o.total_amount,
+      'status', o.status,
+      'created_at', o.created_at
+    ) END,
+    t.branch_id
+  FROM public.tables AS t
+  LEFT JOIN public.orders AS o
+    ON o.id = t.current_order_id
+    AND o.organization_id = t.organization_id
+    AND o.branch_id = t.branch_id
+  WHERE t.id = p_table_id
+    AND t.branch_id = p_branch_id
+    AND t.organization_id = (
+      SELECT b.organization_id FROM public.branches AS b WHERE b.id = p_branch_id
+    );
+END;
+$$;
+
+CREATE FUNCTION public.get_branch_reservation(
+  p_reservation_id uuid,
+  p_branch_id uuid,
+  p_actor_user_id uuid
+)
+RETURNS TABLE(
+  id uuid,
+  customer_name text,
+  customer_phone text,
+  customer_email text,
+  table_id uuid,
+  reservation_date timestamptz,
+  party_size integer,
+  notes text,
+  status text,
+  "table" jsonb,
+  branch_id uuid
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.branches AS b
+    JOIN public.branch_user_assignments AS assignment
+      ON assignment.organization_id = b.organization_id
+      AND assignment.branch_id = b.id
+    JOIN public.app_users AS actor
+      ON actor.id = assignment.user_id
+      AND actor.is_active = true
+    WHERE b.id = p_branch_id
+      AND assignment.user_id = p_actor_user_id
+  ) THEN
+    RAISE EXCEPTION 'Active branch assignment required'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    r.id,
+    r.customer_name,
+    r.customer_phone,
+    r.customer_email,
+    r.table_id,
+    r.reservation_date,
+    r.party_size,
+    r.notes,
+    r.status,
+    CASE WHEN t.id IS NULL THEN NULL ELSE jsonb_build_object(
+      'id', t.id, 'number', t.number, 'capacity', t.capacity
+    ) END,
+    r.branch_id
+  FROM public.reservations AS r
+  LEFT JOIN public.tables AS t
+    ON t.id = r.table_id
+    AND t.organization_id = r.organization_id
+    AND t.branch_id = r.branch_id
+  WHERE r.id = p_reservation_id
+    AND r.branch_id = p_branch_id
+    AND r.organization_id = (
+      SELECT b.organization_id FROM public.branches AS b WHERE b.id = p_branch_id
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_branch_table(uuid, uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_branch_reservation(uuid, uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_branch_table(uuid, uuid, uuid) TO restaurant_pos_app;
+GRANT EXECUTE ON FUNCTION public.get_branch_reservation(uuid, uuid, uuid) TO restaurant_pos_app;
