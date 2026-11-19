@@ -32,7 +32,8 @@ export class PostgresOrderRepository extends OrderRepository {
          AND EXISTS (
            SELECT 1
            FROM public.branch_user_assignments assignment
-           WHERE assignment.branch_id = o.branch_id
+           WHERE assignment.organization_id = o.organization_id
+             AND assignment.branch_id = o.branch_id
              AND assignment.user_id = $2
          )
          AND ($3::text IS NULL OR o.status = $3)
@@ -76,7 +77,8 @@ export class PostgresOrderRepository extends OrderRepository {
          AND EXISTS (
            SELECT 1
            FROM public.branch_user_assignments assignment
-           WHERE assignment.branch_id = o.branch_id
+           WHERE assignment.organization_id = o.organization_id
+             AND assignment.branch_id = o.branch_id
              AND assignment.user_id = $3
          )
        RETURNING o.id, o.table_number, o.customer_name, o.order_type,
