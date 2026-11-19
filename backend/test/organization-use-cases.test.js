@@ -39,7 +39,8 @@ test("organization bootstrap records the authenticated administrator as explicit
   const result = await useCases.bootstrapProfile({ name: "Chili POS Group" }, admin)
 
   assert.equal(createdBy, admin.userId)
-  assert.equal(result.name, "Chili POS Group")
+  assert.equal(result.organization.name, "Chili POS Group")
+  assert.equal(result.permissions.can_update, true)
   assert.equal(Object.hasOwn(result, "ownerUserId"), false)
 })
 
@@ -72,7 +73,7 @@ test("reading an uninitialized organization returns a stable not-configured erro
   const useCases = new OrganizationUseCases(repository({ findProfile: async () => null }))
 
   await assert.rejects(
-    useCases.getProfile(),
+    useCases.getProfile(owner),
     { status: 404, code: "ORGANIZATION_NOT_INITIALIZED" },
   )
 })
@@ -109,7 +110,8 @@ test("organization owner can update profile fields without changing ownership", 
 
   assert.deepEqual(updateInput, { commercial_name: "Chili POS" })
   assert.equal(updateActor, owner.userId)
-  assert.equal(result.commercial_name, "Chili POS")
+  assert.equal(result.organization.commercial_name, "Chili POS")
+  assert.equal(result.permissions.can_update, true)
 })
 
 test("empty profile updates are rejected", async () => {
@@ -225,4 +227,24 @@ test("PostgreSQL organization repository preserves omitted fields during partial
     false, null,
   ])
   assert.equal(updated, null)
+})
+
+test("organization profile response exposes update capability without exposing owner identity", async () => {
+  const useCases = new OrganizationUseCases(repository())
+  const result = await useCases.getProfile(owner)
+
+  assert.deepEqual(result.permissions, { can_update: true })
+  assert.equal(Object.hasOwn(result.organization, "owner_user_id"), false)
+  assert.equal(Object.hasOwn(result.organization, "ownerUserId"), false)
+})
+
+test("non-owner administrators can read but cannot update the profile", async () => {
+  const useCases = new OrganizationUseCases(repository())
+  const result = await useCases.getProfile(admin)
+
+  assert.deepEqual(result.permissions, { can_update: false })
+  await assert.rejects(
+    useCases.updateProfile({ commercial_name: "Forbidden" }, admin),
+    { status: 403, code: "ORGANIZATION_OWNER_REQUIRED" },
+  )
 })
