@@ -76,7 +76,16 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "has_table_privilege(current_user, 'public.branch_user_assignments', 'INSERT') AS assignment_insert, " +
       "has_table_privilege(current_user, 'public.branch_user_assignments', 'UPDATE') AS assignment_update, " +
       "has_table_privilege(current_user, 'public.branch_user_assignments', 'DELETE') AS assignment_delete, " +
+      "has_table_privilege(current_user, 'public.branch_lifecycle_events', 'SELECT') AS lifecycle_read, " +
+      "has_table_privilege(current_user, 'public.branch_lifecycle_events', 'INSERT') AS lifecycle_insert, " +
+      "has_table_privilege(current_user, 'public.branch_lifecycle_events', 'UPDATE') AS lifecycle_update, " +
+      "has_table_privilege(current_user, 'public.branch_lifecycle_events', 'DELETE') AS lifecycle_delete, " +
       "has_function_privilege(current_user, " +
+      "'public.change_branch_status(uuid, text, uuid)'::regprocedure, 'EXECUTE') AS can_change_branch_status, " +
+      "has_function_privilege(current_user, " +
+      "'public.guard_branch_order_writes()'::regprocedure, 'EXECUTE') AS can_call_order_guard, " +
+      "has_function_privilege(current_user, " +
+
       "'public.assign_user_to_branch(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_assign_user, " +
       "has_function_privilege(current_user, " +
       "'public.remove_user_from_branch(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_remove_user, " +
@@ -106,6 +115,12 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       assignment_insert: false,
       assignment_update: false,
       assignment_delete: false,
+      lifecycle_read: true,
+      lifecycle_insert: false,
+      lifecycle_update: false,
+      lifecycle_delete: false,
+      can_change_branch_status: true,
+      can_call_order_guard: false,
       can_assign_user: true,
       can_remove_user: true,
       can_create_legal_entity: true,
@@ -561,6 +576,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "006_create_organization_profile.sql",
         "007_create_legal_entities_and_branch_relations.sql",
         "008_branch_assignments_and_order_context.sql",
+        "009_branch_lifecycle_and_read_only_state.sql",
       ],
     )
 
@@ -669,6 +685,176 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       (error) => error.code === "23514",
     )
 
+    const initialLifecycleEvents = await runtime.query(
+      "SELECT previous_status, new_status, actor_user_id FROM public.branch_lifecycle_events " +
+      "WHERE branch_id = $1 ORDER BY occurred_at, id",
+      [branchId],
+    )
+    assert.equal(initialLifecycleEvents.rowCount, 1)
+    assert.equal(initialLifecycleEvents.rows[0].previous_status, null)
+    assert.equal(initialLifecycleEvents.rows[0].new_status, "active")
+    assert.equal(initialLifecycleEvents.rows[0].actor_user_id, organizationAdminId)
+
+    await assert.rejects(
+      runtime.query(
+        "INSERT INTO public.branch_lifecycle_events " +
+        "(organization_id, branch_id, previous_status, new_status, actor_user_id) " +
+        "VALUES ($1, $2, 'active', 'suspended', $3)",
+        [organizationId, branchId, organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    // Hold a shared branch lock to prove that lifecycle changes serialize
+    // against writes that hold the same lock for the duration of their transaction.
+    const lockHolder = await runtime.connect()
+    const lockWaiter = await runtime.connect()
+    try {
+      await lockHolder.query("BEGIN")
+      await lockHolder.query(
+        "SELECT id FROM public.branches WHERE id = $1 FOR SHARE",
+        [branchId],
+      )
+      await lockWaiter.query("SET lock_timeout = '200ms'")
+      await assert.rejects(
+        lockWaiter.query(
+          "SELECT public.change_branch_status($1, $2, $3)",
+          [branchId, "suspended", organizationAdminId],
+        ),
+        (error) => error.code === "55P03",
+      )
+      await lockWaiter.query("ROLLBACK")
+      await lockWaiter.query("RESET lock_timeout")
+      await lockHolder.query("COMMIT")
+      const serializedTransition = await lockWaiter.query(
+        "SELECT public.change_branch_status($1, $2, $3) AS outcome",
+        [branchId, "suspended", organizationAdminId],
+      )
+      assert.equal(serializedTransition.rows[0].outcome, "CHANGED")
+    } finally {
+      await lockHolder.query("ROLLBACK")
+      await lockHolder.release()
+      await lockWaiter.release()
+    }
+
+    const suspendedStatus = await runtime.query(
+      "SELECT status FROM public.branches WHERE id = $1",
+      [branchId],
+    )
+    assert.equal(suspendedStatus.rows[0].status, "suspended")
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Order while suspended", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null, branchId, legalEntityIds[0], organizationStaffId],
+      ),
+      (error) => error.code === "55000" && error.message.includes("BRANCH_NOT_ACTIVE"),
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "UPDATE public.orders SET status = 'preparing', updated_at = now() WHERE id = $1",
+        [orderId],
+      ),
+      (error) => error.code === "55000" && error.message.includes("BRANCH_NOT_ACTIVE"),
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "UPDATE public.order_items SET quantity = quantity + 1 WHERE order_id = $1",
+        [orderId],
+      ),
+      (error) => error.code === "55000" && error.message.includes("BRANCH_NOT_ACTIVE"),
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "UPDATE public.delivery_info SET phone = '+573009999999' WHERE order_id = $1",
+        [deliveryOrderId],
+      ),
+      (error) => error.code === "55000" && error.message.includes("BRANCH_NOT_ACTIVE"),
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "UPDATE public.branches SET name = 'Renamed while suspended' WHERE id = $1",
+        [branchId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT * FROM public.assign_branch_legal_entity($1, $2, $3)",
+        [branchId, legalEntityIds[1], organizationAdminId],
+      ),
+      (error) => error.code === "55000" && error.message.includes("BRANCH_NOT_ACTIVE"),
+    )
+
+    const historicalOrdersWhileSuspended = await runtime.query(
+      "SELECT id, branch_id FROM public.orders WHERE branch_id = $1 ORDER BY created_at",
+      [branchId],
+    )
+    assert.equal(historicalOrdersWhileSuspended.rowCount, 2)
+    assert.equal(historicalOrdersWhileSuspended.rows[0].branch_id, branchId)
+
+    const idempotentSuspension = await runtime.query(
+      "SELECT public.change_branch_status($1, $2, $3) AS outcome",
+      [branchId, "suspended", organizationAdminId],
+    )
+    assert.equal(idempotentSuspension.rows[0].outcome, "UNCHANGED")
+
+    const reactivatedBranch = await runtime.query(
+      "SELECT public.change_branch_status($1, $2, $3) AS outcome",
+      [branchId, "active", organizationAdminId],
+    )
+    assert.equal(reactivatedBranch.rows[0].outcome, "CHANGED")
+
+    const closedBranch = await runtime.query(
+      "SELECT public.change_branch_status($1, $2, $3) AS outcome",
+      [branchId, "closed", organizationAdminId],
+    )
+    assert.equal(closedBranch.rows[0].outcome, "CHANGED")
+
+    const closedMetadata = await runtime.query(
+      "SELECT status, closed_at, closed_by_user_id FROM public.branches WHERE id = $1",
+      [branchId],
+    )
+    assert.equal(closedMetadata.rows[0].status, "closed")
+    assert.ok(closedMetadata.rows[0].closed_at)
+    assert.equal(closedMetadata.rows[0].closed_by_user_id, organizationAdminId)
+
+    const attemptedReopen = await runtime.query(
+      "SELECT public.change_branch_status($1, $2, $3) AS outcome",
+      [branchId, "active", organizationAdminId],
+    )
+    assert.equal(attemptedReopen.rows[0].outcome, "BRANCH_CLOSED")
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Order after closure", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null, branchId, legalEntityIds[0], organizationStaffId],
+      ),
+      (error) => error.code === "55000" && error.message.includes("BRANCH_NOT_ACTIVE"),
+    )
+
+    const historicalOrdersAfterClosure = await runtime.query(
+      "SELECT id, branch_id FROM public.orders WHERE branch_id = $1",
+      [branchId],
+    )
+    assert.equal(historicalOrdersAfterClosure.rowCount, 2)
+
+    const lifecycleEvents = await runtime.query(
+      "SELECT previous_status, new_status, actor_user_id FROM public.branch_lifecycle_events " +
+      "WHERE branch_id = $1 ORDER BY occurred_at, id",
+      [branchId],
+    )
+    assert.deepEqual(
+      lifecycleEvents.rows.map((event) => event.new_status),
+      ["active", "suspended", "active", "closed"],
+    )
+    assert.equal(lifecycleEvents.rows[1].actor_user_id, organizationAdminId)
+
     await assert.rejects(
       runtime.query(
         "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6)",
@@ -704,8 +890,11 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     if (branchId || secondBranchId) {
       const branchIds = [branchId, secondBranchId].filter(Boolean)
       await migrator.query(
-        "DELETE FROM public.branch_user_assignments WHERE branch_id = ANY($1::uuid[])",
+        "DELETE FROM public.branch_lifecycle_events WHERE branch_id = ANY($1::uuid[])",
         [branchIds],
+      )
+      await migrator.query(
+        "DELETE FROM public.branch_user_assignments WHERE branch_id = ANY($1::uuid[])",        [branchIds],
       )
       await migrator.query(
         "DELETE FROM public.branch_legal_entities WHERE branch_id = ANY($1::uuid[])",
