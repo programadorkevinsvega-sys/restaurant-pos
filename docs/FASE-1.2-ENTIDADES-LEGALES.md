@@ -109,7 +109,7 @@ El alta de sucursal y la creación de todas sus asociaciones se ejecutan en una 
 ## 4. Autorización y seguridad
 
 - Todas las lecturas requieren autenticación.
-- Para escribir se exige que el actor sea el propietario explícito de la organización registrado en N09-F1.1, y que continúe activo.
+- Para listar o escribir entidades legales y sucursales se exige que el actor sea el propietario explícito de la organización registrado en N09-F1.1, y que continúe activo. Así los NIT y las asociaciones no se exponen a personal operativo mientras N09-F3 no ofrezca permisos RBAC por ámbito.
 - El rol legado `admin` por sí solo no permite administrar entidades legales ni sucursales.
 - Esta política es transitoria y explícita mientras N09-F3 implementa RBAC por ámbito; no se interpreta como la matriz final de roles corporativos/locales.
 - `restaurant_pos_app` tiene SELECT sobre las tres tablas y no recibe INSERT, UPDATE ni DELETE directos.
