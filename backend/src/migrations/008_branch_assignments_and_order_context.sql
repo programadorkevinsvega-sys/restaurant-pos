@@ -18,6 +18,9 @@ REVOKE ALL ON TABLE public.branch_user_assignments FROM PUBLIC;
 REVOKE ALL ON TABLE public.branch_user_assignments FROM restaurant_pos_app;
 GRANT SELECT ON TABLE public.branch_user_assignments TO restaurant_pos_app;
 
+REVOKE ALL ON FUNCTION public.assign_user_to_branch(uuid, uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.remove_user_from_branch(uuid, uuid, uuid) FROM PUBLIC;
+
 CREATE FUNCTION public.assign_user_to_branch(
   p_branch_id uuid,
   p_user_id uuid,
@@ -292,9 +295,77 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.create_pos_order(text, text, text, jsonb, text, text, uuid, uuid, uuid)
+  FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.assign_user_to_branch(uuid, uuid, uuid)
   TO restaurant_pos_app;
 GRANT EXECUTE ON FUNCTION public.remove_user_from_branch(uuid, uuid, uuid)
   TO restaurant_pos_app;
 GRANT EXECUTE ON FUNCTION public.create_pos_order(text, text, text, jsonb, text, text, uuid, uuid, uuid)
+  TO restaurant_pos_app;
+
+REVOKE EXECUTE ON FUNCTION public.assign_delivery_driver(uuid, text, text, integer)
+  FROM PUBLIC, restaurant_pos_app;
+
+CREATE FUNCTION public.assign_delivery_driver(
+  p_order_id uuid,
+  p_driver_name text,
+  p_driver_phone text,
+  p_estimated_time integer,
+  p_branch_id uuid,
+  p_actor_user_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $
+DECLARE
+  v_delivery public.delivery_info;
+BEGIN
+  IF p_driver_name IS NULL OR char_length(btrim(p_driver_name)) = 0
+     OR char_length(btrim(p_driver_name)) > 120
+     OR (p_estimated_time IS NOT NULL AND p_estimated_time NOT BETWEEN 1 AND 1440)
+     OR p_branch_id IS NULL OR p_actor_user_id IS NULL THEN
+    RAISE EXCEPTION 'Invalid delivery assignment';
+  END IF;
+
+  UPDATE public.delivery_info AS d
+  SET driver_name = btrim(p_driver_name),
+      driver_phone = NULLIF(btrim(p_driver_phone), ''),
+      estimated_time = p_estimated_time,
+      status = 'assigned',
+      updated_at = now()
+  FROM public.orders AS o
+  WHERE d.order_id = p_order_id
+    AND o.id = d.order_id
+    AND o.branch_id = p_branch_id
+    AND EXISTS (
+      SELECT 1
+      FROM public.branch_user_assignments AS assignment
+      JOIN public.app_users AS actor
+        ON actor.id = assignment.user_id
+        AND actor.is_active = true
+      WHERE assignment.organization_id = o.organization_id
+        AND assignment.branch_id = o.branch_id
+        AND assignment.user_id = p_actor_user_id
+    )
+  RETURNING d.* INTO v_delivery;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Delivery not found in active branch or user is not assigned'
+      USING ERRCODE = '42501';
+  END IF;
+
+  UPDATE public.orders
+  SET status = 'preparing', updated_at = now()
+  WHERE id = p_order_id AND branch_id = p_branch_id;
+
+  RETURN to_jsonb(v_delivery);
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.assign_delivery_driver(uuid, text, text, integer, uuid, uuid)
+  FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.assign_delivery_driver(uuid, text, text, integer, uuid, uuid)
   TO restaurant_pos_app;
