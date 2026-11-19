@@ -48,7 +48,21 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "has_function_privilege(current_user, " +
       "'public.assign_delivery_driver(uuid, text, text, integer, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_assign_delivery, " +
       "has_function_privilege(current_user, " +
-      "'public.assign_delivery_driver(uuid, text, text, integer)'::regprocedure, 'EXECUTE') AS can_assign_delivery_legacy",
+      "'public.assign_delivery_driver(uuid, text, text, integer)'::regprocedure, 'EXECUTE') AS can_assign_delivery_legacy, " +
+      "has_table_privilege(current_user, 'public.tables', 'SELECT') AS can_read_tables, " +
+      "has_table_privilege(current_user, 'public.tables', 'INSERT') AS can_insert_tables, " +
+      "has_table_privilege(current_user, 'public.tables', 'UPDATE') AS can_update_tables, " +
+      "has_table_privilege(current_user, 'public.tables', 'DELETE') AS can_delete_tables, " +
+      "has_table_privilege(current_user, 'public.reservations', 'SELECT') AS can_read_reservations, " +
+      "has_table_privilege(current_user, 'public.reservations', 'INSERT') AS can_insert_reservations, " +
+      "has_table_privilege(current_user, 'public.reservations', 'UPDATE') AS can_update_reservations, " +
+      "has_table_privilege(current_user, 'public.reservations', 'DELETE') AS can_delete_reservations, " +
+      "has_function_privilege(current_user, 'public.list_branch_tables(uuid, uuid)'::regprocedure, 'EXECUTE') AS can_list_branch_tables, " +
+      "has_function_privilege(current_user, 'public.create_branch_table(uuid, text, integer, uuid)'::regprocedure, 'EXECUTE') AS can_create_branch_table, " +
+      "has_function_privilege(current_user, 'public.update_branch_table(uuid, uuid, text, uuid, boolean, uuid)'::regprocedure, 'EXECUTE') AS can_update_branch_table, " +
+      "has_function_privilege(current_user, 'public.list_branch_reservations(uuid, uuid, timestamp with time zone, timestamp with time zone, text)'::regprocedure, 'EXECUTE') AS can_list_branch_reservations, " +
+      "has_function_privilege(current_user, 'public.create_branch_reservation(uuid, text, text, text, uuid, timestamp with time zone, integer, text, uuid)'::regprocedure, 'EXECUTE') AS can_create_branch_reservation, " +
+      "has_function_privilege(current_user, 'public.update_branch_reservation_status(uuid, uuid, text, uuid)'::regprocedure, 'EXECUTE') AS can_update_branch_reservation",
     )
     assert.equal(privileges.rows[0].can_read_products, true)
     assert.equal(privileges.rows[0].can_insert_products, true)
@@ -57,6 +71,29 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(privileges.rows[0].can_create_orders, true)
     assert.equal(privileges.rows[0].can_assign_delivery, true)
     assert.equal(privileges.rows[0].can_assign_delivery_legacy, false)
+    assert.equal(privileges.rows[0].can_read_tables, false)
+    assert.equal(privileges.rows[0].can_insert_tables, false)
+    assert.equal(privileges.rows[0].can_update_tables, false)
+    assert.equal(privileges.rows[0].can_delete_tables, false)
+    assert.equal(privileges.rows[0].can_read_reservations, false)
+    assert.equal(privileges.rows[0].can_insert_reservations, false)
+    assert.equal(privileges.rows[0].can_update_reservations, false)
+    assert.equal(privileges.rows[0].can_delete_reservations, false)
+    assert.equal(privileges.rows[0].can_list_branch_tables, true)
+    assert.equal(privileges.rows[0].can_create_branch_table, true)
+    assert.equal(privileges.rows[0].can_update_branch_table, true)
+    assert.equal(privileges.rows[0].can_list_branch_reservations, true)
+    assert.equal(privileges.rows[0].can_create_branch_reservation, true)
+    assert.equal(privileges.rows[0].can_update_branch_reservation, true)
+
+    await assert.rejects(
+      runtime.query("SELECT * FROM public.tables"),
+      (error) => error.code === "42501",
+    )
+    await assert.rejects(
+      runtime.query("SELECT * FROM public.reservations"),
+      (error) => error.code === "42501",
+    )
 
     const legalStructurePrivileges = await runtime.query(
       "SELECT " +
@@ -549,6 +586,166 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       [secondBranchId, organizationStaffId, organizationAdminId],
     )
     assert.equal(secondStaffAssignment.rows[0].outcome, "ASSIGNED")
+
+    const firstBranchTable = await runtime.query(
+      "SELECT * FROM public.create_branch_table($1, $2, $3, $4)",
+      [branchId, "Mesa 1", 4, organizationStaffId],
+    )
+    assert.equal(firstBranchTable.rows[0].outcome, "CREATED")
+    const firstTableId = firstBranchTable.rows[0].created_table_id
+
+    const duplicateTable = await runtime.query(
+      "SELECT * FROM public.create_branch_table($1, $2, $3, $4)",
+      [branchId, "Mesa 1", 4, organizationStaffId],
+    )
+    assert.equal(duplicateTable.rows[0].outcome, "TABLE_NUMBER_EXISTS")
+
+    const secondBranchTable = await runtime.query(
+      "SELECT * FROM public.create_branch_table($1, $2, $3, $4)",
+      [secondBranchId, "Mesa 1", 4, organizationStaffId],
+    )
+    assert.equal(secondBranchTable.rows[0].outcome, "CREATED")
+    const secondTableId = secondBranchTable.rows[0].created_table_id
+
+    const concurrentTableCreates = await Promise.all([
+      runtime.query(
+        "SELECT * FROM public.create_branch_table($1, $2, $3, $4)",
+        [branchId, "Mesa Concurrente", 2, organizationStaffId],
+      ),
+      runtime.query(
+        "SELECT * FROM public.create_branch_table($1, $2, $3, $4)",
+        [branchId, "Mesa Concurrente", 2, organizationStaffId],
+      ),
+    ])
+    assert.deepEqual(
+      concurrentTableCreates.map((result) => result.rows[0].outcome).sort(),
+      ["CREATED", "TABLE_NUMBER_EXISTS"],
+    )
+
+    const branchOneTables = await runtime.query(
+      "SELECT * FROM public.list_branch_tables($1, $2)",
+      [branchId, organizationStaffId],
+    )
+    const branchTwoTables = await runtime.query(
+      "SELECT * FROM public.list_branch_tables($1, $2)",
+      [secondBranchId, organizationStaffId],
+    )
+    assert.equal(branchOneTables.rows.length, 2)
+    assert.ok(branchOneTables.rows.every((row) => row.branch_id === branchId))
+    assert.equal(branchTwoTables.rows.length, 1)
+    assert.equal(branchTwoTables.rows[0].branch_id, secondBranchId)
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT * FROM public.list_branch_tables($1, $2)",
+        [branchId, organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    const firstReservation = await runtime.query(
+      "SELECT * FROM public.create_branch_reservation(" +
+      "$1, $2, $3, $4, $5, $6::timestamptz, $7, $8, $9)",
+      [
+        branchId,
+        "Cliente sucursal uno",
+        "+573001112233",
+        "guest-one@example.invalid",
+        firstTableId,
+        "2027-02-10T18:30:00.000Z",
+        3,
+        "Reserva de prueba",
+        organizationStaffId,
+      ],
+    )
+    assert.equal(firstReservation.rows[0].outcome, "CREATED")
+    const reservationId = firstReservation.rows[0].created_reservation_id
+
+    const branchOneReservations = await runtime.query(
+      "SELECT * FROM public.list_branch_reservations(" +
+      "$1, $2, NULL::timestamptz, NULL::timestamptz, NULL::text)",
+      [branchId, organizationStaffId],
+    )
+    const branchTwoReservations = await runtime.query(
+      "SELECT * FROM public.list_branch_reservations(" +
+      "$1, $2, NULL::timestamptz, NULL::timestamptz, NULL::text)",
+      [secondBranchId, organizationStaffId],
+    )
+    assert.equal(branchOneReservations.rowCount, 1)
+    assert.equal(branchOneReservations.rows[0].branch_id, branchId)
+    assert.equal(branchTwoReservations.rowCount, 0)
+
+    const foreignTableReservation = await runtime.query(
+      "SELECT * FROM public.create_branch_reservation(" +
+      "$1, $2, $3, $4, $5, $6::timestamptz, $7, $8, $9)",
+      [
+        secondBranchId,
+        "Reserva cruzada",
+        null,
+        null,
+        firstTableId,
+        "2027-02-10T19:00:00.000Z",
+        2,
+        null,
+        organizationStaffId,
+      ],
+    )
+    assert.equal(foreignTableReservation.rows[0].outcome, "TABLE_NOT_IN_BRANCH")
+
+    const foreignTableUpdate = await runtime.query(
+      "SELECT public.update_branch_table($1, $2, $3, NULL, false, $4) AS outcome",
+      [firstTableId, secondBranchId, "occupied", organizationStaffId],
+    )
+    assert.equal(foreignTableUpdate.rows[0].outcome, "TABLE_NOT_FOUND")
+
+    const foreignReservationUpdate = await runtime.query(
+      "SELECT public.update_branch_reservation_status($1, $2, $3, $4) AS outcome",
+      [reservationId, secondBranchId, "seated", organizationStaffId],
+    )
+    assert.equal(foreignReservationUpdate.rows[0].outcome, "RESERVATION_NOT_FOUND")
+
+    const updatedReservation = await runtime.query(
+      "SELECT public.update_branch_reservation_status($1, $2, $3, $4) AS outcome",
+      [reservationId, branchId, "seated", organizationStaffId],
+    )
+    assert.equal(updatedReservation.rows[0].outcome, "UPDATED")
+
+    const suspendedSecondBranch = await runtime.query(
+      "SELECT public.change_branch_status($1, $2, $3) AS outcome",
+      [secondBranchId, "suspended", organizationAdminId],
+    )
+    assert.equal(suspendedSecondBranch.rows[0].outcome, "CHANGED")
+    const tableWriteWhileSuspended = await runtime.query(
+      "SELECT * FROM public.create_branch_table($1, $2, $3, $4)",
+      [secondBranchId, "No disponible", 2, organizationStaffId],
+    )
+    assert.equal(tableWriteWhileSuspended.rows[0].outcome, "BRANCH_NOT_ACTIVE")
+    const reservationWriteWhileSuspended = await runtime.query(
+      "SELECT * FROM public.create_branch_reservation(" +
+      "$1, $2, $3, $4, $5, $6::timestamptz, $7, $8, $9)",
+      [
+        secondBranchId,
+        "No disponible",
+        null,
+        null,
+        secondTableId,
+        "2027-02-10T20:00:00.000Z",
+        2,
+        null,
+        organizationStaffId,
+      ],
+    )
+    assert.equal(reservationWriteWhileSuspended.rows[0].outcome, "BRANCH_NOT_ACTIVE")
+    const readWhileSuspended = await runtime.query(
+      "SELECT * FROM public.list_branch_tables($1, $2)",
+      [secondBranchId, organizationStaffId],
+    )
+    assert.equal(readWhileSuspended.rowCount, 1)
+    const reactivatedSecondBranch = await runtime.query(
+      "SELECT public.change_branch_status($1, $2, $3) AS outcome",
+      [secondBranchId, "active", organizationAdminId],
+    )
+    assert.equal(reactivatedSecondBranch.rows[0].outcome, "CHANGED")
 
     const staffBranchCount = await runtime.query(
       "SELECT count(*)::integer AS branch_count FROM public.branch_user_assignments WHERE user_id = $1",
@@ -1120,6 +1317,14 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     }
     if (branchId || secondBranchId) {
       const branchIds = [branchId, secondBranchId].filter(Boolean)
+      await migrator.query(
+        "DELETE FROM public.reservations WHERE branch_id = ANY($1::uuid[])",
+        [branchIds],
+      )
+      await migrator.query(
+        "DELETE FROM public.tables WHERE branch_id = ANY($1::uuid[])",
+        [branchIds],
+      )
       await migrator.query(
         "DELETE FROM public.branch_local_configuration_events WHERE branch_id = ANY($1::uuid[])",
         [branchIds],
