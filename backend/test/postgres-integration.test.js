@@ -1716,6 +1716,12 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     await migrator.query(
       "TRUNCATE TABLE public.branch_catalog_product_events, public.branch_catalog_product_exclusions",
     )
+    // F2.2 recipe fixtures belong to the organization; clear their full
+    // dependency graph in the disposable database before deleting the owner.
+    await migrator.query(
+      "TRUNCATE TABLE public.recipe_change_events, public.recipe_ingredients, " +
+      "public.product_recipes, public.ingredients",
+    )
 
     if (branchId || secondBranchId) {
       // Isolated-test teardown only: restore fixture branches so the read-only
