@@ -33,9 +33,10 @@ export class HttpBranchRepository implements BranchRepository {
     return result.branch
   }
 
-  listLifecycleEvents(branchId: string) {
+  listLifecycleEvents(branchId: string, signal?: AbortSignal) {
     return this.http.get<BranchLifecycleResult>(
       `/branches/${encodeURIComponent(branchId)}/lifecycle`,
+      signal,
     )
   }
 
