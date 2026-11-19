@@ -707,7 +707,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
 
     // Hold a shared branch lock to prove that lifecycle changes serialize
     // against writes that hold the same lock for the duration of their transaction.
-    const lockHolder = await runtime.connect()
+    const lockHolder = await migrator.connect()
     const lockWaiter = await runtime.connect()
     try {
       await lockHolder.query("BEGIN")
