@@ -71,13 +71,22 @@ export function CorporateCatalogManagementCard({
   }, [loadProducts])
 
   const handleEnabledChange = async (product: BranchCatalogProduct, enabled: boolean) => {
-    if (!selectedBranch || selectedBranch.status !== "active" || !canManage) return
+    if (!selectedBranch || selectedBranch.status !== "active" || !canManage || savingProductId !== null) return
+
+    const previousEnabled = product.enabled
     setSavingProductId(product.id)
     setError("")
+    setProducts((current) => current.map((item) => (
+      item.id === product.id ? { ...item, enabled } : item
+    )))
+
     try {
       await onSetProductEnabled(selectedBranch.id, product.id, enabled)
       await loadProducts()
     } catch (cause) {
+      setProducts((current) => current.map((item) => (
+        item.id === product.id ? { ...item, enabled: previousEnabled } : item
+      )))
       setError(cause instanceof Error ? cause.message : "No se pudo actualizar la disponibilidad del producto.")
     } finally {
       setSavingProductId(null)
@@ -125,7 +134,7 @@ export function CorporateCatalogManagementCard({
 
             {selectedBranch && selectedBranch.status !== "active" && (
               <p role="status" className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
-                La sucursal está {selectedBranch?.status === "closed" ? "cerrada" : "suspendida"}. El catálogo puede consultarse, pero no modificarse.
+                La sucursal está {selectedBranch.status === "closed" ? "cerrada" : "suspendida"}. El catálogo puede consultarse, pero no modificarse.
               </p>
             )}
             {!canManage && (
