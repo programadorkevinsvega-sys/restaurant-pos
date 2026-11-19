@@ -445,6 +445,16 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  PERFORM 1
+  FROM public.branches AS b
+  WHERE b.organization_id = v_organization_id
+    AND b.id = p_branch_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
   INSERT INTO public.branch_legal_entities (
     organization_id,
     branch_id,
