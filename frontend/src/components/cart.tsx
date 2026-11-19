@@ -59,7 +59,7 @@ export function Cart({
   }, [activeBranchId, legalEntities.length, legalEntities[0]?.id])
 
   const handlePlaceOrder = async () => {
-    if (!activeBranch) return
+    if (!activeBranch || activeBranch.status !== "active") return
     if (!legalEntityId || !legalEntities.some((entity) => entity.id === legalEntityId)) return
     await onPlaceOrder({
       table_number: activeMode === "Comer aquí" ? tableNumber.trim() : "Pedido",
@@ -74,6 +74,7 @@ export function Cart({
 
   const canPlaceOrder = Boolean(
     activeBranch &&
+    activeBranch.status === "active" &&
     legalEntities.length > 0 &&
     legalEntities.some((entity) => entity.id === legalEntityId) &&
     cartItems.length > 0 &&
@@ -97,7 +98,14 @@ export function Cart({
         <div className="rounded-md bg-muted/50 p-3 text-sm">
           <p className="font-medium">Contexto de operación</p>
           {activeBranch ? (
-            <p className="text-muted-foreground">{activeBranch.code} · {activeBranch.name}</p>
+            <>
+              <p className="text-muted-foreground">{activeBranch.code} · {activeBranch.name}</p>
+              {activeBranch.status !== "active" && (
+                <p role="alert" className="mt-1 text-destructive">
+                  Sucursal {activeBranch.status === "suspended" ? "suspendida" : "cerrada"}: solo consulta histórica; no puedes registrar pedidos.
+                </p>
+              )}
+            </>
           ) : (
             <p role="alert" className="text-destructive">No tienes una sucursal activa asignada.</p>
           )}

@@ -21,6 +21,10 @@ export const updateBranchSchema = z.object({
   name: z.string().trim().min(2).max(160),
 }).strict()
 
+export const branchStatusSchema = z.object({
+  status: z.enum(["active", "suspended", "closed"]),
+}).strict()
+
 export function createBranchRoutes(branches, authenticate, writesLimiter) {
   const router = Router()
   router.use((request, response, next) => {
@@ -43,6 +47,34 @@ export function createBranchRoutes(branches, authenticate, writesLimiter) {
     validateRequest({ body: branchSchema }),
     asyncHandler(async (request, response) => {
       response.status(201).json({ branch: await branches.create(request.validated.body, request.auth) })
+    }),
+  )
+
+  router.put(
+    "/:branchId/status",
+    authenticate,
+    writesLimiter,
+    validateRequest({ params: branchIdParams, body: branchStatusSchema }),
+    asyncHandler(async (request, response) => {
+      response.json({
+        branch: await branches.changeStatus(
+          request.validated.params.branchId,
+          request.validated.body.status,
+          request.auth,
+        ),
+      })
+    }),
+  )
+
+  router.get(
+    "/:branchId/lifecycle",
+    authenticate,
+    validateRequest({ params: branchIdParams }),
+    asyncHandler(async (request, response) => {
+      response.json(await branches.listLifecycleEvents(
+        request.validated.params.branchId,
+        request.auth,
+      ))
     }),
   )
 

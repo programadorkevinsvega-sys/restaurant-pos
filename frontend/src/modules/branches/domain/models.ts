@@ -7,10 +7,15 @@ export interface BranchLegalEntity {
   tax_identifier: string
 }
 
+export type BranchStatus = "active" | "suspended" | "closed"
+
 export interface Branch {
   id: string
   code: string
   name: string
+  status: BranchStatus
+  status_changed_at: string
+  closed_at: string | null
   legal_entities: BranchLegalEntity[]
   created_at: string
   updated_at: string
@@ -45,6 +50,9 @@ export interface OperationalBranch {
   id: string
   code: string
   name: string
+  status: BranchStatus
+  status_changed_at: string
+  closed_at: string | null
   legal_entities: OperationalBranchLegalEntity[]
   created_at: string
   updated_at: string
@@ -63,4 +71,18 @@ export interface BranchUser {
 
 export interface BranchUsersResult {
   users: BranchUser[]
+}
+
+
+export interface BranchLifecycleEvent {
+  id: string
+  previous_status: BranchStatus | null
+  new_status: BranchStatus
+  actor_user_id: string
+  actor_email: string
+  occurred_at: string
+}
+
+export interface BranchLifecycleResult {
+  events: BranchLifecycleEvent[]
 }

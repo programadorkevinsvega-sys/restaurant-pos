@@ -499,15 +499,15 @@ Los módulos se identifican con códigos estables. Cada fase contiene subfases n
 
 ### Estado de implementación — contexto operativo de pedidos
 
-- N09-F1.1 y N09-F1.2 están implementadas y fusionadas en `main` (PR #9 y PR #10).
-- Esta entrega integra el contexto de sucursal y entidad legal en la creación de pedidos POS: asignación básica de usuarios a una o varias sucursales (N09-F3.2), selector de sucursal activa, selección expresa de entidad legal por pedido y validación transaccional en PostgreSQL.
-- Las nuevas operaciones quedan ligadas al actor autenticado; los pedidos existentes conservan la ausencia de sucursal y entidad legal, sin backfill ni asignación fiscal inferida.
-- La lectura y actualización de pedidos, la consulta de entregas y la asignación de repartidor se delimitan por la sucursal activa y la asignación del usuario.
-- N09-F3.3 (roles y permisos por ámbito), F1.3 (ciclo de vida de sucursal), F1.4 (configuración local) y F1.5 (historial organizacional) continúan pendientes.
-- Mesas, reservas, reportes contables y el resto de consultas/operaciones aún necesitan integración y pruebas de aislamiento por sucursal; no se consideran cerrados por este trabajo.
-- La facturación electrónica, impuestos por entidad y la contabilidad separada por entidad legal siguen sujetas al diseño y aprobación fiscal/contable correspondientes.
+- N09-F1.1 y N09-F1.2 están implementadas, validadas y fusionadas en `main` mediante PR #9 y PR #10.
+- El PR #11 integró el contexto operativo de pedidos: asignación básica de usuarios a una o varias sucursales (N09-F3.2), selector de sucursal activa, selección explícita de entidad legal por pedido y validación transaccional en PostgreSQL. Se fusionó en `main` mediante el commit `3ce453f7d9e8173eef828f73f200c0dc63d6d4cd`; CI #36 aprobó backend, frontend y PostgreSQL 16/17.
+- Los pedidos nuevos quedan ligados a organización, sucursal, entidad legal y actor autenticado. Los históricos conservan su contexto nulo, sin backfill ni atribución fiscal inferida.
+- La consulta/actualización de pedidos y la consulta/asignación de entregas están delimitadas por sucursal y usuario. N09-F1.3 añade el control del estado de la sucursal y su modo de solo lectura.
+- N09-F3.3 (permisos granulares por ámbito), F1.4 (dirección y configuración local), F1.5 (historial organizacional general) e integración de mesas, reservas y contabilidad siguen pendientes.
+- Mesas y reservas todavía no tienen atribución por sucursal. No se asignan retroactivamente a una sede; su aislamiento requiere una fase propia.
+- La facturación electrónica, impuestos por entidad y contabilidad separada por entidad legal siguen sujetas al diseño y aprobación fiscal/contable correspondientes.
 
-Detalle técnico y contrato: `docs/CONTEXTO-OPERATIVO-PEDIDOS.md`. La entrega está pendiente de la revisión del PR y de CI.
+Detalle técnico y contrato: `docs/CONTEXTO-OPERATIVO-PEDIDOS.md`. La entrega quedó fusionada; no implica migración ni despliegue en producción.
 
 
 # N10 — Atención y reservas avanzada
@@ -1195,9 +1195,22 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 - **Alcance:** múltiples entidades legales por organización, identificador tributario por país/tipo/valor, identidad mínima de sucursal y relación N:M explícita `BranchLegalEntity`.
 - **Invariante:** toda sucursal se crea con al menos una entidad legal; no se puede retirar la última asociación. Una misma sucursal puede operar con varias entidades y una entidad puede estar habilitada en varias sucursales.
 - **Seguridad:** el propietario corporativo registrado es la autoridad temporal de administración hasta que N09-F3 introduzca RBAC por ámbito. El rol heredado `admin` por sí solo no concede administración de entidades legales/sucursales. Las tablas permiten SELECT al runtime y bloquean DML directo; las escrituras usan funciones PostgreSQL protegidas.
-- **Límites:** no se implementan regímenes ni responsabilidades fiscales, tarifas, facturación electrónica, moneda, zona horaria, ni ciclo operativo de sucursal. La selección de entidad legal en pedidos/operaciones fiscales y financieras aún requiere contexto de sucursal activa y no se declara implementada aquí.
+- **Límites:** no se implementan regímenes ni responsabilidades fiscales, tarifas, facturación electrónica, moneda, zona horaria ni ciclo de vida de sucursal. El contexto de sucursal activa y la selección explícita de entidad legal por pedido POS se incorporaron después mediante PR #11; la atribución en otros módulos operativos/financieros sigue pendiente.
 - **Persistencia:** migración `007_create_legal_entities_and_branch_relations.sql`. No ejecutar en producción ni realizar backfills.
 - **Diseño y contrato:** documentados en [FASE-1.2-ENTIDADES-LEGALES.md](./FASE-1.2-ENTIDADES-LEGALES.md).
 - **Validación técnica:** backend/unit tests, typecheck, lint, build y las matrices PostgreSQL 16/17 aprobaron en el run #25 sobre el HEAD indicado.
-- **Integración:** PR #10 abierto para revisión, sin fusionar.
+- **Integración:** fusionada en `main` mediante PR #10, merge commit `94ea9dd837073950c138b1dd138133a7ce7f2201`. El contexto operativo de pedidos se completó posteriormente mediante PR #11.
 - **Producción:** no ejecutar migración 007 ni backfills hasta completar la inspección productiva y el restore real de Fase 0.
+
+
+### N09-F1.3 — Ciclo de vida de sucursales
+
+- **Estado:** Implementación validada por CI; PR #12 abierto para revisión, todavía no integrado en `main`.
+- **Alcance implementado:** estados `active`, `suspended` y `closed`; suspensión reversible, cierre terminal; registro auditable de creación/transiciones con actor e instante; consulta del historial para el propietario corporativo.
+- **Regla de operación:** una sucursal suspendida/cerrada no admite crear, modificar ni borrar pedidos atribuidos; tampoco se pueden alterar líneas ni datos de entrega. Se conservan las consultas históricas.
+- **Integridad y concurrencia:** los guards PostgreSQL protegen escrituras directas además de los contratos HTTP. La transición bloquea la fila de sucursal y se serializa con la escritura de pedidos. Cambios de identidad, asociaciones legales y nuevas asignaciones quedan bloqueados mientras la sucursal no esté activa.
+- **Compatibilidad:** las sucursales existentes reciben una línea base `active`, sin inferir estados históricos. Los pedidos antiguos sin `branch_id` siguen sin atribución.
+- **Límites pendientes:** mesas/reservas aún no tienen `branch_id`; no quedan aisladas por esta fase. Dirección, horarios, zona horaria y parámetros locales corresponden a F1.4; historial organizacional general a F1.5; RBAC granular sigue pendiente.
+- **Documentación:** [FASE-1.3-CICLO-VIDA-SUCURSALES.md](./FASE-1.3-CICLO-VIDA-SUCURSALES.md).
+- **Validación CI:** run [44439162015](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44439162015) — **success** sobre HEAD `692193739ec168abf75369ad589292bd3c5acc17`. Pasaron backend/unit tests, TypeScript, Biome lint, build no productivo y PostgreSQL 16/17 (migraciones desde base vacía, idempotencia e integración con rol runtime restringido).
+- **Producción:** no se aplicó migración 009, no hubo backfill ni despliegue. Las puertas de inspección productiva y restore de Fase 0 siguen vigentes.

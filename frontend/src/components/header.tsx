@@ -47,7 +47,7 @@ export function Header({
           </option>
           {branches.map((branch) => (
             <option key={branch.id} value={branch.id}>
-              {branch.code} · {branch.name}
+              {branch.code} · {branch.name}{branch.status === "suspended" ? " · Suspendida" : branch.status === "closed" ? " · Cerrada" : ""}
             </option>
           ))}
         </select>

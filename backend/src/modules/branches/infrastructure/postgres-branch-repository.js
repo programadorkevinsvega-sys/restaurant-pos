@@ -6,6 +6,9 @@ function mapBranch(row) {
     id: row.id,
     code: row.code,
     name: row.name,
+    status: row.status,
+    status_changed_at: row.status_changed_at,
+    closed_at: row.closed_at,
     legal_entities: row.legal_entities ?? [],
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -17,6 +20,9 @@ const branchSelect = `
     b.id,
     b.code,
     b.name,
+    b.status,
+    b.status_changed_at,
+    b.closed_at,
     b.created_at,
     b.updated_at,
     COALESCE(
@@ -72,6 +78,9 @@ export class PostgresBranchRepository {
         b.id,
         b.code,
         b.name,
+        b.status,
+        b.status_changed_at,
+        b.closed_at,
         b.created_at,
         b.updated_at,
         COALESCE(
@@ -186,5 +195,30 @@ export class PostgresBranchRepository {
       SELECT public.remove_branch_legal_entity($1, $2, $3) AS outcome
     `, [branchId, legalEntityId, actorUserId])
     return result.rows[0]?.outcome ?? "ASSIGNMENT_NOT_FOUND"
+  }
+
+  async changeBranchStatus(branchId, status, actorUserId) {
+    const result = await queryPostgres(this.pool, `
+      SELECT public.change_branch_status($1, $2, $3) AS outcome
+    `, [branchId, status, actorUserId])
+    const outcome = result.rows[0]?.outcome ?? "BRANCH_NOT_FOUND"
+    if (outcome !== "CHANGED" && outcome !== "UNCHANGED") return outcome
+    return { outcome, branch: await this.findBranchById(branchId) }
+  }
+
+  async listLifecycleEvents(branchId) {
+    const result = await queryPostgres(this.pool, `
+      SELECT event.id, event.previous_status, event.new_status,
+             event.actor_user_id, actor.email AS actor_email, event.occurred_at
+      FROM public.branch_lifecycle_events AS event
+      JOIN public.branches AS branch
+        ON branch.organization_id = event.organization_id
+        AND branch.id = event.branch_id
+      JOIN public.app_users AS actor ON actor.id = event.actor_user_id
+      WHERE branch.id = $1
+      ORDER BY event.sequence DESC
+      LIMIT 100
+    `, [branchId])
+    return result.rows
   }
 }

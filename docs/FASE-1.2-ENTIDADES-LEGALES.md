@@ -127,7 +127,7 @@ Esta fase no configura:
 - Proveedor de facturación electrónica, certificados, resolución de numeración o contingencias.
 - Moneda funcional, moneda transaccional, tipos de cambio ni zona horaria.
 - Domicilio operativo, estado, horarios, apertura, suspensión o cierre de sucursales.
-- Selector de sucursal activa, roles corporativos/locales, asignaciones de usuarios o delegación RBAC.
+- Roles corporativos/locales completos, delegación RBAC y permisos granulares (N09-F3.1/F3.3). El contexto operativo básico —selector de sucursal activa y asignaciones de usuarios— se incorporó posteriormente mediante PR #11, en el alcance inicial de N09-F3.2.
 - Almacenes, inventario, catálogo compartido o configuración por sucursal.
 
 Estos asuntos pertenecen a N09-F1.3/F1.4, N09-F3, N09-F2 y a las líneas de Finanzas/Impuestos/Facturación del roadmap.
@@ -169,6 +169,6 @@ El workflow de PR ejecuta:
 - PostgreSQL 16: migraciones desde base vacía, idempotencia y pruebas de integración con rol runtime restringido.
 - PostgreSQL 17: migraciones desde base vacía, idempotencia y pruebas de integración con rol runtime restringido.
 
-La migración `007_create_legal_entities_and_branch_relations.sql` solo se ejecuta en CI y bases aisladas durante esta fase. No aplicar a producción ni ejecutar backfills hasta tener inspección productiva y restauración de backup verificada, pendientes de Fase 0.
+La migración `007_create_legal_entities_and_branch_relations.sql` se validó en CI y se integró en `main` mediante PR #10 (merge commit `94ea9dd837073950c138b1dd138133a7ce7f2201`). La selección de sucursal activa y entidad legal por pedido POS se incorporó posteriormente mediante PR #11 (merge commit `3ce453f7d9e8173eef828f73f200c0dc63d6d4cd`).
 
-La subfase queda validada técnicamente en ese HEAD. La integración final en `main` y el despliegue siguen sujetos a revisión y autorización explícita; cualquier nuevo commit requiere CI sobre su propio HEAD.
+No aplicar migraciones en producción ni ejecutar backfills hasta contar con inspección productiva y restauración verificada de un backup, pendientes de Fase 0. La fusión en `main` no autoriza el despliegue ni la ejecución de migraciones productivas.

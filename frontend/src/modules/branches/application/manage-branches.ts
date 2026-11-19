@@ -1,5 +1,5 @@
 import type { BranchRepository } from "../domain/branch-repository"
-import type { AvailableBranchesResult, Branch, BranchInput, BranchesResult, BranchUpdate, BranchUsersResult } from "../domain/models"
+import type { AvailableBranchesResult, Branch, BranchInput, BranchLifecycleResult, BranchStatus, BranchesResult, BranchUpdate, BranchUsersResult } from "../domain/models"
 
 export class ManageBranches {
   constructor(private readonly repository: BranchRepository) {}
@@ -22,6 +22,14 @@ export class ManageBranches {
 
   removeUser(branchId: string, userId: string): Promise<BranchUsersResult> {
     return this.repository.removeUser(branchId, userId)
+  }
+
+  changeStatus(id: string, status: BranchStatus): Promise<Branch> {
+    return this.repository.changeStatus(id, status)
+  }
+
+  listLifecycleEvents(branchId: string, signal?: AbortSignal): Promise<BranchLifecycleResult> {
+    return this.repository.listLifecycleEvents(branchId, signal)
   }
 
   create(input: BranchInput): Promise<Branch> {
