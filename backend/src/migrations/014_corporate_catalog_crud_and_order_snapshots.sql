@@ -8,12 +8,7 @@ ALTER TABLE public.order_items
   ADD COLUMN product_name_at_order text,
   ADD COLUMN product_image_url_at_order text;
 
-UPDATE public.order_items AS item
-SET product_name_at_order = product.name,
-    product_image_url_at_order = product.image_url
-FROM public.products AS product
-WHERE product.id = item.product_id
-  AND item.product_name_at_order IS NULL;
+-- Existing order items keep NULL snapshots: their original catalog values cannot be reconstructed reliably.
 
 CREATE INDEX products_active_category_name_idx
   ON public.products(category_id, name)
@@ -89,7 +84,7 @@ BEGIN
   SELECT coalesce(jsonb_agg(to_jsonb(result_row)), '[]'::jsonb)
   INTO v_result
   FROM (
-    SELECT oi.product_id AS id, coalesce(oi.product_name_at_order, product.name) AS name,
+    SELECT oi.product_id AS id, coalesce(oi.product_name_at_order, 'Producto histórico') AS name,
       coalesce(category.name, 'Sin categoría') AS category,
       sum(oi.quantity)::integer AS total_quantity,
       sum(oi.quantity * oi.price_at_order) AS total_revenue
@@ -99,7 +94,7 @@ BEGIN
     LEFT JOIN public.categories AS category ON category.id = product.category_id
     WHERE orders.status = 'completed'
       AND orders.created_at >= p_start_date AND orders.created_at <= p_end_date
-    GROUP BY oi.product_id, coalesce(oi.product_name_at_order, product.name), category.name
+    GROUP BY oi.product_id, coalesce(oi.product_name_at_order, 'Producto histórico'), category.name
     ORDER BY total_quantity DESC, name
     LIMIT 10
   ) AS result_row;
