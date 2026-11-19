@@ -118,7 +118,7 @@ export class PostgresOperationsRepository extends OperationsRepository {
     return rows[0]
   }
 
-  async listDeliveries(status) {
+  async listDeliveries(status, branchId, userId) {
     const { rows } = await queryPostgres(
       this.pool,
       `SELECT o.id, o.customer_name, o.table_number, o.total_amount,
@@ -151,19 +151,27 @@ export class PostgresOperationsRepository extends OperationsRepository {
               ), '[]'::jsonb) AS delivery_info
        FROM public.orders o
        WHERE o.order_type = 'A domicilio'
+         AND o.branch_id = $2
+         AND EXISTS (
+           SELECT 1
+           FROM public.branch_user_assignments assignment
+           WHERE assignment.organization_id = o.organization_id
+             AND assignment.branch_id = o.branch_id
+             AND assignment.user_id = $3
+         )
          AND ($1::text IS NULL OR o.status = $1)
        ORDER BY o.created_at DESC
        LIMIT 100`,
-      [status ?? null],
+      [status ?? null, branchId, userId],
     )
     return rows.map((row) => ({ ...row, total_amount: Number(row.total_amount) }))
   }
 
-  async assignDriver({ order_id, driver_name, driver_phone, estimated_time }) {
+  async assignDriver({ order_id, driver_name, driver_phone, estimated_time }, branchId, userId) {
     const { rows } = await queryPostgres(
       this.pool,
-      `SELECT public.assign_delivery_driver($1, $2, $3, $4) AS delivery`,
-      [order_id, driver_name, driver_phone ?? null, estimated_time ?? null],
+      `SELECT public.assign_delivery_driver($1, $2, $3, $4, $5::uuid, $6::uuid) AS delivery`,
+      [order_id, driver_name, driver_phone ?? null, estimated_time ?? null, branchId, userId],
     )
     return rows[0].delivery
   }
