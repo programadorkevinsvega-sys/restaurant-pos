@@ -1,11 +1,9 @@
 import type {
+  OrganizationHistoryFilters,
+  OrganizationHistoryPage,
   OrganizationProfileInput,
   OrganizationProfileResult,
   OrganizationProfileUpdate,
-} from "./models"
-import type {
-  OrganizationHistoryFilters,
-  OrganizationHistoryPage,
 } from "./models"
 
 export interface OrganizationRepository {
