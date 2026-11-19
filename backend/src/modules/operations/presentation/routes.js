@@ -21,7 +21,7 @@ export function createOperationsRoutes(operations, authenticate, authorize, writ
     validateRequest({ body: z.object({
       number: z.string().trim().min(1).max(30),
       capacity: z.coerce.number().int().min(1).max(100),
-    }).strict() }),
+    }) }),
     asyncHandler(async (request, response) => response.status(201).json(
       await operations.createTable(request.validated.body, request.auth),
     )),
@@ -32,7 +32,7 @@ export function createOperationsRoutes(operations, authenticate, authorize, writ
     validateRequest({ params: z.object({ id: uuid }), body: z.object({
       status: tableStatus,
       current_order_id: uuid.nullable().optional(),
-    }).strict() }),
+    }) }),
     asyncHandler(async (request, response) => response.json(
       await operations.updateTable(
         request.validated.params.id,
@@ -48,7 +48,7 @@ export function createOperationsRoutes(operations, authenticate, authorize, writ
     const parsed = z.object({
       date: z.iso.date().optional(),
       status: reservationStatus.optional(),
-    }).strict().safeParse(request.query)
+    }).safeParse(request.query)
     if (!parsed.success) throw new AppError(400, "VALIDATION_ERROR", "Los filtros de reservación no son válidos.")
     response.json(await operations.listReservations(parsed.data, request.auth))
   }))
@@ -63,7 +63,7 @@ export function createOperationsRoutes(operations, authenticate, authorize, writ
       reservation_date: z.iso.datetime(),
       party_size: z.coerce.number().int().min(1).max(100),
       notes: z.string().trim().max(1000).optional().nullable(),
-    }).strict() }),
+    }) }),
     asyncHandler(async (request, response) => response.status(201).json(
       await operations.createReservation(request.validated.body, request.auth),
     )),
@@ -99,7 +99,7 @@ export function createOperationsRoutes(operations, authenticate, authorize, writ
       driver_name: z.string().trim().min(1).max(120),
       driver_phone: z.string().trim().max(32).optional().nullable(),
       estimated_time: z.coerce.number().int().min(1).max(1440).optional().nullable(),
-    }).strict() }),
+    }) }),
     asyncHandler(async (request, response) => {
       if (!request.auth.activeBranchId) {
         throw new AppError(409, "ACTIVE_BRANCH_REQUIRED", "Selecciona una sucursal activa antes de asignar entregas.")
