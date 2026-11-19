@@ -53,8 +53,9 @@ export function ProductOptionsDialog({ product, groups, onClose, onConfirm }: Pr
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="product-options-title" className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-auto rounded-t-xl bg-background p-5 shadow-xl sm:rounded-xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" role="presentation">
+      <button type="button" aria-label="Cerrar personalización" className="absolute inset-0 cursor-default border-0 bg-transparent p-0" onClick={onClose} />
+      <section role="dialog" aria-modal="true" aria-labelledby="product-options-title" className="relative z-10 max-h-[90vh] w-full max-w-lg space-y-4 overflow-auto rounded-t-xl bg-background p-5 shadow-xl sm:rounded-xl">
         <header>
           <h2 id="product-options-title" className="text-lg font-semibold">Personaliza {product.name}</h2>
           <p className="text-sm text-muted-foreground">Selecciona las presentaciones y modificadores disponibles para esta sucursal.</p>
@@ -69,10 +70,10 @@ export function ProductOptionsDialog({ product, groups, onClose, onConfirm }: Pr
                 <label key={option.id} className="flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm">
                   <input
                     type={inputType}
-                    name={"product-option-" + group.id}
+                    name={`product-option-${group.id}`}
                     checked={checked}
                     onChange={() => toggle(group, option.id)}
-                    aria-label={group.name + ": " + option.name}
+                    aria-label={`${group.name}: ${option.name}`}
                   />
                   <span>{option.name}</span>
                 </label>

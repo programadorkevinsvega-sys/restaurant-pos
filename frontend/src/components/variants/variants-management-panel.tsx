@@ -121,17 +121,6 @@ export function VariantsManagementPanel({
     setNewGroup({ kind: "presentation", name: "", min_selections: 1, max_selections: 1, position: 0, is_active: false })
   }
 
-  const updateGroup = (group: ProductOptionGroup, patch: Partial<ProductOptionGroupInput>) => {
-    const input: ProductOptionGroupInput = {
-      kind: patch.kind ?? group.kind,
-      name: patch.name ?? group.name,
-      min_selections: patch.min_selections ?? group.min_selections,
-      max_selections: patch.max_selections ?? group.max_selections,
-      position: patch.position ?? group.position,
-      is_active: patch.is_active ?? group.is_active,
-    }
-    return run(() => application.updateGroup(group.id, input), "Grupo actualizado.")
-  }
   const saveGroupFromInputs = (group: ProductOptionGroup, isActive: boolean) => {
     const name = document.getElementById(`option-group-name-${group.id}`) as HTMLInputElement | null
     const kind = document.getElementById(`option-group-kind-${group.id}`) as HTMLSelectElement | null
