@@ -250,13 +250,13 @@ jobs:
         run: npm install --prefix "$RUNNER_TEMP/playwright" --no-save --package-lock=false @playwright/test@1.65.1
 
       - name: Install Chromium
-        run: "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps chromium
+        run: $RUNNER_TEMP/playwright/node_modules/.bin/playwright install --with-deps chromium
 
       - name: Run browser flows and capture visual evidence
         env:
           PLAYWRIGHT_NODE_MODULES: ${{ runner.temp }}/playwright/node_modules
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:3002
-        run: "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" test --config=frontend/e2e/playwright.config.cjs
+        run: $RUNNER_TEMP/playwright/node_modules/.bin/playwright test --config=frontend/e2e/playwright.config.cjs
 
       - name: Upload browser report, screenshots and traces
         if: always()
