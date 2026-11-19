@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import type {
   Reservation,
   ReservationFilters,
@@ -138,18 +139,18 @@ export function ReservationsManagementPanel({
         </CardHeader>
         <CardContent>
           <form className="grid gap-3 sm:grid-cols-2" onSubmit={createReservation}>
-            <label className="grid gap-1 text-sm">
-              Nombre del cliente
-              <Input required name="customer_name" minLength={1} maxLength={120} disabled={!canWrite || creating} />
-            </label>
-            <label className="grid gap-1 text-sm">
-              Teléfono
-              <Input name="customer_phone" maxLength={32} disabled={!canWrite || creating} />
-            </label>
-            <label className="grid gap-1 text-sm">
-              Correo electrónico
-              <Input name="customer_email" type="email" maxLength={254} disabled={!canWrite || creating} />
-            </label>
+            <div className="grid gap-1 text-sm">
+              <Label htmlFor="reservation-customer-name">Nombre del cliente</Label>
+              <Input id="reservation-customer-name" required name="customer_name" minLength={1} maxLength={120} disabled={!canWrite || creating} />
+            </div>
+            <div className="grid gap-1 text-sm">
+              <Label htmlFor="reservation-customer-phone">Teléfono</Label>
+              <Input id="reservation-customer-phone" name="customer_phone" maxLength={32} disabled={!canWrite || creating} />
+            </div>
+            <div className="grid gap-1 text-sm">
+              <Label htmlFor="reservation-customer-email">Correo electrónico</Label>
+              <Input id="reservation-customer-email" name="customer_email" type="email" maxLength={254} disabled={!canWrite || creating} />
+            </div>
             <label className="grid gap-1 text-sm">
               Mesa
               <select
@@ -167,14 +168,14 @@ export function ReservationsManagementPanel({
                 ))}
               </select>
             </label>
-            <label className="grid gap-1 text-sm">
-              Número de personas
-              <Input required name="party_size" type="number" min={1} max={100} step={1} disabled={!canWrite || creating} />
-            </label>
-            <label className="grid gap-1 text-sm">
-              Fecha y hora
-              <Input required name="reservation_date" type="datetime-local" disabled={!canWrite || creating} />
-            </label>
+            <div className="grid gap-1 text-sm">
+              <Label htmlFor="reservation-party-size">Número de personas</Label>
+              <Input id="reservation-party-size" required name="party_size" type="number" min={1} max={100} step={1} disabled={!canWrite || creating} />
+            </div>
+            <div className="grid gap-1 text-sm">
+              <Label htmlFor="reservation-date">Fecha y hora</Label>
+              <Input id="reservation-date" required name="reservation_date" type="datetime-local" disabled={!canWrite || creating} />
+            </div>
             <label className="grid gap-1 text-sm sm:col-span-2">
               Notas
               <textarea
@@ -202,10 +203,10 @@ export function ReservationsManagementPanel({
         </CardHeader>
         <CardContent>
           <form className="grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto]" onSubmit={(event) => void applyFilters(event)}>
-            <label className="grid gap-1 text-sm">
-              Fecha
-              <Input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} disabled={filtering} />
-            </label>
+            <div className="grid gap-1 text-sm">
+              <Label htmlFor="reservation-filter-date">Fecha</Label>
+              <Input id="reservation-filter-date" type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} disabled={filtering} />
+            </div>
             <label className="grid gap-1 text-sm">
               Estado
               <select
@@ -254,7 +255,7 @@ export function ReservationsManagementPanel({
                   <p className="font-semibold">{reservation.customer_name} · {reservation.party_size} personas</p>
                   <p className="text-sm text-muted-foreground">
                     Mesa {reservation.table?.number ?? "—"}
-                    {reservation.table ? " · capacidad " + reservation.table.capacity : ""}
+                    {reservation.table ? ` · capacidad ${reservation.table.capacity}` : ""}
                     {" · "}{formatReservationDate(reservation.reservation_date)}
                   </p>
                   <p className="text-xs text-muted-foreground">Reservación #{reservation.id.slice(0, 8)}</p>

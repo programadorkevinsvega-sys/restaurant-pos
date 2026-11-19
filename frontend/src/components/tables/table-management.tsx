@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import type { OrderSummary } from "@/modules/orders/domain/models"
 import type { RestaurantTable, TableStatus } from "@/modules/operations/domain/models"
 
@@ -99,9 +100,10 @@ export function TableManagement({
         </CardHeader>
         <CardContent>
           <form className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto]" onSubmit={handleCreate}>
-            <label className="grid gap-1 text-sm">
-              Número o nombre
+            <div className="grid gap-1 text-sm">
+              <Label htmlFor="table-number">Número o nombre</Label>
               <Input
+                id="table-number"
                 required
                 minLength={1}
                 maxLength={30}
@@ -109,10 +111,11 @@ export function TableManagement({
                 onChange={(event) => setNumber(event.target.value)}
                 disabled={!canWrite || creating}
               />
-            </label>
-            <label className="grid gap-1 text-sm">
-              Capacidad (personas)
+            </div>
+            <div className="grid gap-1 text-sm">
+              <Label htmlFor="table-capacity">Capacidad (personas)</Label>
               <Input
+                id="table-capacity"
                 required
                 type="number"
                 min={1}
@@ -122,7 +125,7 @@ export function TableManagement({
                 onChange={(event) => setCapacity(event.target.value)}
                 disabled={!canWrite || creating}
               />
-            </label>
+            </div>
             <div className="flex items-end">
               <Button type="submit" disabled={!canWrite || creating || !number.trim()}>
                 {creating ? "Creando…" : "Crear mesa"}
