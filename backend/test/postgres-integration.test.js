@@ -793,6 +793,22 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
 
     await assert.rejects(
       runtime.query(
+        "SELECT * FROM public.update_branch_identity($1, $2, $3, $4)",
+        [branchId, "BOG-01", "Renamed while suspended", organizationAdminId],
+      ),
+      (error) => error.code === "55000" && error.message.includes("BRANCH_NOT_ACTIVE"),
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.assign_user_to_branch($1, $2, $3)",
+        [branchId, organizationAdminId, organizationAdminId],
+      ),
+      (error) => error.code === "55000" && error.message.includes("BRANCH_NOT_ACTIVE"),
+    )
+
+    await assert.rejects(
+      runtime.query(
         "SELECT * FROM public.assign_branch_legal_entity($1, $2, $3)",
         [branchId, legalEntityIds[1], organizationAdminId],
       ),
