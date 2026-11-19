@@ -1432,6 +1432,10 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       /Invalid order type/,
     )
   } finally {
+    // The integration database is isolated and starts empty. Remove organization
+    // audit fixtures before deleting the referenced branch/organization rows.
+    await migrator.query("TRUNCATE TABLE public.organization_change_events")
+
     if (branchId || secondBranchId) {
       // Isolated-test teardown only: restore fixture branches so the read-only
       // guard does not block privileged cleanup of the ephemeral test database.
