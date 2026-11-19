@@ -27,7 +27,6 @@ Estas credenciales y fixtures solo existen en el PostgreSQL desechable del workf
 | N09-F1.4 | Dirección, zona horaria, moneda y calendario | Captura adjunta al test | Verificar guardar, consultar y eliminar excepción |
 | N09-F1.5 | Historial, actor y snapshots | Captura adjunta al test | Verificar filtros, paginación y enmascaramiento |
 | N09-F1.6 | Mesas y creación/consulta de reserva | Captura adjunta al test | Verificar aislamiento, lectura histórica y permisos |
-| N09-F2.1 | Catálogo maestro y disponibilidad por sucursal | Captura adjunta al test | Verificar exclusión local, restauración, aislamiento entre sucursales y bloqueo de pedidos con producto excluido |
 
 ## Evidencia visual
 
@@ -50,4 +49,4 @@ Una captura demuestra qué se renderizó durante la ejecución; por sí sola no 
 
 ## Alcance actual
 
-La primera suite automatiza recorridos positivos de navegador y adjunta evidencia de N09-F1.1–F1.6. Los casos de cierre terminal, autorización negativa, aislamiento entre sucursales, errores, estados vacíos y regresión de formularios se mantienen como criterios adicionales que no quedan cubiertos por una captura positiva y deben agregarse antes de declarar F1 aceptada. F2.1 ya cuenta con un caso E2E inicial para excluir y reactivar un producto en una sucursal y verificar que desaparece del menú operativo; debe pasar CI y ampliarse con casos negativos de autorización/aislamiento antes de aceptar la subfase. Las pruebas de F2.2–F2.5 se incorporarán al mismo esquema junto con la implementación real de cada subfase; no se crean pruebas verdes para pantallas o comportamientos que todavía no existen.
+La primera suite automatiza recorridos positivos de navegador y adjunta evidencia de N09-F1.1–F1.6. Los casos de cierre terminal, autorización negativa, aislamiento entre sucursales, errores, estados vacíos y regresión de formularios se mantienen como criterios adicionales que no quedan cubiertos por una captura positiva y deben agregarse antes de declarar F1 aceptada. F2.1 ya cuenta con un caso E2E inicial para excluir y reactivar un producto en una sucursal y verificar que desaparece del menú operativo; aprobó CI en el run #44481337206 y ampliarse con casos negativos de autorización/aislamiento antes de aceptar la subfase. Las pruebas de F2.2–F2.5 se incorporarán al mismo esquema junto con la implementación real de cada subfase; no se crean pruebas verdes para pantallas o comportamientos que todavía no existen.
