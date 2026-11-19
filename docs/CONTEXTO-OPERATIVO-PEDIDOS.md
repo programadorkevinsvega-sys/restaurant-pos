@@ -83,4 +83,4 @@ La suite incorpora pruebas unitarias y de integración para:
 - Delimitar entregas y asignación de repartidor a la sucursal del usuario.
 - Verificar privilegios del rol runtime y protección de los pedidos históricos.
 
-El cierre de la entrega queda sujeto a los resultados finales de CI del Pull Request.
+La entrega se fusionó en `main` mediante PR #11, commit `3ce453f7d9e8173eef828f73f200c0dc63d6d4cd`. La ejecución CI #36 terminó con éxito: backend, frontend, migraciones desde cero e integración con rol runtime restringido en PostgreSQL 16 y 17. La fusión no ejecutó migraciones ni despliegue en producción.
