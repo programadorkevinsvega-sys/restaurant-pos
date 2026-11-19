@@ -1173,4 +1173,16 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 - **Seguridad:** no se interpreta el rol heredado `admin` como propietario permanente. Solo puede ejecutar el bootstrap mientras el perfil no exista; el usuario que lo realiza queda registrado como propietario y únicamente ese usuario puede actualizar el perfil.
 - **Diseño y contrato:** documentados en [FASE-1.1-ORGANIZACION.md](./FASE-1.1-ORGANIZACION.md).
 - **Validación:** backend/unit tests, typecheck, lint, build y los dos jobs PostgreSQL pasaron en el run #17.
-- **Criterio de cierre técnico:** entregables de esta subfase implementados, documentados y validados en CI. La integración en `main` y el despliegue quedan pendientes de revisión y autorización; no se ha realizado ninguna operación productiva.
+- **Criterio de cierre técnico:** entregables implementados y validados en CI. **Integrada en `main` mediante PR #9**, fusionado el 2026-11-19 (merge commit `b19c1ac3af15def850d8ff6dddd4f2069312abf`). El despliegue y la aplicación de la migración `006` en producción siguen pendientes de revisión, evidencia de recuperación y autorización.
+
+
+### N09-F1.2 — Entidades legales y relación con sucursales
+
+- **Estado:** En implementación y validación CI en la rama `feat/fase-1-2-entidades-legales`.
+- **Alcance:** múltiples entidades legales por organización, identificador tributario por país/tipo/valor, identidad mínima de sucursal y relación N:M explícita `BranchLegalEntity`.
+- **Invariante:** toda sucursal se crea con al menos una entidad legal; no se puede retirar la última asociación. Una misma sucursal puede operar con varias entidades y una entidad puede estar habilitada en varias sucursales.
+- **Seguridad:** el propietario corporativo registrado es la autoridad temporal de administración hasta que N09-F3 introduzca RBAC por ámbito. El rol heredado `admin` por sí solo no concede administración de entidades legales/sucursales. Las tablas permiten SELECT al runtime y bloquean DML directo; las escrituras usan funciones PostgreSQL protegidas.
+- **Límites:** no se implementan regímenes ni responsabilidades fiscales, tarifas, facturación electrónica, moneda, zona horaria, ni ciclo operativo de sucursal. La selección de entidad legal en pedidos/operaciones fiscales y financieras aún requiere contexto de sucursal activa y no se declara implementada aquí.
+- **Persistencia:** migración `007_create_legal_entities_and_branch_relations.sql`. No ejecutar en producción ni realizar backfills.
+- **Diseño y contrato:** documentados en [FASE-1.2-ENTIDADES-LEGALES.md](./FASE-1.2-ENTIDADES-LEGALES.md).
+- **Cierre:** pendiente del CI de backend/frontend y PostgreSQL 16/17 sobre el HEAD final del PR; además, la puerta de producción de Fase 0 sigue vigente.
