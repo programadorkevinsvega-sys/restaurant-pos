@@ -19,6 +19,10 @@ function createRepository(overrides = {}) {
   return {
     findOrganizationOwnerId: async () => owner.userId,
     listBranches: async () => [branch],
+    listAvailableBranches: async () => [branch],
+    listBranchUsers: async () => [{ id: "staff-id", email: "staff@example.com", role: "staff", assigned: true }],
+    assignUserToBranch: async () => "ASSIGNED",
+    removeUserFromBranch: async () => "REMOVED",
     findBranchById: async () => branch,
     createBranch: async (input) => ({ ...branch, ...input, code: input.code.toUpperCase() }),
     updateBranch: async (id, input) => id === branch.id ? { ...branch, ...input } : null,
@@ -160,4 +164,49 @@ test("missing organization blocks branch management", async () => {
     useCases.list(owner),
     { status: 404, code: "ORGANIZATION_NOT_INITIALIZED" },
   )
+})
+
+test("operator branch listing is scoped to branches assigned to the authenticated user", async () => {
+  const useCases = new BranchUseCases(createRepository({
+    listAvailableBranches: async (userId) => {
+      assert.equal(userId, "operator-id")
+      return [branch]
+    },
+  }))
+  const result = await useCases.listAvailable({ userId: "operator-id", role: "staff" })
+  assert.equal(result.branches.length, 1)
+  assert.equal(result.branches[0].legal_entities[0].tax_identifier, undefined)
+})
+
+test("unauthenticated operators cannot list available branches", async () => {
+  const useCases = new BranchUseCases(createRepository())
+  await assert.rejects(useCases.listAvailable(null), {
+    status: 401,
+    code: "AUTHENTICATION_REQUIRED",
+  })
+})
+
+test("organization owner can assign active users to a branch", async () => {
+  let assignment
+  const useCases = new BranchUseCases(createRepository({
+    assignUserToBranch: async (branchId, userId, actorUserId) => {
+      assignment = { branchId, userId, actorUserId }
+      return "ASSIGNED"
+    },
+  }))
+  const result = await useCases.assignUser(branch.id, "staff-id", owner)
+  assert.deepEqual(assignment, { branchId: branch.id, userId: "staff-id", actorUserId: owner.userId })
+  assert.equal(result.users[0].assigned, true)
+})
+
+test("legacy administrators cannot assign users without corporate ownership", async () => {
+  let called = false
+  const useCases = new BranchUseCases(createRepository({
+    assignUserToBranch: async () => { called = true; return "ASSIGNED" },
+  }))
+  await assert.rejects(useCases.assignUser(branch.id, "staff-id", legacyAdmin), {
+    status: 403,
+    code: "ORGANIZATION_OWNER_REQUIRED",
+  })
+  assert.equal(called, false)
 })
