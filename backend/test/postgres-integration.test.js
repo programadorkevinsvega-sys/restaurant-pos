@@ -1117,7 +1117,59 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "SELECT public.set_branch_catalog_product_enabled($1, $2, true, $3) AS outcome",
       [branchId, productId, organizationAdminId],
     )
+
     assert.equal(reenabledProduct.rows[0].outcome, "CHANGED")
+
+    await assert.rejects(
+      runtime.query(
+        "INSERT INTO public.branch_catalog_product_exclusions (organization_id, branch_id, product_id, excluded_by_user_id) VALUES ($1, $2, $3, $4)",
+        [organizationId, branchId, productId, organizationAdminId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT * FROM public.list_branch_catalog_products($1::uuid, $2::uuid)",
+        [branchId, organizationStaffId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    const concurrentExclusions = await Promise.all([
+      runtime.query(
+        "SELECT public.set_branch_catalog_product_enabled($1, $2, false, $3) AS outcome",
+        [branchId, productId, organizationAdminId],
+      ),
+      runtime.query(
+        "SELECT public.set_branch_catalog_product_enabled($1, $2, false, $3) AS outcome",
+        [branchId, productId, organizationAdminId],
+      ),
+    ])
+    assert.deepEqual(
+      concurrentExclusions.map((result) => result.rows[0].outcome).sort(),
+      ["CHANGED", "UNCHANGED"],
+    )
+
+    const restoreAfterConcurrency = await runtime.query(
+      "SELECT public.set_branch_catalog_product_enabled($1, $2, true, $3) AS outcome",
+      [branchId, productId, organizationAdminId],
+    )
+    assert.equal(restoreAfterConcurrency.rows[0].outcome, "CHANGED")
+
+    await migrator.query(
+      "UPDATE public.branches SET status = 'suspended', status_changed_at = now() WHERE id = $1",
+      [branchId],
+    )
+    const suspendedBranchChange = await runtime.query(
+      "SELECT public.set_branch_catalog_product_enabled($1, $2, false, $3) AS outcome",
+      [branchId, productId, organizationAdminId],
+    )
+    assert.equal(suspendedBranchChange.rows[0].outcome, "BRANCH_NOT_ACTIVE")
+    await migrator.query(
+      "UPDATE public.branches SET status = 'active', status_changed_at = now() WHERE id = $1",
+      [branchId],
+    )
 
     await assert.rejects(
       runtime.query(
