@@ -147,7 +147,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog
-AS $ 
+AS $$
 BEGIN
   IF NEW.organization_id IS NULL
      OR NEW.branch_id IS NULL
@@ -173,7 +173,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.validate_new_order_context() FROM PUBLIC;
 
