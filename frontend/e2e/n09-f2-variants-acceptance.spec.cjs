@@ -22,6 +22,11 @@ function waitForProductConfiguration(page) {
 }
 
 async function reloadProductConfiguration(page, productSelect) {
+  // The panel selects the first product on mount; force a real value change
+  // when the E2E fixture is already selected before listening for the response.
+  if (await productSelect.inputValue() === productId) {
+    await productSelect.selectOption("")
+  }
   const responsePromise = waitForProductConfiguration(page)
   await productSelect.selectOption(productId)
   const response = await responsePromise
