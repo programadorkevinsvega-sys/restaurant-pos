@@ -288,3 +288,73 @@ CREATE TRIGGER branch_user_assignments_require_active_branch
   BEFORE INSERT ON public.branch_user_assignments
   FOR EACH ROW
   EXECUTE FUNCTION public.guard_branch_user_assignments();
+
+
+CREATE FUNCTION public.guard_branch_identity_writes()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $
+BEGIN
+  IF OLD.status <> 'active'
+     AND (NEW.code IS DISTINCT FROM OLD.code OR NEW.name IS DISTINCT FROM OLD.name) THEN
+    RAISE EXCEPTION 'BRANCH_NOT_ACTIVE'
+      USING ERRCODE = '55000';
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.guard_branch_identity_writes() FROM PUBLIC;
+
+CREATE TRIGGER branches_identity_requires_active_state
+  BEFORE UPDATE OF code, name ON public.branches
+  FOR EACH ROW
+  EXECUTE FUNCTION public.guard_branch_identity_writes();
+
+CREATE FUNCTION public.guard_branch_legal_entity_writes()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $
+DECLARE
+  v_branch_id uuid;
+  v_organization_id uuid;
+  v_status text;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_branch_id := OLD.branch_id;
+    v_organization_id := OLD.organization_id;
+  ELSE
+    v_branch_id := NEW.branch_id;
+    v_organization_id := NEW.organization_id;
+  END IF;
+
+  SELECT b.status INTO v_status
+  FROM public.branches AS b
+  WHERE b.organization_id = v_organization_id
+    AND b.id = v_branch_id
+  FOR SHARE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'BRANCH_NOT_FOUND'
+      USING ERRCODE = '23503';
+  END IF;
+
+  IF v_status <> 'active' THEN
+    RAISE EXCEPTION 'BRANCH_NOT_ACTIVE'
+      USING ERRCODE = '55000';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.guard_branch_legal_entity_writes() FROM PUBLIC;
+
+CREATE TRIGGER branch_legal_entities_require_active_branch
+  BEFORE INSERT OR UPDATE OR DELETE ON public.branch_legal_entities
+  FOR EACH ROW
+  EXECUTE FUNCTION public.guard_branch_legal_entity_writes();
