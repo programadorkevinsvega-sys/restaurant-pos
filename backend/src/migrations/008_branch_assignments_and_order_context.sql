@@ -142,6 +142,48 @@ COMMENT ON COLUMN public.orders.legal_entity_id IS
 COMMENT ON COLUMN public.orders.created_by_user_id IS
   'Usuario autenticado que registró el pedido con su contexto operativo.';
 
+CREATE FUNCTION public.validate_new_order_context()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $ 
+BEGIN
+  IF NEW.organization_id IS NULL
+     OR NEW.branch_id IS NULL
+     OR NEW.legal_entity_id IS NULL
+     OR NEW.created_by_user_id IS NULL THEN
+    RAISE EXCEPTION 'New orders require an explicit branch, legal entity and actor'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.branch_user_assignments AS assignment
+    JOIN public.app_users AS actor
+      ON actor.id = assignment.user_id
+      AND actor.is_active = true
+    WHERE assignment.organization_id = NEW.organization_id
+      AND assignment.branch_id = NEW.branch_id
+      AND assignment.user_id = NEW.created_by_user_id
+  ) THEN
+    RAISE EXCEPTION 'Order creator is not assigned to the selected branch'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.validate_new_order_context() FROM PUBLIC;
+
+CREATE TRIGGER orders_require_branch_context
+  BEFORE INSERT ON public.orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.validate_new_order_context();
+
+REVOKE INSERT ON TABLE public.orders FROM PUBLIC, restaurant_pos_app;
+
 CREATE FUNCTION public.prevent_order_context_reassignment()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -362,7 +404,7 @@ BEGIN
 
   RETURN to_jsonb(v_delivery);
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.assign_delivery_driver(uuid, text, text, integer, uuid, uuid)
   FROM PUBLIC;
