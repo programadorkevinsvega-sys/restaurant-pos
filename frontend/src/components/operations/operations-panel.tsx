@@ -14,6 +14,8 @@ import type {
   SalesReport,
 } from "@/modules/operations/domain/models"
 import type { AppSection } from "@/components/sidebar-nav"
+import { OrganizationProfileCard } from "@/components/organization/organization-profile-card"
+import type { OrganizationProfile, OrganizationProfileInput, OrganizationProfileUpdate } from "@/modules/organization/domain/models"
 import { HttpError } from "@/shared/infrastructure/http-client"
 
 interface OperationsPanelProps {
@@ -30,6 +32,12 @@ interface OperationsPanelProps {
   onAssignDriver: (orderId: string, name: string, phone: string, eta: string) => Promise<void>
   onUpdateSettings: (settings: RestaurantSettings) => Promise<void>
   onCreateCategory: (name: string) => Promise<void>
+  organization: OrganizationProfile | null
+  organizationLoading: boolean
+  canUpdateOrganization: boolean
+  canBootstrapOrganization: boolean
+  onBootstrapOrganization: (input: OrganizationProfileInput) => Promise<void>
+  onUpdateOrganization: (input: OrganizationProfileUpdate) => Promise<void>
 }
 
 const reservationFieldLabels: Record<string, string> = {
@@ -58,6 +66,8 @@ export function OperationsPanel(props: OperationsPanelProps) {
   const {
     section, tables, reservations, deliveries, salesReport, bestSellingProducts, settings, categories,
     onCreateReservation, onUpdateReservationStatus, onAssignDriver, onUpdateSettings, onCreateCategory,
+    organization, organizationLoading, canUpdateOrganization, canBootstrapOrganization,
+    onBootstrapOrganization, onUpdateOrganization,
   } = props
   const [busy, setBusy] = useState(false)
   const [categoryName, setCategoryName] = useState("")
@@ -185,6 +195,14 @@ export function OperationsPanel(props: OperationsPanelProps) {
     <section className="flex-1 space-y-6 overflow-auto p-6">
       <div><h1 className="text-2xl font-bold">Configuración</h1><p className="text-sm text-muted-foreground">Ajustes del restaurante guardados en el backend.</p></div>
       {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
+      <OrganizationProfileCard
+        organization={organization}
+        loading={organizationLoading}
+        canUpdate={canUpdateOrganization}
+        canBootstrap={canBootstrapOrganization}
+        onBootstrap={onBootstrapOrganization}
+        onUpdate={onUpdateOrganization}
+      />
       <Card><CardHeader><CardTitle className="text-lg">Categorías de menú</CardTitle></CardHeader><CardContent>
         <form className="flex gap-2" onSubmit={(event) => {
           event.preventDefault()
