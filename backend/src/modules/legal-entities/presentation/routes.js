@@ -28,6 +28,10 @@ export const legalEntitySchema = z.object({
 
 export function createLegalEntityRoutes(legalEntities, authenticate, writesLimiter) {
   const router = Router()
+  router.use((request, response, next) => {
+    response.set("Cache-Control", "no-store")
+    next()
+  })
   router.get("/", authenticate, asyncHandler(async (request, response) => {
     response.json(await legalEntities.list(request.auth))
   }))
