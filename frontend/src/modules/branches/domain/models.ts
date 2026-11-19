@@ -33,3 +33,34 @@ export interface BranchesResult {
     can_manage: boolean
   }
 }
+
+ 
+export interface OperationalBranchLegalEntity {
+  id: string
+  legal_name: string
+  commercial_name: string | null
+}
+
+export interface OperationalBranch {
+  id: string
+  code: string
+  name: string
+  legal_entities: OperationalBranchLegalEntity[]
+  created_at: string
+  updated_at: string
+}
+
+export interface AvailableBranchesResult {
+  branches: OperationalBranch[]
+}
+
+export interface BranchUser {
+  id: string
+  email: string
+  role: "staff" | "admin"
+  assigned: boolean
+}
+
+export interface BranchUsersResult {
+  users: BranchUser[]
+}
