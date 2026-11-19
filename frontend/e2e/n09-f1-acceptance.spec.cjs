@@ -35,33 +35,51 @@ test("N09-F1.2: las entidades legales y la asociación con sucursales son visibl
 test("N09-F1.3: una sucursal puede suspenderse y reactivarse desde su ficha", async ({ page }) => {
   await page.getByRole("button", { name: "Configuración" }).click()
   await page.getByRole("tab", { name: "Sucursales" }).click()
-
   await expect(page.getByText("Chili E2E Centro")).toBeVisible()
-  await page.getByRole("button", { name: "Suspender" }).click()
-  await expect(page.getByText(/Estado: Suspendida/)).toBeVisible()
-  await page.getByRole("button", { name: "Reactivar" }).click()
+
+  const active = page.getByRole("button", { name: "Suspender" })
+  const suspended = page.getByRole("button", { name: "Reactivar" })
+  if (await suspended.count()) await suspended.click()
+  await expect(active).toBeVisible()
+
+  try {
+    await active.click()
+    await expect(page.getByText(/Estado: Suspendida/)).toBeVisible()
+  } finally {
+    const reactivate = page.getByRole("button", { name: "Reactivar" })
+    if (await reactivate.count()) await reactivate.click()
+  }
   await expect(page.getByText(/Estado: Activa/)).toBeVisible()
 })
 
-test("N09-F1.4: la configuración local y el calendario son accesibles en la ficha de sucursal", async ({ page }) => {
+test("N09-F1.4: la configuración local se guarda y el calendario se consulta", async ({ page }) => {
   await page.getByRole("button", { name: "Configuración" }).click()
   await page.getByRole("tab", { name: "Sucursales" }).click()
   await page.getByRole("button", { name: "Configurar" }).click()
 
-  await expect(page.getByLabel("Dirección operativa del local")).toBeVisible()
-  await expect(page.getByLabel("Zona horaria IANA")).toBeVisible()
-  await expect(page.getByLabel("Moneda (ISO 4217)")).toBeVisible()
+  await page.getByLabel("Dirección operativa del local").fill("Carrera 10 #20-30")
+  await page.getByLabel("Ciudad / localidad").fill("Bogotá")
+  await page.getByLabel("País (ISO alpha-2)").fill("CO")
+  await page.getByLabel("Zona horaria IANA").fill("America/Bogota")
+  await page.getByLabel("Moneda (ISO 4217)").fill("COP")
+  await page.getByRole("button", { name: "Guardar configuración local" }).click()
+
+  await expect(page.getByText(/America\/Bogota · COP/)).toBeVisible()
   await expect(page.getByText("Excepciones del calendario")).toBeVisible()
+  await expect(page.getByText("No hay excepciones registradas en el rango consultado.")).toBeVisible()
 })
 
-test("N09-F1.5: el historial organizacional muestra actor, acción y snapshots", async ({ page }) => {
+test("N09-F1.5: el historial organizacional muestra actor y snapshots del perfil", async ({ page }) => {
   await page.getByRole("button", { name: "Configuración" }).click()
   await page.getByRole("tab", { name: "Historial" }).click()
-
   await expect(page.getByRole("heading", { name: "Historial organizacional" })).toBeVisible()
-  await page.getByText("Ver estado anterior y nuevo").first().click()
+
+  await page.getByLabel("Tipo de recurso").selectOption("organization")
+  const snapshot = page.getByText("Ver estado anterior y nuevo").first()
+  await expect(snapshot).toBeVisible()
+  await snapshot.click()
   await expect(page.getByText("Chili E2E Group")).toBeVisible()
-  await expect(page.getByText("e2e.owner@chili.test")).toBeVisible()
+  await expect(page.getByText(/Organización · e2e\.owner@chili\.test/)).toBeVisible()
 })
 
 test("N09-F1.6: las mesas y reservas se consultan desde las pantallas operativas", async ({ page }) => {
@@ -73,6 +91,9 @@ test("N09-F1.6: las mesas y reservas se consultan desde las pantallas operativas
   await expect(page.getByRole("heading", { name: "Reservaciones" })).toBeVisible()
   await expect(page.getByText("Consulta de reservaciones")).toBeVisible()
 
+  const suffix = String(Date.now())
+  const customerName = `Cliente de aceptación E2E ${suffix}`
+  const customerEmail = `cliente.${suffix}@chili.test`
   const futureDate = new Date(Date.now() + 86_400_000)
   const dateValue = [
     futureDate.getFullYear(),
@@ -80,17 +101,17 @@ test("N09-F1.6: las mesas y reservas se consultan desde las pantallas operativas
     String(futureDate.getDate()).padStart(2, "0"),
   ].join("-")
 
-  await page.locator('input[name="customer_name"]').fill("Cliente de aceptación E2E")
+  await page.locator('input[name="customer_name"]').fill(customerName)
   await page.locator('input[name="customer_phone"]').fill("+573001112233")
-  await page.locator('input[name="customer_email"]').fill("cliente.e2e@chili.test")
+  await page.locator('input[name="customer_email"]').fill(customerEmail)
   await page.locator('select[name="table_id"]').selectOption("77777777-7777-4777-8777-777777777777")
   await page.locator('input[name="party_size"]').fill("2")
   await page.locator('input[name="reservation_date"]').fill(`${dateValue}T18:00`)
   await page.locator('textarea[name="notes"]').fill("Prueba automatizada de reserva")
   await page.getByRole("button", { name: "Crear reservación" }).click()
 
-  await expect(page.getByText("Cliente de aceptación E2E · 2 personas")).toBeVisible()
-  await expect(page.getByText("cliente.e2e@chili.test")).toBeVisible()
+  await expect(page.getByText(`${customerName} · 2 personas`)).toBeVisible()
+  await expect(page.getByText(customerEmail)).toBeVisible()
 })
 
 test("N09-F1: la navegación presenta las secciones principales sin errores de renderizado", async ({ page }) => {

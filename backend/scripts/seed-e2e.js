@@ -19,16 +19,18 @@ const ids = {
 }
 
 const pool = new Pool({ connectionString: databaseUrl, max: 2 })
+const client = await pool.connect()
 
 try {
+  await client.query("BEGIN")
   const passwordHash = await hashPassword(password)
-  await pool.query(
+  await client.query(
     `INSERT INTO public.app_users (id, email, password_hash, role, is_active)
      VALUES ($1, 'e2e.owner@chili.test', $2, 'admin', true)`,
     [ids.user, passwordHash],
   )
 
-  await pool.query(
+  await client.query(
     `INSERT INTO public.organizations (
        id, installation_slot, name, commercial_name, contact_email,
        contact_phone, website_url, headquarters_address, owner_user_id, updated_by_user_id
@@ -41,7 +43,7 @@ try {
     [ids.organization, ids.user],
   )
 
-  await pool.query(
+  await client.query(
     `INSERT INTO public.legal_entities (
        id, organization_id, legal_name, commercial_name, tax_country_code,
        tax_identifier_type, tax_identifier, registered_address, contact_email,
@@ -54,57 +56,61 @@ try {
     [ids.legalEntity, ids.organization, ids.user],
   )
 
-  await pool.query(
+  await client.query(
     `INSERT INTO public.branches (
        id, organization_id, code, name, created_by_user_id, updated_by_user_id
      ) VALUES ($1, $2, 'E2E-BOG', 'Chili E2E Centro', $3, $3)`,
     [ids.branch, ids.organization, ids.user],
   )
 
-  await pool.query(
+  await client.query(
     `INSERT INTO public.branch_legal_entities (
        organization_id, branch_id, legal_entity_id, created_by_user_id
      ) VALUES ($1, $2, $3, $4)`,
     [ids.organization, ids.branch, ids.legalEntity, ids.user],
   )
 
-  await pool.query(
+  await client.query(
     `INSERT INTO public.branch_user_assignments (
        organization_id, branch_id, user_id, assigned_by_user_id
      ) VALUES ($1, $2, $3, $3)`,
     [ids.organization, ids.branch, ids.user],
   )
 
-  await pool.query(
+  await client.query(
     `INSERT INTO public.categories (id, name, icon, item_count)
      VALUES ($1, 'E2E Bebidas', 'coffee', 1)`,
     [ids.category],
   )
 
-  await pool.query(
+  await client.query(
     `INSERT INTO public.products (
        id, name, description, price, image_url, discount_percentage, type, category_id
      ) VALUES ($1, 'Producto E2E', 'Producto de prueba automatizada', 12000, NULL, 0, 'Veg', $2)`,
     [ids.product, ids.category],
   )
 
-  await pool.query(
+  await client.query(
     `INSERT INTO public.tables (
        id, number, capacity, status, organization_id, branch_id,
        created_by_user_id, updated_by_user_id
      ) VALUES ($1, 'E2E-01', 4, 'available', $2, $3, $4, $4)`,
     [ids.table, ids.organization, ids.branch, ids.user],
   )
+  await client.query("COMMIT")
 
   process.stdout.write(JSON.stringify({
     user: "e2e.owner@chili.test",
-    password,
     branchId: ids.branch,
     legalEntityId: ids.legalEntity,
     categoryId: ids.category,
     productId: ids.product,
     tableId: ids.table,
   }) + "\n")
+} catch (error) {
+  await client.query("ROLLBACK")
+  throw error
 } finally {
+  client.release()
   await pool.end()
 }

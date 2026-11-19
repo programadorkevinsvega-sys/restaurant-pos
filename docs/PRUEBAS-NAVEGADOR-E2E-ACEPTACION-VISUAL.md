@@ -49,4 +49,4 @@ Una captura demuestra qué se renderizó durante la ejecución; por sí sola no 
 
 ## Alcance actual
 
-La primera suite automatiza navegación y aceptación de las pantallas existentes N09-F1.1–F1.6. Las pruebas específicas de N09-F2.1–F2.5 se incorporarán al mismo esquema junto con la implementación real de cada subfase; no se crean pruebas verdes para pantallas o comportamientos que todavía no existen.
+La primera suite automatiza recorridos positivos de navegador y adjunta evidencia de N09-F1.1–F1.6. Los casos de cierre terminal, autorización negativa, aislamiento entre sucursales, errores, estados vacíos y regresión de formularios se mantienen como criterios adicionales que no quedan cubiertos por una captura positiva y deben agregarse antes de declarar F1 aceptada. Las pruebas específicas de N09-F2.1–F2.5 se incorporarán al mismo esquema junto con la implementación real de cada subfase; no se crean pruebas verdes para pantallas o comportamientos que todavía no existen.
