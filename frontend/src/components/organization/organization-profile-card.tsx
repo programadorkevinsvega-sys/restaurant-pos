@@ -35,7 +35,6 @@ interface ProfileFormState {
   country_code: string
 }
 
-
 function toFormState(organization: OrganizationProfile | null): ProfileFormState {
   const address = organization?.headquarters_address
   return {
