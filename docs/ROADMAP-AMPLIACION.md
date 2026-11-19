@@ -1166,10 +1166,11 @@ La auditoría estática y el diseño técnico de referencia de Fase 0 están doc
 
 ### N09-F1.1 — Organización y datos corporativos
 
-- **Estado:** En validación en la rama `feat/fase-1-1-organizacion-corporativa`; pendiente CI sobre el HEAD final.
+- **Estado:** Implementada y validada en CI sobre el commit `da28f74a57a439aa74e48660dba758f210631348` (run [44426610418](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44426610418)).
 - **Alcance:** registro único de organización por instalación, datos corporativos generales y contacto/domicilio de sede; alta inicial atómica; propietario explícito del perfil; lectura autenticada y edición restringida al propietario.
 - **Límites:** no se crean entidades legales/NIT, sucursales, almacenes, usuarios/asignaciones RBAC, monedas, zonas horarias ni configuraciones fiscales. Esos elementos pertenecen a subfases posteriores y conservan sus decisiones pendientes.
-- **Persistencia:** migración PostgreSQL versionada; la ejecución desde base vacía, idempotencia y pruebas con rol runtime se validarán en PostgreSQL 16 y 17 mediante CI. No se ha aplicado en producción.
+- **Persistencia:** migración PostgreSQL versionada; migraciones desde base vacía, idempotencia y pruebas con rol runtime aprobadas en PostgreSQL 16 y 17. No se ha aplicado en producción.
 - **Seguridad:** no se interpreta el rol heredado `admin` como propietario permanente. Solo puede ejecutar el bootstrap mientras el perfil no exista; el usuario que lo realiza queda registrado como propietario y únicamente ese usuario puede actualizar el perfil.
 - **Diseño y contrato:** documentados en [FASE-1.1-ORGANIZACION.md](./FASE-1.1-ORGANIZACION.md).
-- **Criterio de cierre:** dominio/casos de uso, repositorio, API, validación estricta, pruebas unitarias y de PostgreSQL, CI, documentación y trazabilidad de requisito→prueba→ejecución. No se declara completada hasta que CI pase sobre el HEAD final.
+- **Validación:** backend/unit tests, typecheck, lint, build y los dos jobs PostgreSQL pasaron en el run #17.
+- **Criterio de cierre técnico:** entregables de esta subfase implementados, documentados y validados en CI. La integración en `main` y el despliegue quedan pendientes de revisión y autorización; no se ha realizado ninguna operación productiva.
