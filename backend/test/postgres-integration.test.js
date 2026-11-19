@@ -1023,6 +1023,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "010_branch_local_configuration_and_calendar.sql",
         "011_branch_scoped_tables_and_reservations.sql",
         "012_organization_change_history.sql",
+        "013_corporate_catalog_branch_assortment.sql",
       ],
     )
 
