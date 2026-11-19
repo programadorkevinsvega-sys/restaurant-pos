@@ -345,6 +345,18 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(secondBranch.rows[0].outcome, "CREATED")
     secondBranchId = secondBranch.rows[0].created_branch_id
 
+    const secondStaffAssignment = await runtime.query(
+      "SELECT public.assign_user_to_branch($1, $2, $3) AS outcome",
+      [secondBranchId, organizationStaffId, organizationAdminId],
+    )
+    assert.equal(secondStaffAssignment.rows[0].outcome, "ASSIGNED")
+
+    const staffBranchCount = await runtime.query(
+      "SELECT count(*)::integer AS branch_count FROM public.branch_user_assignments WHERE user_id = $1",
+      [organizationStaffId],
+    )
+    assert.equal(staffBranchCount.rows[0].branch_count, 2)
+
     const legalEntityBranchCount = await runtime.query(
       "SELECT count(*)::integer AS branch_count FROM public.branch_legal_entities " +
       "WHERE organization_id = $1 AND legal_entity_id = $2",
@@ -568,6 +580,14 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         ["Unassigned operator", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null, branchId, legalEntityIds[0], organizationAdminId],
       ),
       (error) => error.code === "42501",
+    )
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Wrong legal entity for branch", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null, secondBranchId, legalEntityIds[1], organizationStaffId],
+      ),
+      (error) => error.code === "23503",
     )
 
     const order = await runtime.query(
