@@ -5,6 +5,16 @@ const requirePlaywright = createRequire(path.join(process.env.PLAYWRIGHT_NODE_MO
 const { test, expect } = requirePlaywright("@playwright/test")
 const { captureVisualEvidence } = require("./support/session.cjs")
 
+async function ensureE2EBranchActive(page) {
+  await page.getByRole("button", { name: "Configuración" }).click()
+  await page.getByRole("tab", { name: "Sucursales" }).click()
+  const reactivate = page.getByRole("button", { name: "Reactivar" })
+  if (await reactivate.count()) {
+    await reactivate.click()
+  }
+  await expect(page.getByText(/Estado: Activa/)).toBeVisible()
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/")
   await expect(page.getByLabel("Sucursal activa")).toHaveValue(
@@ -135,10 +145,11 @@ test("N09-F1: la navegación presenta las secciones principales sin errores de r
 test("N09-F2.1: el catálogo maestro permite excluir y reactivar un producto por sucursal", async ({ page }, testInfo) => {
   const productLabel = "Disponible en sucursal: Producto E2E"
   const productOrderButton = page.getByRole("button", { name: "Agregar Producto E2E al pedido" })
+  await ensureE2EBranchActive(page)
   await page.getByRole("button", { name: "Catálogo" }).click()
   await page.getByRole("button", { name: "Surtido por sucursal" }).click()
 
-  const branchSelect = page.getByLabel("Sucursal")
+  const branchSelect = page.getByLabel("Sucursal del catálogo", { exact: true })
   await expect(branchSelect).toHaveValue(
     process.env.E2E_BRANCH_ID || "44444444-4444-4444-8444-444444444444",
   )
@@ -181,9 +192,13 @@ test("N09-F2.1: productos y categorías tienen CRUD corporativo con baja lógica
   const updatedCategoryName = `Categoría editada ${suffix}`
   page.on("dialog", (dialog) => dialog.accept())
 
+  await ensureE2EBranchActive(page)
   await page.getByRole("button", { name: "Catálogo" }).click()
   await page.getByLabel("Nombre").fill(originalProductName)
-  await page.getByLabel("Categoría").selectOption("55555555-5555-4555-8555-555555555555")
+  const categorySelect = page.getByLabel("Categoría")
+  await expect(categorySelect).toBeEnabled()
+  await expect(categorySelect.locator('option[value="55555555-5555-4555-8555-555555555555"]')).toBeAttached()
+  await categorySelect.selectOption("55555555-5555-4555-8555-555555555555")
   await page.getByLabel("Descripción").fill("Producto creado por aceptación automatizada")
   await page.getByLabel("Precio maestro").fill("18000")
   await page.getByRole("button", { name: "Crear producto" }).click()

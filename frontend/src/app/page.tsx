@@ -599,6 +599,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
           branches={branches}
           canManage={canManageCorporateStructure}
           loading={corporateStructureLoading}
+          loadError={corporateStructureLoadError}
           products={catalogProducts}
           categories={catalogCategories}
           branchProducts={catalogBranchProducts}
