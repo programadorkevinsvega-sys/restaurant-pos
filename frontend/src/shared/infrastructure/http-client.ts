@@ -59,6 +59,10 @@ export class HttpClient {
     })
   }
 
+  async delete<T>(path: string): Promise<T> {
+    return this.request<T>(path, { method: "DELETE" })
+  }
+
   async login(email: string, password: string): Promise<{ user: AuthenticatedUser }> {
     const result = await traceOperation("auth.login", () =>
       this.post<{ user: AuthenticatedUser; csrfToken: string }>("/auth/login", { email, password }),
