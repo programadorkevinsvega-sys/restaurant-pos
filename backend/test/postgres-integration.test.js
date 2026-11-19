@@ -197,21 +197,21 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "INSERT INTO public.organization_change_events " +
         "(organization_id, resource_type, resource_id, action, after_state, actor_user_id) " +
         "VALUES ($1, 'organization', $1, 'created', '{}'::jsonb, $2)",
-        [organizationId, organizationAdminId],
+        ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"],
       ),
       (error) => error.code === "42501",
     )
     await assert.rejects(
       runtime.query(
         "UPDATE public.organization_change_events SET metadata = '{}'::jsonb WHERE organization_id = $1",
-        [organizationId],
+        ["11111111-1111-4111-8111-111111111111"],
       ),
       (error) => error.code === "42501",
     )
     await assert.rejects(
       runtime.query(
         "DELETE FROM public.organization_change_events WHERE organization_id = $1",
-        [organizationId],
+        ["11111111-1111-4111-8111-111111111111"],
       ),
       (error) => error.code === "42501",
     )
