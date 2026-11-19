@@ -174,7 +174,10 @@ BEGIN
       'tax_identifier_type', OLD.tax_identifier_type,
       'tax_identifier', CASE
         WHEN OLD.tax_identifier IS NULL THEN NULL
-        ELSE '****' || right(OLD.tax_identifier, 4)
+        ELSE CASE WHEN char_length(OLD.tax_identifier) > 4
+        THEN '****' || right(OLD.tax_identifier, 4)
+        ELSE '****'
+      END
       END,
       'registered_address', OLD.registered_address,
       'contact_email', OLD.contact_email,
@@ -189,7 +192,10 @@ BEGIN
     'tax_identifier_type', NEW.tax_identifier_type,
     'tax_identifier', CASE
       WHEN NEW.tax_identifier IS NULL THEN NULL
-      ELSE '****' || right(NEW.tax_identifier, 4)
+      ELSE CASE WHEN char_length(NEW.tax_identifier) > 4
+        THEN '****' || right(NEW.tax_identifier, 4)
+        ELSE '****'
+      END
     END,
     'registered_address', NEW.registered_address,
     'contact_email', NEW.contact_email,
