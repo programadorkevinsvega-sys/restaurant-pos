@@ -8,7 +8,7 @@ const optionalPhone = z.string()
   .trim()
   .min(7)
   .max(32)
-  .regex(/^\\+?[0-9\\s().-]+$/)
+  .regex(/^\+?[0-9\s().-]+$/)
   .nullable()
   .optional()
 const optionalEmail = z.string().trim().email().max(254).toLowerCase().nullable().optional()
@@ -29,7 +29,7 @@ const addressSchema = z.object({
   country_code: z.string().trim().regex(/^[A-Z]{2}$/).nullable().optional(),
 }).strict()
 
-const profileSchema = z.object({
+export const organizationProfileSchema = z.object({
   name: z.string().trim().min(2).max(160),
   commercial_name: optionalText(160),
   contact_email: optionalEmail,
@@ -38,7 +38,7 @@ const profileSchema = z.object({
   headquarters_address: addressSchema.nullable().optional(),
 }).strict()
 
-const updateProfileSchema = profileSchema.partial().refine(
+export const updateOrganizationProfileSchema = organizationProfileSchema.partial().refine(
   (value) => Object.keys(value).length > 0,
   "Debes proporcionar al menos un campo para actualizar.",
 )
@@ -59,7 +59,7 @@ export function createOrganizationRoutes(organization, authenticate, authorize, 
     authenticate,
     authorize("admin"),
     writesLimiter,
-    validateRequest({ body: profileSchema }),
+    validateRequest({ body: organizationProfileSchema }),
     asyncHandler(async (request, response) => {
       const profile = await organization.bootstrapProfile(request.validated.body, request.auth)
       response.status(201).json({ organization: profile })
@@ -70,7 +70,7 @@ export function createOrganizationRoutes(organization, authenticate, authorize, 
     "/",
     authenticate,
     writesLimiter,
-    validateRequest({ body: updateProfileSchema }),
+    validateRequest({ body: updateOrganizationProfileSchema }),
     asyncHandler(async (request, response) => {
       const profile = await organization.updateProfile(request.validated.body, request.auth)
       response.json({ organization: profile })
