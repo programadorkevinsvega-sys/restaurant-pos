@@ -125,6 +125,16 @@ BEGIN
     SELECT b.organization_id FROM public.branches AS b WHERE b.id = p_branch_id
   )
     AND t.branch_id = p_branch_id
+    AND EXISTS (
+      SELECT 1
+      FROM public.branch_user_assignments AS assignment
+      JOIN public.app_users AS actor
+        ON actor.id = assignment.user_id
+        AND actor.is_active = true
+      WHERE assignment.organization_id = t.organization_id
+        AND assignment.branch_id = t.branch_id
+        AND assignment.user_id = p_actor_user_id
+    )
   ORDER BY t.number, t.id
   LIMIT 100;
 END;
@@ -166,7 +176,7 @@ BEGIN
     AND actor.is_active = true
   WHERE b.id = p_branch_id
     AND assignment.user_id = p_actor_user_id
-  FOR SHARE OF b;
+  FOR SHARE OF b, assignment, actor;
 
   IF v_organization_id IS NULL THEN
     RAISE EXCEPTION 'Active branch assignment required'
@@ -230,7 +240,7 @@ BEGIN
     AND actor.is_active = true
   WHERE b.id = p_branch_id
     AND assignment.user_id = p_actor_user_id
-  FOR SHARE OF b;
+  FOR SHARE OF b, assignment, actor;
 
   IF v_organization_id IS NULL THEN
     RAISE EXCEPTION 'Active branch assignment required'
@@ -355,6 +365,16 @@ BEGIN
     SELECT b.organization_id FROM public.branches AS b WHERE b.id = p_branch_id
   )
     AND r.branch_id = p_branch_id
+    AND EXISTS (
+      SELECT 1
+      FROM public.branch_user_assignments AS assignment
+      JOIN public.app_users AS actor
+        ON actor.id = assignment.user_id
+        AND actor.is_active = true
+      WHERE assignment.organization_id = r.organization_id
+        AND assignment.branch_id = r.branch_id
+        AND assignment.user_id = p_actor_user_id
+    )
     AND (p_from IS NULL OR (r.reservation_date >= p_from AND r.reservation_date < p_to))
     AND (p_status IS NULL OR r.status = p_status)
   ORDER BY r.reservation_date, r.id
@@ -408,7 +428,7 @@ BEGIN
     AND actor.is_active = true
   WHERE b.id = p_branch_id
     AND assignment.user_id = p_actor_user_id
-  FOR SHARE OF b;
+  FOR SHARE OF b, assignment, actor;
 
   IF v_organization_id IS NULL THEN
     RAISE EXCEPTION 'Active branch assignment required'
@@ -477,7 +497,7 @@ BEGIN
     AND actor.is_active = true
   WHERE b.id = p_branch_id
     AND assignment.user_id = p_actor_user_id
-  FOR SHARE OF b;
+  FOR SHARE OF b, assignment, actor;
 
   IF v_organization_id IS NULL THEN
     RAISE EXCEPTION 'Active branch assignment required'
@@ -582,6 +602,16 @@ BEGIN
     AND t.branch_id = p_branch_id
     AND t.organization_id = (
       SELECT b.organization_id FROM public.branches AS b WHERE b.id = p_branch_id
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM public.branch_user_assignments AS assignment
+      JOIN public.app_users AS actor
+        ON actor.id = assignment.user_id
+        AND actor.is_active = true
+      WHERE assignment.organization_id = t.organization_id
+        AND assignment.branch_id = t.branch_id
+        AND assignment.user_id = p_actor_user_id
     );
 END;
 $$;
@@ -649,6 +679,16 @@ BEGIN
     AND r.branch_id = p_branch_id
     AND r.organization_id = (
       SELECT b.organization_id FROM public.branches AS b WHERE b.id = p_branch_id
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM public.branch_user_assignments AS assignment
+      JOIN public.app_users AS actor
+        ON actor.id = assignment.user_id
+        AND actor.is_active = true
+      WHERE assignment.organization_id = r.organization_id
+        AND assignment.branch_id = r.branch_id
+        AND assignment.user_id = p_actor_user_id
     );
 END;
 $$;
