@@ -1,5 +1,12 @@
 # N09-F1.6 — Atribución multisucursal de mesas y reservas
 
+## Estado de la entrega
+
+- PR #15: [N09-F1.6 — Atribución multisucursal de mesas y reservas](https://github.com/programadorkevinsvega-sys/restaurant-pos/pull/15), abierto y pendiente de fusión.
+- HEAD validado: `c3631f12a69350b0ada68a8817ffc3486c0ca70d`.
+- CI #53: [ejecución 44458796849](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44458796849), los tres jobs aprobados: backend/frontend/build, PostgreSQL 16 y PostgreSQL 17.
+- La implementación todavía no está en `main` ni desplegada. La migración 011 no se ha aplicado en la base productiva.
+
 ## Objetivo
 
 Cada mesa y reserva nueva pertenece a una organización y a una sucursal concreta. Las operaciones solo pueden consultar o modificar recursos de la sucursal activa a la que el usuario autenticado esté asignado. Una reserva no puede apuntar a una mesa de otra sucursal.
@@ -85,6 +92,6 @@ El cliente HTTP continúa enviando el encabezado de sucursal activa existente. N
 
 ## Cierre y operación
 
-El cierre de esta fase requiere que CI complete backend/frontend/build y las integraciones PostgreSQL 16 y 17 sobre el HEAD exacto del PR, además de revisión de migración y documentación.
+CI #53 completó backend/frontend/build y las integraciones PostgreSQL 16 y 17 sobre el HEAD indicado. La validación automática está completa; la fase todavía no está integrada porque el PR sigue abierto.
 
-La migración se desarrolla y valida en CI/entornos aislados. La aprobación del PR no autoriza por sí sola migrarla en producción ni ejecutar backfills. Siguen vigentes las puertas de Fase 0 para inspección de PostgreSQL productivo y restauración aislada antes de cambios de esquema/datos productivos.
+La migración se validó en bases aisladas. La aprobación del PR no autoriza por sí sola migrarla en producción ni ejecutar backfills. Siguen vigentes las puertas de Fase 0 para inspección de PostgreSQL productivo y restauración aislada antes de cambios de esquema/datos productivos.
