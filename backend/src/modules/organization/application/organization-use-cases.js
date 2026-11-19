@@ -88,4 +88,42 @@ export class OrganizationUseCases {
       }
     })
   }
+  listHistory(filters, actor) {
+    return traceOperation("organization.list_history", async () => {
+      if (!actor?.userId) {
+        throw new AppError(401, "AUTHENTICATION_REQUIRED", "Inicia sesión para continuar.")
+      }
+
+      const profile = await this.repository.findProfile()
+      if (!profile) {
+        throw new AppError(
+          404,
+          "ORGANIZATION_NOT_INITIALIZED",
+          "La organización todavía no está configurada.",
+        )
+      }
+      if (profile.ownerUserId !== actor.userId) {
+        throw new AppError(
+          403,
+          "ORGANIZATION_OWNER_REQUIRED",
+          "Solo el propietario registrado puede consultar el historial organizacional.",
+        )
+      }
+
+      const rows = await this.repository.listHistory({
+        ...filters,
+        limit: filters.limit + 1,
+      }, actor.userId)
+      const hasMore = rows.length > filters.limit
+      const events = hasMore ? rows.slice(0, filters.limit) : rows
+      const lastEvent = events[events.length - 1]
+      const nextCursor = hasMore && lastEvent ? {
+        before_at: new Date(lastEvent.occurred_at).toISOString(),
+        before_id: lastEvent.id,
+      } : null
+
+      return { events, next_cursor: nextCursor }
+    })
+  }
+
 }

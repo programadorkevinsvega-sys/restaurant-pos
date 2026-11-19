@@ -16,9 +16,16 @@ import type {
 } from "@/modules/operations/domain/models"
 import type { AppSection } from "@/components/sidebar-nav"
 import { OrganizationProfileCard } from "@/components/organization/organization-profile-card"
-import type { OrganizationProfile, OrganizationProfileInput, OrganizationProfileUpdate } from "@/modules/organization/domain/models"
+import type {
+  OrganizationHistoryFilters,
+  OrganizationHistoryPage,
+  OrganizationProfile,
+  OrganizationProfileInput,
+  OrganizationProfileUpdate,
+} from "@/modules/organization/domain/models"
 import { LegalEntityManagementCard } from "@/components/legal-entities/legal-entity-management-card"
 import { BranchManagementCard } from "@/components/branches/branch-management-card"
+import { OrganizationHistoryPanel } from "@/components/organization/organization-history-panel"
 import type { LegalEntity, LegalEntityInput } from "@/modules/legal-entities/domain/models"
 import type {
   Branch,
@@ -54,6 +61,7 @@ interface OperationsPanelProps {
   organizationLoadError: string | null
   onBootstrapOrganization: (input: OrganizationProfileInput) => Promise<void>
   onUpdateOrganization: (input: OrganizationProfileUpdate) => Promise<void>
+  onListOrganizationHistory: (filters: OrganizationHistoryFilters) => Promise<OrganizationHistoryPage>
   legalEntities: LegalEntity[]
   branches: Branch[]
   branchUsersByBranch: Record<string, BranchUser[]>
@@ -103,7 +111,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
     section, tables, reservations, deliveries, salesReport, bestSellingProducts, settings, categories,
     onCreateReservation, onUpdateReservationStatus, onAssignDriver, onUpdateSettings, onCreateCategory,
     organization, organizationLoading, canUpdateOrganization, canBootstrapOrganization, organizationLoadError,
-    onBootstrapOrganization, onUpdateOrganization,
+    onBootstrapOrganization, onUpdateOrganization, onListOrganizationHistory,
     legalEntities, branches, branchUsersByBranch, branchLifecycleEventsByBranch, corporateStructureLoading, corporateStructureLoadError,
     canManageCorporateStructure, onCreateLegalEntity, onUpdateLegalEntity,
     onCreateBranch, onUpdateBranch, onChangeBranchStatus, onAssignBranchLegalEntity, onRemoveBranchLegalEntity,
@@ -253,6 +261,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
           <TabsTrigger value="branches" className="min-w-fit flex-1">Sucursales</TabsTrigger>
           <TabsTrigger value="menu" className="min-w-fit flex-1">Menú</TabsTrigger>
           <TabsTrigger value="preferences" className="min-w-fit flex-1">Preferencias</TabsTrigger>
+          <TabsTrigger value="history" className="min-w-fit flex-1">Historial</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organization" className="mt-0 space-y-4">
@@ -357,6 +366,14 @@ export function OperationsPanel(props: OperationsPanelProps) {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-0 space-y-4">
+          <OrganizationHistoryPanel
+            branches={branches}
+            canViewHistory={canManageCorporateStructure}
+            onListHistory={onListOrganizationHistory}
+          />
         </TabsContent>
 
         <TabsContent value="preferences" className="mt-0 space-y-4">

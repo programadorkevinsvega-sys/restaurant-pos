@@ -3,6 +3,8 @@ import type {
   OrganizationProfileInput,
   OrganizationProfileResult,
   OrganizationProfileUpdate,
+  OrganizationHistoryFilters,
+  OrganizationHistoryPage,
 } from "../domain/models"
 
 export class ManageOrganizationProfile {
@@ -18,5 +20,9 @@ export class ManageOrganizationProfile {
 
   update(input: OrganizationProfileUpdate): Promise<OrganizationProfileResult> {
     return this.repository.update(input)
+  }
+
+  listHistory(filters: OrganizationHistoryFilters): Promise<OrganizationHistoryPage> {
+    return this.repository.listHistory(filters)
   }
 }

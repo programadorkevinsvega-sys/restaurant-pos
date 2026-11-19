@@ -43,6 +43,22 @@ export const updateOrganizationProfileSchema = organizationProfileSchema.partial
   "Debes proporcionar al menos un campo para actualizar.",
 )
 
+export const organizationHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  resource_type: z.enum([
+    "organization",
+    "legal_entity",
+    "branch",
+    "branch_legal_entity",
+  ]).optional(),
+  branch_id: z.string().uuid().optional(),
+  before_at: z.iso.datetime().optional(),
+  before_id: z.string().uuid().optional(),
+}).strict().refine(
+  ({ before_at, before_id }) => Boolean(before_at) === Boolean(before_id),
+  "El cursor del historial debe incluir fecha e identificador.",
+)
+
 export function createOrganizationRoutes(organization, authenticate, authorize, writesLimiter) {
   const router = Router()
   router.use((request, response, next) => {
@@ -53,6 +69,15 @@ export function createOrganizationRoutes(organization, authenticate, authorize, 
   router.get("/", authenticate, asyncHandler(async (request, response) => {
     response.json(await organization.getProfile(request.auth))
   }))
+
+  router.get(
+    "/history",
+    authenticate,
+    validateRequest({ query: organizationHistoryQuerySchema }),
+    asyncHandler(async (request, response) => {
+      response.json(await organization.listHistory(request.validated.query, request.auth))
+    }),
+  )
 
   router.post(
     "/bootstrap",

@@ -18,7 +18,13 @@ import { posApplication } from "@/modules/pos/infrastructure/container"
 import { HttpError, type AuthenticatedUser } from "@/shared/infrastructure/http-client"
 import type { Category, NewProduct, Product } from "@/modules/catalog/domain/models"
 import type { CartItem, OrderType } from "@/modules/orders/domain/models"
-import type { OrganizationProfile, OrganizationProfileInput, OrganizationProfileUpdate } from "@/modules/organization/domain/models"
+import type {
+  OrganizationHistoryFilters,
+  OrganizationHistoryPage,
+  OrganizationProfile,
+  OrganizationProfileInput,
+  OrganizationProfileUpdate,
+} from "@/modules/organization/domain/models"
 import type { LegalEntity, LegalEntityInput } from "@/modules/legal-entities/domain/models"
 import type {
   Branch,
@@ -384,6 +390,10 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     toast({ title: "Organización creada", description: "Los datos corporativos quedaron registrados." })
   }
 
+  const handleListOrganizationHistory = useCallback((
+    filters: OrganizationHistoryFilters,
+  ): Promise<OrganizationHistoryPage> => posApplication.organization.listHistory(filters), [])
+
   const handleUpdateOrganization = async (input: OrganizationProfileUpdate) => {
     const result = await posApplication.organization.update(input)
     setOrganization(result.organization)
@@ -539,6 +549,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         organizationLoadError={organizationLoadError}
         onBootstrapOrganization={handleBootstrapOrganization}
         onUpdateOrganization={handleUpdateOrganization}
+        onListOrganizationHistory={handleListOrganizationHistory}
         legalEntities={legalEntities}
         branches={branches}
         branchUsersByBranch={branchUsersByBranch}

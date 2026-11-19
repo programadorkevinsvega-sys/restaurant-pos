@@ -172,6 +172,50 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       can_remove_entity: true,
     })
 
+    const organizationHistoryPrivileges = await runtime.query(
+      "SELECT " +
+      "has_table_privilege(current_user, 'public.organization_change_events', 'SELECT') AS can_read, " +
+      "has_table_privilege(current_user, 'public.organization_change_events', 'INSERT') AS can_insert, " +
+      "has_table_privilege(current_user, 'public.organization_change_events', 'UPDATE') AS can_update, " +
+      "has_table_privilege(current_user, 'public.organization_change_events', 'DELETE') AS can_delete, " +
+      "has_function_privilege(current_user, " +
+      "'public.list_organization_history(uuid, integer, timestamp with time zone, uuid, text, uuid)'::regprocedure, 'EXECUTE') AS can_list",
+    )
+    assert.deepEqual(organizationHistoryPrivileges.rows[0], {
+      can_read: false,
+      can_insert: false,
+      can_update: false,
+      can_delete: false,
+      can_list: true,
+    })
+    await assert.rejects(
+      runtime.query("SELECT * FROM public.organization_change_events"),
+      (error) => error.code === "42501",
+    )
+    await assert.rejects(
+      runtime.query(
+        "INSERT INTO public.organization_change_events " +
+        "(organization_id, resource_type, resource_id, action, after_state, actor_user_id) " +
+        "VALUES ($1, 'organization', $1, 'created', '{}'::jsonb, $2)",
+        ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"],
+      ),
+      (error) => error.code === "42501",
+    )
+    await assert.rejects(
+      runtime.query(
+        "UPDATE public.organization_change_events SET metadata = '{}'::jsonb WHERE organization_id = $1",
+        ["11111111-1111-4111-8111-111111111111"],
+      ),
+      (error) => error.code === "42501",
+    )
+    await assert.rejects(
+      runtime.query(
+        "DELETE FROM public.organization_change_events WHERE organization_id = $1",
+        ["11111111-1111-4111-8111-111111111111"],
+      ),
+      (error) => error.code === "42501",
+    )
+
     const extension = await runtime.query(
       "SELECT 1 FROM pg_extension WHERE extname = 'uuid-ossp'",
     )
@@ -978,6 +1022,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "009_branch_lifecycle_and_read_only_state.sql",
         "010_branch_local_configuration_and_calendar.sql",
         "011_branch_scoped_tables_and_reservations.sql",
+        "012_organization_change_history.sql",
       ],
     )
 
@@ -1296,6 +1341,100 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     assert.equal(lifecycleEvents.rows[1].actor_user_id, organizationAdminId)
 
+    const organizationHistory = await runtime.query(
+      "SELECT id, resource_type, resource_id, branch_id, action, before_state, after_state, " +
+      "metadata, actor_user_id, actor_email, occurred_at " +
+      "FROM public.list_organization_history($1::uuid, $2::integer, NULL::timestamptz, " +
+      "NULL::uuid, NULL::text, NULL::uuid)",
+      [organizationAdminId, 101],
+    )
+    assert.ok(organizationHistory.rowCount > 10)
+    assert.ok(organizationHistory.rows.every((event) => event.actor_user_id === organizationAdminId))
+    assert.ok(organizationHistory.rows.every(
+      (event) => event.actor_email.startsWith("org-admin-") && event.actor_email.endsWith("@example.invalid"),
+    ))
+    const historyKinds = organizationHistory.rows.map((event) => `${event.resource_type}:${event.action}`)
+    for (const expected of [
+      "organization:created",
+      "organization:updated",
+      "legal_entity:created",
+      "legal_entity:updated",
+      "branch:created",
+      "branch:updated",
+      "branch_legal_entity:associated",
+      "branch_legal_entity:disassociated",
+      "branch:branch.lifecycle.changed",
+      "branch:configuration.updated",
+      "branch:calendar.upserted",
+      "branch:calendar.deleted",
+    ]) {
+      assert.ok(historyKinds.includes(expected), `Missing history event ${expected}`)
+    }
+    const legalEntitySnapshots = organizationHistory.rows.filter(
+      (event) => event.resource_type === "legal_entity" && event.after_state?.tax_identifier,
+    )
+    assert.ok(legalEntitySnapshots.length > 0)
+    const maskedTaxIdentifiers = legalEntitySnapshots.flatMap((event) => [
+      event.before_state?.tax_identifier,
+      event.after_state?.tax_identifier,
+    ]).filter(Boolean)
+    assert.ok(maskedTaxIdentifiers.length > 0)
+    assert.ok(maskedTaxIdentifiers.every((identifier) => identifier.startsWith("****")))
+    assert.ok(maskedTaxIdentifiers.every((identifier) => !identifier.includes("900123456-7")))
+
+    const branchHistory = await runtime.query(
+      "SELECT resource_type, branch_id FROM public.list_organization_history(" +
+      "$1::uuid, $2::integer, NULL::timestamptz, NULL::uuid, $3::text, $4::uuid)",
+      [organizationAdminId, 101, "branch", branchId],
+    )
+    assert.ok(branchHistory.rowCount > 0)
+    assert.ok(branchHistory.rows.every((event) => event.resource_type === "branch" && event.branch_id === branchId))
+
+    const firstHistoryPage = await runtime.query(
+      "SELECT id, occurred_at FROM public.list_organization_history(" +
+      "$1::uuid, $2::integer, NULL::timestamptz, NULL::uuid, NULL::text, NULL::uuid)",
+      [organizationAdminId, 3],
+    )
+    assert.equal(firstHistoryPage.rowCount, 3)
+    const lastFirstPageEvent = firstHistoryPage.rows[2]
+    const secondHistoryPage = await runtime.query(
+      "SELECT id, occurred_at FROM public.list_organization_history(" +
+      "$1::uuid, $2::integer, $3::timestamptz, $4::uuid, NULL::text, NULL::uuid)",
+      [organizationAdminId, 3, lastFirstPageEvent.occurred_at, lastFirstPageEvent.id],
+    )
+    assert.ok(secondHistoryPage.rowCount > 0)
+    assert.ok(secondHistoryPage.rows.every(
+      (event) => !firstHistoryPage.rows.some((first) => first.id === event.id),
+    ))
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT * FROM public.list_organization_history(" +
+        "$1::uuid, 50, NULL::timestamptz, NULL::uuid, NULL::text, NULL::uuid)",
+        [organizationStaffId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    const firstHistoryId = await migrator.query(
+      "SELECT id FROM public.organization_change_events ORDER BY sequence LIMIT 1",
+    )
+    assert.equal(firstHistoryId.rowCount, 1)
+    await assert.rejects(
+      migrator.query(
+        "UPDATE public.organization_change_events SET metadata = metadata WHERE id = $1",
+        [firstHistoryId.rows[0].id],
+      ),
+      (error) => error.code === "55000",
+    )
+    await assert.rejects(
+      migrator.query(
+        "DELETE FROM public.organization_change_events WHERE id = $1",
+        [firstHistoryId.rows[0].id],
+      ),
+      (error) => error.code === "55000",
+    )
+
     await assert.rejects(
       runtime.query(
         "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6)",
@@ -1322,6 +1461,10 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       /Invalid order type/,
     )
   } finally {
+    // The integration database is isolated and starts empty. Remove organization
+    // audit fixtures before deleting the referenced branch/organization rows.
+    await migrator.query("TRUNCATE TABLE public.organization_change_events")
+
     if (branchId || secondBranchId) {
       // Isolated-test teardown only: restore fixture branches so the read-only
       // guard does not block privileged cleanup of the ephemeral test database.
