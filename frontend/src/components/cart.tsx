@@ -129,7 +129,7 @@ export function Cart({
         </label>
         {legalEntities.length > 1 && (
           <p className="text-xs text-muted-foreground">
-            Esta selección queda guardada en el pedido. No se asigna automáticamente un NIT.
+            Elige qué entidad legal registra este pedido. La selección queda guardada en la operación.
           </p>
         )}
         {!activeBranch && (
