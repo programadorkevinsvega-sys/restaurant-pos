@@ -76,8 +76,8 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "has_function_privilege(current_user, " +
       "'public.assign_user_to_branch(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_assign_user, " +
       "has_function_privilege(current_user, " +
-      "'public.remove_user_from_branch(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_remove_user, " + 
-      "has_function_privilege(current_user, "
+      "'public.remove_user_from_branch(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_remove_user, " +
+      "has_function_privilege(current_user, " +
       "'public.create_legal_entity(text, text, text, text, text, jsonb, text, text, uuid)'::regprocedure, 'EXECUTE') AS can_create_legal_entity, " +
       "has_function_privilege(current_user, " +
       "'public.create_branch(text, text, uuid[], uuid)'::regprocedure, 'EXECUTE') AS can_create_branch, " +
@@ -105,7 +105,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       assignment_delete: false,
       can_assign_user: true,
       can_remove_user: true,
-""      can_create_legal_entity: true,
+      can_create_legal_entity: true,
       can_create_branch: true,
       can_assign_entity: true,
       can_remove_entity: true,
