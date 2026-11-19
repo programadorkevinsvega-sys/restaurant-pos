@@ -24,7 +24,10 @@ El modelo comercial ya aprobado es una cadena perteneciente a una organización,
 - Actualización parcial del perfil solo por el usuario propietario registrado.
 - Timestamps de creación y actualización y referencia al último usuario que actualizó el perfil.
 - Contratos HTTP validados con Zod, estrictos frente a campos adicionales.
-- Pruebas unitarias y de integración PostgreSQL para permisos, unicidad, propiedad y validación.
+- Flujo frontend integrado en Configuración: lectura del perfil, formulario de alta inicial y formulario de edición.
+- Capacidad `permissions.can_update` calculada por backend para habilitar el formulario sin exponer la identidad interna del propietario.
+- Cliente HTTP con PATCH protegido por el mismo flujo CSRF que los demás métodos de escritura.
+- Pruebas unitarias y de integración PostgreSQL para permisos, unicidad, propiedad, repositorio y validación.
 
 ## 3. Modelo de persistencia
 
@@ -84,6 +87,9 @@ Respuesta 200:
     },
     "created_at": "2026-11-18T00:00:00.000Z",
     "updated_at": "2026-11-18T00:00:00.000Z"
+  },
+  "permissions": {
+    "can_update": true
   }
 }
 ```
@@ -113,13 +119,13 @@ Requiere usuario autenticado con el rol heredado `admin` y el limitador de escri
 }
 ```
 
-Devuelve 201 cuando crea el registro. Si ya existe la organización, devuelve 409 `ORGANIZATION_ALREADY_INITIALIZED`. No se permite enviar campos extra como `nit`, `legal_entity`, `branch_id` o `owner_user_id`.
+Devuelve 201 con `organization` y `permissions.can_update=true` cuando crea el registro. Si ya existe la organización, devuelve 409 `ORGANIZATION_ALREADY_INITIALIZED`. No se permite enviar campos extra como `nit`, `legal_entity`, `branch_id` o `owner_user_id`.
 
 ### Actualización parcial
 
 `PATCH /api/organization`
 
-Acepta uno o más campos del contrato de alta, con objeto estricto. Los valores opcionales pueden enviarse como `null` para limpiar el campo. Un objeto vacío se rechaza. Solo el propietario registrado puede actualizar; otro administrador recibe 403 `ORGANIZATION_OWNER_REQUIRED`.
+Acepta uno o más campos del contrato de alta, con objeto estricto. Los valores opcionales pueden enviarse como `null` para limpiar el campo. Un objeto vacío se rechaza. La respuesta contiene `organization` y `permissions.can_update=true`. Solo el propietario registrado puede actualizar; otro administrador recibe 403 `ORGANIZATION_OWNER_REQUIRED`.
 
 ## 5. Seguridad y límites
 
@@ -127,7 +133,7 @@ Acepta uno o más campos del contrato de alta, con objeto estricto. Los valores 
 - El rol heredado `admin` solo sirve como requisito del bootstrap inicial; no es autoridad permanente sobre la organización.
 - La propiedad se comprueba en el caso de uso y de nuevo en la función de escritura PostgreSQL.
 - La tabla no permite DML directo desde el rol de ejecución.
-- No se expone el identificador interno del propietario en el DTO público.
+- No se expone el identificador interno del propietario en el DTO público. La API devuelve únicamente la capacidad derivada `permissions.can_update` para que la interfaz no tenga que inferir permisos.
 - No se confía en IDs de organización proporcionados por el cliente: esta instalación tiene un único slot.
 - La dirección de sede es información corporativa general, no una dirección fiscal por entidad legal.
 - No se ha creado una tabla de auditoría histórica completa. `updated_by_user_id` y timestamps son estado actual; N09-F1.5 y la auditoría transversal siguen pendientes.
@@ -153,7 +159,7 @@ Esta subfase no implementa ni autoriza:
 | Propietario explícito | `owner_user_id` se asigna en bootstrap | Se comprueba el propietario almacenado |
 | No permitir DML directo | GRANT SELECT solamente | Privilegios y UPDATE/DELETE rechazados para rol runtime |
 | Solo propietario edita | Caso de uso + función SQL filtra por owner | Unit tests e intento de actualización con no propietario |
-| Contrato estricto | Schemas Zod `.strict()` | Casos de email, teléfono, URL, país, campos extra y PATCH vacío |
+| Contrato estricto | Schemas Zod `.strict()` y formulario React en Configuración | Casos de email, teléfono, URL, país, campos extra y PATCH vacío; typecheck/lint/build frontend |
 | Migración reproducible | Runner versionado y transaccional | Migración desde vacío e idempotencia en PG 16/17 |
 
 ## 8. Validación y restricciones de despliegue
