@@ -81,6 +81,7 @@ export class HttpClient {
       await traceOperation("auth.logout", () => this.post<void>("/auth/logout", {}))
     } finally {
       this.csrfToken = undefined
+      this.activeBranchId = null
     }
   }
 
@@ -90,16 +91,15 @@ export class HttpClient {
   }
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
-    let requestInit = init
+    const headers = new Headers(init.headers)
+    if (this.activeBranchId) headers.set("X-Active-Branch-ID", this.activeBranchId)
+    else headers.delete("X-Active-Branch-ID")
+
     if (init.method && !["GET", "HEAD", "OPTIONS"].includes(init.method.toUpperCase())) {
       const csrfToken = await this.ensureCsrfToken()
-      const headers = new Headers(init.headers)
       headers.set("X-CSRF-Token", csrfToken)
-      requestInit = {
-        ...init,
-        headers,
-      }
     }
+    const requestInit = { ...init, headers }
 
     let response = await this.fetch(path, requestInit)
     if (response.status === 401 && (!path.startsWith("/auth/") || path === "/auth/me")) {
@@ -111,12 +111,8 @@ export class HttpClient {
 
   private async fetch(path: string, init: RequestInit): Promise<Response> {
     try {
-      const headers = new Headers(init.headers)
-      if (this.activeBranchId) headers.set("X-Active-Branch-ID", this.activeBranchId)
-      else headers.delete("X-Active-Branch-ID")
       return await fetch(`${this.baseUrl}${path}`, {
         ...init,
-        headers,
         credentials: "include",
         cache: "no-store",
       })
