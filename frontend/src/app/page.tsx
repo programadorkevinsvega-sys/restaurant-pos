@@ -133,10 +133,8 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
               }
             }
           } catch (error) {
-            if (!(error instanceof HttpError && error.status === 404)) {
-              const message = error instanceof Error ? error.message : "No se pudo cargar el perfil corporativo."
-              setOrganizationLoadError(message)
-            }
+            const message = error instanceof Error ? error.message : "No se pudo cargar el perfil corporativo."
+            setOrganizationLoadError(message)
             throw error
           } finally {
             if (!controller.signal.aborted) setOrganizationLoading(false)
