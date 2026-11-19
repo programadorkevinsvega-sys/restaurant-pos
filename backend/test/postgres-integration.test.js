@@ -905,6 +905,15 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       /Invalid order type/,
     )
   } finally {
+    if (branchId || secondBranchId) {
+      // Isolated-test teardown only: restore fixture branches so the read-only
+      // guard does not block privileged cleanup of the ephemeral test database.
+      await migrator.query(
+        "UPDATE public.branches SET status = 'active', closed_at = NULL, " +
+        "closed_by_user_id = NULL WHERE id = ANY($1::uuid[])",
+        [[branchId, secondBranchId].filter(Boolean)],
+      )
+    }
     if (orderId || deliveryOrderId) {
       await migrator.query(
         "DELETE FROM public.orders WHERE id = ANY($1::uuid[])",
