@@ -7,7 +7,7 @@ export class OrganizationUseCases {
     this.repository = repository
   }
 
-  getProfile() {
+  getProfile(actor) {
     return traceOperation("organization.get_profile", async () => {
       const profile = await this.repository.findProfile()
       if (!profile) {
@@ -17,7 +17,10 @@ export class OrganizationUseCases {
           "La organización todavía no está configurada.",
         )
       }
-      return toPublicOrganizationProfile(profile)
+      return {
+        organization: toPublicOrganizationProfile(profile),
+        permissions: { can_update: actor?.userId === profile.ownerUserId },
+      }
     })
   }
 
@@ -39,7 +42,10 @@ export class OrganizationUseCases {
           "La organización ya fue configurada en esta instalación.",
         )
       }
-      return toPublicOrganizationProfile(profile)
+      return {
+        organization: toPublicOrganizationProfile(profile),
+        permissions: { can_update: true },
+      }
     })
   }
 
@@ -76,7 +82,10 @@ export class OrganizationUseCases {
           "No fue posible actualizar el perfil. Vuelve a consultar su estado.",
         )
       }
-      return toPublicOrganizationProfile(updated)
+      return {
+        organization: toPublicOrganizationProfile(updated),
+        permissions: { can_update: true },
+      }
     })
   }
 }
