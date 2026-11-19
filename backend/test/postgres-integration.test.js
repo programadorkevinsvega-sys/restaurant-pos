@@ -16,6 +16,8 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
   let organizationAdminId
   let organizationStaffId
   let organizationId
+  const legalEntityIds = []
+  let branchId
 
   try {
     const identity = await runtime.query(
@@ -42,6 +44,46 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(privileges.rows[0].can_read_products, true)
     assert.equal(privileges.rows[0].can_insert_products, true)
     assert.equal(privileges.rows[0].can_create_orders, true)
+
+    const legalStructurePrivileges = await runtime.query(
+      "SELECT " +
+      "has_table_privilege(current_user, 'public.legal_entities', 'SELECT') AS legal_read, " +
+      "has_table_privilege(current_user, 'public.legal_entities', 'INSERT') AS legal_insert, " +
+      "has_table_privilege(current_user, 'public.legal_entities', 'UPDATE') AS legal_update, " +
+      "has_table_privilege(current_user, 'public.legal_entities', 'DELETE') AS legal_delete, " +
+      "has_table_privilege(current_user, 'public.branches', 'SELECT') AS branch_read, " +
+      "has_table_privilege(current_user, 'public.branches', 'INSERT') AS branch_insert, " +
+      "has_table_privilege(current_user, 'public.branches', 'UPDATE') AS branch_update, " +
+      "has_table_privilege(current_user, 'public.branches', 'DELETE') AS branch_delete, " +
+      "has_table_privilege(current_user, 'public.branch_legal_entities', 'SELECT') AS relation_read, " +
+      "has_table_privilege(current_user, 'public.branch_legal_entities', 'INSERT') AS relation_insert, " +
+      "has_table_privilege(current_user, 'public.branch_legal_entities', 'DELETE') AS relation_delete, " +
+      "has_function_privilege(current_user, " +
+      "'public.create_legal_entity(text, text, text, text, text, jsonb, text, text, uuid)'::regprocedure, 'EXECUTE') AS can_create_legal_entity, " +
+      "has_function_privilege(current_user, " +
+      "'public.create_branch(text, text, uuid[], uuid)'::regprocedure, 'EXECUTE') AS can_create_branch, " +
+      "has_function_privilege(current_user, " +
+      "'public.assign_branch_legal_entity(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_assign_entity, " +
+      "has_function_privilege(current_user, " +
+      "'public.remove_branch_legal_entity(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_remove_entity",
+    )
+    assert.deepEqual(legalStructurePrivileges.rows[0], {
+      legal_read: true,
+      legal_insert: false,
+      legal_update: false,
+      legal_delete: false,
+      branch_read: true,
+      branch_insert: false,
+      branch_update: false,
+      branch_delete: false,
+      relation_read: true,
+      relation_insert: false,
+      relation_delete: false,
+      can_create_legal_entity: true,
+      can_create_branch: true,
+      can_assign_entity: true,
+      can_remove_entity: true,
+    })
 
     const extension = await runtime.query(
       "SELECT 1 FROM pg_extension WHERE extname = 'uuid-ossp'",
@@ -118,6 +160,182 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(bootstrapped.rows[0].owner_user_id, organizationAdminId)
     assert.equal(bootstrapped.rows[0].name, "Chili POS Group")
 
+    const legalEntityOne = await runtime.query(
+      "SELECT * FROM public.create_legal_entity($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)",
+      [
+        "Restaurantes de Colombia S.A.S.",
+        "Chili Colombia",
+        "CO",
+        "NIT",
+        "900123456-7",
+        JSON.stringify({ country_code: "CO", locality: "Medellín" }),
+        "legal-one@example.invalid",
+        "+57 300 000 0000",
+        organizationAdminId,
+      ],
+    )
+    assert.equal(legalEntityOne.rowCount, 1)
+    legalEntityIds.push(legalEntityOne.rows[0].id)
+
+    const legalEntityTwo = await runtime.query(
+      "SELECT * FROM public.create_legal_entity($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)",
+      [
+        "Restaurantes Bogotá S.A.S.",
+        "Chili Bogotá",
+        "CO",
+        "NIT",
+        "901987654-3",
+        JSON.stringify({ country_code: "CO", locality: "Bogotá" }),
+        "legal-two@example.invalid",
+        "+57 301 000 0000",
+        organizationAdminId,
+      ],
+    )
+    assert.equal(legalEntityTwo.rowCount, 1)
+    legalEntityIds.push(legalEntityTwo.rows[0].id)
+
+    const duplicateLegalEntity = await runtime.query(
+      "SELECT * FROM public.create_legal_entity($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)",
+      [
+        "Duplicated NIT",
+        null,
+        "CO",
+        "NIT",
+        "900123456-7",
+        null,
+        null,
+        null,
+        organizationAdminId,
+      ],
+    )
+    assert.equal(duplicateLegalEntity.rowCount, 0)
+
+    await assert.rejects(
+      runtime.query(
+        "SELECT * FROM public.create_legal_entity($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)",
+        ["Staff entity", null, "CO", "NIT", "800123456-1", null, null, null, organizationStaffId],
+      ),
+      (error) => error.code === "42501",
+    )
+
+    const legalEntityUpdate = await runtime.query(
+      "SELECT * FROM public.update_legal_entity($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)",
+      [
+        legalEntityIds[0],
+        "Restaurantes de Colombia S.A.S.",
+        "Chili Colombia Grupo",
+        "CO",
+        "NIT",
+        "900123456-7",
+        JSON.stringify({ country_code: "CO", locality: "Medellín" }),
+        "legal-one@example.invalid",
+        "+57 300 000 0000",
+        organizationAdminId,
+      ],
+    )
+    assert.equal(legalEntityUpdate.rowCount, 1)
+    assert.equal(legalEntityUpdate.rows[0].commercial_name, "Chili Colombia Grupo")
+
+    const nonOwnerLegalEntityUpdate = await runtime.query(
+      "SELECT * FROM public.update_legal_entity($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)",
+      [
+        legalEntityIds[0],
+        "Unauthorized",
+        null,
+        "CO",
+        "NIT",
+        "900123456-7",
+        null,
+        null,
+        null,
+        organizationStaffId,
+      ],
+    )
+    assert.equal(nonOwnerLegalEntityUpdate.rowCount, 0)
+
+    const branchCreate = await runtime.query(
+      "SELECT * FROM public.create_branch($1, $2, $3::uuid[], $4)",
+      ["BOG-01", "Chili Bogotá Centro", legalEntityIds, organizationAdminId],
+    )
+    assert.equal(branchCreate.rowCount, 1)
+    assert.equal(branchCreate.rows[0].outcome, "CREATED")
+    branchId = branchCreate.rows[0].created_branch_id
+
+    const branchRelations = await runtime.query(
+      "SELECT legal_entity_id FROM public.branch_legal_entities " +
+      "WHERE organization_id = $1 AND branch_id = $2 ORDER BY legal_entity_id",
+      [organizationId, branchId],
+    )
+    assert.equal(branchRelations.rowCount, 2)
+
+    const duplicateBranch = await runtime.query(
+      "SELECT * FROM public.create_branch($1, $2, $3::uuid[], $4)",
+      ["BOG-01", "Duplicate branch", legalEntityIds, organizationAdminId],
+    )
+    assert.equal(duplicateBranch.rows[0].outcome, "BRANCH_CODE_ALREADY_EXISTS")
+
+    const invalidBranchScope = await runtime.query(
+      "SELECT * FROM public.create_branch($1, $2, $3::uuid[], $4)",
+      ["BOG-02", "Invalid branch", ["00000000-0000-0000-0000-000000000000"], organizationAdminId],
+    )
+    assert.equal(invalidBranchScope.rows[0].outcome, "LEGAL_ENTITY_SCOPE_INVALID")
+
+    const duplicateBranchEntity = await runtime.query(
+      "SELECT * FROM public.assign_branch_legal_entity($1, $2, $3)",
+      [branchId, legalEntityIds[0], organizationAdminId],
+    )
+    assert.equal(duplicateBranchEntity.rowCount, 0)
+
+    const branchUpdate = await runtime.query(
+      "SELECT * FROM public.update_branch_identity($1, $2, $3, $4)",
+      [branchId, "BOG-01", "Chili Bogotá Centro Histórico", organizationAdminId],
+    )
+    assert.equal(branchUpdate.rowCount, 1)
+    assert.equal(branchUpdate.rows[0].name, "Chili Bogotá Centro Histórico")
+
+    const concurrentLinkRemovals = await Promise.all([
+      runtime.query(
+        "SELECT public.remove_branch_legal_entity($1, $2, $3) AS outcome",
+        [branchId, legalEntityIds[0], organizationAdminId],
+      ),
+      runtime.query(
+        "SELECT public.remove_branch_legal_entity($1, $2, $3) AS outcome",
+        [branchId, legalEntityIds[1], organizationAdminId],
+      ),
+    ])
+    const removalOutcomes = concurrentLinkRemovals.map((result) => result.rows[0].outcome)
+    assert.deepEqual(removalOutcomes.sort(), ["LAST_LEGAL_ENTITY", "REMOVED"])
+
+    const remainingLink = await runtime.query(
+      "SELECT legal_entity_id FROM public.branch_legal_entities WHERE branch_id = $1",
+      [branchId],
+    )
+    assert.equal(remainingLink.rowCount, 1)
+
+    const reAddedLink = await runtime.query(
+      "SELECT * FROM public.assign_branch_legal_entity($1, $2, $3)",
+      [branchId, legalEntityIds.find((id) => id !== remainingLink.rows[0].legal_entity_id), organizationAdminId],
+    )
+    assert.equal(reAddedLink.rowCount, 1)
+
+    for (const [table, columns, values] of [
+      ["legal_entities", "(organization_id, legal_name, tax_country_code, tax_identifier_type, tax_identifier, created_by_user_id, updated_by_user_id)", "((SELECT id FROM public.organizations WHERE installation_slot = 1), 'Direct bypass', 'CO', 'NIT', '800000000-1', $1, $1)"],
+      ["branches", "(organization_id, code, name, created_by_user_id, updated_by_user_id)", "((SELECT id FROM public.organizations WHERE installation_slot = 1), 'BYPASS', 'Direct bypass', $1, $1)"],
+    ]) {
+      await assert.rejects(
+        runtime.query(`INSERT INTO public.${table} ${columns} VALUES ${values}`, [organizationAdminId]),
+        (error) => error.code === "42501",
+      )
+    }
+
+    await assert.rejects(
+      runtime.query(
+        "DELETE FROM public.branch_legal_entities WHERE organization_id = $1 AND branch_id = $2",
+        [organizationId, branchId],
+      ),
+      (error) => error.code === "42501",
+    )
+
     const duplicateBootstrap = await runtime.query(
       "SELECT * FROM public.bootstrap_organization_profile($1, $2, $3, $4, $5, $6::jsonb, $7)",
       [...bootstrapArguments, organizationAdminId],
@@ -176,6 +394,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "004_secure_access_and_use_cases.sql",
         "005_create_auth_tables.sql",
         "006_create_organization_profile.sql",
+        "007_create_legal_entities_and_branch_relations.sql",
       ],
     )
 
@@ -230,6 +449,13 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       /Invalid order type/,
     )
   } finally {
+    if (branchId) {
+      await migrator.query("DELETE FROM public.branch_legal_entities WHERE branch_id = $1", [branchId])
+      await migrator.query("DELETE FROM public.branches WHERE id = $1", [branchId])
+    }
+    if (legalEntityIds.length) {
+      await migrator.query("DELETE FROM public.legal_entities WHERE id = ANY($1::uuid[])", [legalEntityIds])
+    }
     if (organizationId) await migrator.query("DELETE FROM public.organizations WHERE id = $1", [organizationId])
     if (organizationAdminId || organizationStaffId) {
       await migrator.query(
