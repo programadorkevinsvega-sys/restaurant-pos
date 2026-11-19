@@ -36,6 +36,7 @@ interface OperationsPanelProps {
   organizationLoading: boolean
   canUpdateOrganization: boolean
   canBootstrapOrganization: boolean
+  organizationLoadError: string | null
   onBootstrapOrganization: (input: OrganizationProfileInput) => Promise<void>
   onUpdateOrganization: (input: OrganizationProfileUpdate) => Promise<void>
 }
@@ -66,7 +67,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
   const {
     section, tables, reservations, deliveries, salesReport, bestSellingProducts, settings, categories,
     onCreateReservation, onUpdateReservationStatus, onAssignDriver, onUpdateSettings, onCreateCategory,
-    organization, organizationLoading, canUpdateOrganization, canBootstrapOrganization,
+    organization, organizationLoading, canUpdateOrganization, canBootstrapOrganization, organizationLoadError,
     onBootstrapOrganization, onUpdateOrganization,
   } = props
   const [busy, setBusy] = useState(false)
@@ -200,6 +201,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
         loading={organizationLoading}
         canUpdate={canUpdateOrganization}
         canBootstrap={canBootstrapOrganization}
+        loadError={organizationLoadError}
         onBootstrap={onBootstrapOrganization}
         onUpdate={onUpdateOrganization}
       />
