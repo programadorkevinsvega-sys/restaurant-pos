@@ -72,7 +72,13 @@ function toInput(form: LegalEntityFormState): LegalEntityInput {
     postal_code: form.address_postal_code.trim() || null,
     country_code: form.tax_country_code.trim().toUpperCase() || null,
   }
-  const hasAddress = Object.values(registeredAddress).some((value) => value !== null)
+  const hasAddress = [
+    form.address_line_1,
+    form.address_line_2,
+    form.address_locality,
+    form.address_region,
+    form.address_postal_code,
+  ].some((value) => value.trim().length > 0)
 
   return {
     legal_name: form.legal_name.trim(),
