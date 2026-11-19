@@ -3,11 +3,7 @@ const { createRequire } = require("node:module")
 
 const requirePlaywright = createRequire(path.join(process.env.PLAYWRIGHT_NODE_MODULES, "package.json"))
 const { test, expect } = requirePlaywright("@playwright/test")
-const { signIn, captureVisualEvidence } = require("./support/session.cjs")
-
-test.beforeEach(async ({ page }) => {
-  await signIn(page)
-})
+const { captureVisualEvidence } = require("./support/session.cjs")
 
 test.afterEach(async ({ page }, testInfo) => {
   if (!page.isClosed()) await captureVisualEvidence(page, testInfo)

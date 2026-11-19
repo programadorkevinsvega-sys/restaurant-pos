@@ -8,8 +8,13 @@ if (!nodeModules) {
 const requirePlaywright = createRequire(path.join(nodeModules, "package.json"))
 const { defineConfig, devices } = requirePlaywright("@playwright/test")
 const desktop = devices["Desktop Chrome"]
+const storageState = process.env.PLAYWRIGHT_STORAGE_STATE
+if (!storageState) {
+  throw new Error("PLAYWRIGHT_STORAGE_STATE debe apuntar al estado de sesión temporal.")
+}
 
 module.exports = defineConfig({
+  globalSetup: path.join(__dirname, "global-setup.cjs"),
   testDir: __dirname,
   testMatch: "**/*.spec.cjs",
   fullyParallel: false,
@@ -25,6 +30,7 @@ module.exports = defineConfig({
   expect: { timeout: 8_000 },
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3002",
+    storageState,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
