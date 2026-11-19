@@ -1,5 +1,5 @@
 import type { HttpClient } from "@/shared/infrastructure/http-client"
-import type { Branch, BranchInput, BranchesResult, BranchUpdate } from "../domain/models"
+import type { AvailableBranchesResult, Branch, BranchInput, BranchesResult, BranchUpdate, BranchUsersResult } from "../domain/models"
 import type { BranchRepository } from "../domain/branch-repository"
 
 export class HttpBranchRepository implements BranchRepository {
@@ -7,6 +7,22 @@ export class HttpBranchRepository implements BranchRepository {
 
   list(signal?: AbortSignal) {
     return this.http.get<BranchesResult>("/branches", signal)
+  }
+
+  listAvailable(signal?: AbortSignal) {
+    return this.http.get<AvailableBranchesResult>("/branches/available", signal)
+  }
+
+  listUsers(branchId: string, signal?: AbortSignal) {
+    return this.http.get<BranchUsersResult>(`/branches/${encodeURIComponent(branchId)}/users`, signal)
+  }
+
+  assignUser(branchId: string, userId: string) {
+    return this.http.post<BranchUsersResult>(`/branches/${encodeURIComponent(branchId)}/users/${encodeURIComponent(userId)}`, {})
+  }
+
+  removeUser(branchId: string, userId: string) {
+    return this.http.delete<BranchUsersResult>(`/branches/${encodeURIComponent(branchId)}/users/${encodeURIComponent(userId)}`)
   }
 
   async create(input: BranchInput) {
