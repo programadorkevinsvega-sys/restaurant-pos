@@ -18,6 +18,7 @@ import { posApplication } from "@/modules/pos/infrastructure/container"
 import { HttpError, type AuthenticatedUser } from "@/shared/infrastructure/http-client"
 import type { Category, NewProduct, Product } from "@/modules/catalog/domain/models"
 import type { CartItem, OrderType } from "@/modules/orders/domain/models"
+import type { OrganizationProfile, OrganizationProfileInput, OrganizationProfileUpdate } from "@/modules/organization/domain/models"
 import type {
   BestSellingProduct,
   DeliveryOrder,
@@ -27,7 +28,7 @@ import type {
   SalesReport,
 } from "@/modules/operations/domain/models"
 
-function POSWorkspace({ onLogout }: { onLogout: () => void }) {
+function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: AuthenticatedUser }) {
   const [activeSection, setActiveSection] = useState<AppSection>("menu")
   const [categories, setCategories] = useState<Category[]>([])
   const [products, setProducts] = useState<Product[]>([])
@@ -42,6 +43,9 @@ function POSWorkspace({ onLogout }: { onLogout: () => void }) {
   const [salesReport, setSalesReport] = useState<SalesReport | null>(null)
   const [bestSellingProducts, setBestSellingProducts] = useState<BestSellingProduct[]>([])
   const [settings, setSettings] = useState<RestaurantSettings>({})
+  const [organization, setOrganization] = useState<OrganizationProfile | null>(null)
+  const [canUpdateOrganization, setCanUpdateOrganization] = useState(false)
+  const [organizationLoading, setOrganizationLoading] = useState(false)
   const [operationError, setOperationError] = useState("")
   const [reloadIndex, setReloadIndex] = useState(0)
 
@@ -111,7 +115,24 @@ function POSWorkspace({ onLogout }: { onLogout: () => void }) {
           setBestSellingProducts(bestSellers)
         }
         if (activeSection === "settings") {
-          setSettings(await posApplication.settings.get(controller.signal))
+          setOrganizationLoading(true)
+          try {
+            setSettings(await posApplication.settings.get(controller.signal))
+            try {
+              const result = await posApplication.organization.get(controller.signal)
+              setOrganization(result.organization)
+              setCanUpdateOrganization(result.permissions.can_update)
+            } catch (error) {
+              if (error instanceof HttpError && error.status === 404) {
+                setOrganization(null)
+                setCanUpdateOrganization(false)
+              } else {
+                throw error
+              }
+            }
+          } finally {
+            if (!controller.signal.aborted) setOrganizationLoading(false)
+          }
         }
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") return
@@ -241,6 +262,20 @@ function POSWorkspace({ onLogout }: { onLogout: () => void }) {
     toast({ title: "Configuración guardada" })
   }
 
+  const handleBootstrapOrganization = async (input: OrganizationProfileInput) => {
+    const result = await posApplication.organization.bootstrap(input)
+    setOrganization(result.organization)
+    setCanUpdateOrganization(result.permissions.can_update)
+    toast({ title: "Organización creada", description: "Los datos corporativos quedaron registrados." })
+  }
+
+  const handleUpdateOrganization = async (input: OrganizationProfileUpdate) => {
+    const result = await posApplication.organization.update(input)
+    setOrganization(result.organization)
+    setCanUpdateOrganization(result.permissions.can_update)
+    toast({ title: "Datos corporativos guardados" })
+  }
+
   const handleCreateCategory = async (name: string) => {
     const category = await posApplication.createCategory.execute(name)
     setCategories((current) => [...current, category].sort((a, b) => a.name.localeCompare(b.name)))
@@ -290,6 +325,12 @@ function POSWorkspace({ onLogout }: { onLogout: () => void }) {
         onAssignDriver={handleAssignDriver}
         onUpdateSettings={handleUpdateSettings}
         onCreateCategory={handleCreateCategory}
+        organization={organization}
+        organizationLoading={organizationLoading}
+        canUpdateOrganization={canUpdateOrganization}
+        canBootstrapOrganization={user.role === "admin"}
+        onBootstrapOrganization={handleBootstrapOrganization}
+        onUpdateOrganization={handleUpdateOrganization}
       />
     )
   }
@@ -456,5 +497,5 @@ export default function POSPage() {
     )
   }
 
-  return <POSWorkspace onLogout={() => void handleLogout()} />
+  return <POSWorkspace user={user} onLogout={() => void handleLogout()} />
 }
