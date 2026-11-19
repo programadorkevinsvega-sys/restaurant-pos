@@ -267,8 +267,9 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     table_number: string
     customer_name: string
     order_type: OrderType
-    total_amount: number
     legal_entity_id: string
+    delivery_address?: string
+    delivery_phone?: string
   }) => {
     setIsPlacingOrder(true)
     try {
@@ -276,9 +277,6 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         ...order,
         items: cartItems.map(({ product, quantity }) => ({
           id: product.id,
-          name: product.name,
-          price: product.price,
-          image_url: product.image_url,
           quantity,
         })),
       })
