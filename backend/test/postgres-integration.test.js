@@ -20,6 +20,8 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
   const legalEntityIds = []
   let branchId
   let secondBranchId
+  let legacyTableId
+  let legacyReservationId
 
   try {
     const identity = await runtime.query(
@@ -62,7 +64,9 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "has_function_privilege(current_user, 'public.update_branch_table(uuid, uuid, text, uuid, boolean, uuid)'::regprocedure, 'EXECUTE') AS can_update_branch_table, " +
       "has_function_privilege(current_user, 'public.list_branch_reservations(uuid, uuid, timestamp with time zone, timestamp with time zone, text)'::regprocedure, 'EXECUTE') AS can_list_branch_reservations, " +
       "has_function_privilege(current_user, 'public.create_branch_reservation(uuid, text, text, text, uuid, timestamp with time zone, integer, text, uuid)'::regprocedure, 'EXECUTE') AS can_create_branch_reservation, " +
-      "has_function_privilege(current_user, 'public.update_branch_reservation_status(uuid, uuid, text, uuid)'::regprocedure, 'EXECUTE') AS can_update_branch_reservation",
+      "has_function_privilege(current_user, 'public.update_branch_reservation_status(uuid, uuid, text, uuid)'::regprocedure, 'EXECUTE') AS can_update_branch_reservation, " +
+      "has_function_privilege(current_user, 'public.get_branch_table(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_get_branch_table, " +
+      "has_function_privilege(current_user, 'public.get_branch_reservation(uuid, uuid, uuid)'::regprocedure, 'EXECUTE') AS can_get_branch_reservation",
     )
     assert.equal(privileges.rows[0].can_read_products, true)
     assert.equal(privileges.rows[0].can_insert_products, true)
@@ -85,6 +89,8 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(privileges.rows[0].can_list_branch_reservations, true)
     assert.equal(privileges.rows[0].can_create_branch_reservation, true)
     assert.equal(privileges.rows[0].can_update_branch_reservation, true)
+    assert.equal(privileges.rows[0].can_get_branch_table, true)
+    assert.equal(privileges.rows[0].can_get_branch_reservation, true)
 
     await assert.rejects(
       runtime.query("SELECT * FROM public.tables"),
@@ -622,6 +628,19 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       ["CREATED", "TABLE_NUMBER_EXISTS"],
     )
 
+    const legacyTable = await migrator.query(
+      "INSERT INTO public.tables (number, capacity) VALUES ($1, $2) RETURNING id",
+      ["Mesa histórica sin sucursal", 2],
+    )
+    legacyTableId = legacyTable.rows[0].id
+    const legacyReservation = await migrator.query(
+      "INSERT INTO public.reservations " +
+      "(customer_name, table_id, reservation_date, party_size) " +
+      "VALUES ($1, $2, $3::timestamptz, $4) RETURNING id",
+      ["Reserva histórica sin sucursal", legacyTableId, "2027-02-10T17:00:00.000Z", 2],
+    )
+    legacyReservationId = legacyReservation.rows[0].id
+
     const branchOneTables = await runtime.query(
       "SELECT * FROM public.list_branch_tables($1, $2)",
       [branchId, organizationStaffId],
@@ -632,6 +651,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     assert.equal(branchOneTables.rows.length, 2)
     assert.ok(branchOneTables.rows.every((row) => row.branch_id === branchId))
+    assert.ok(branchOneTables.rows.every((row) => row.id !== legacyTableId))
     assert.equal(branchTwoTables.rows.length, 1)
     assert.equal(branchTwoTables.rows[0].branch_id, secondBranchId)
 
@@ -673,6 +693,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     )
     assert.equal(branchOneReservations.rowCount, 1)
     assert.equal(branchOneReservations.rows[0].branch_id, branchId)
+    assert.notEqual(branchOneReservations.rows[0].id, legacyReservationId)
     assert.equal(branchTwoReservations.rowCount, 0)
 
     const foreignTableReservation = await runtime.query(
@@ -956,6 +977,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "008_branch_assignments_and_order_context.sql",
         "009_branch_lifecycle_and_read_only_state.sql",
         "010_branch_local_configuration_and_calendar.sql",
+        "011_branch_scoped_tables_and_reservations.sql",
       ],
     )
 
@@ -1308,6 +1330,12 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "closed_by_user_id = NULL WHERE id = ANY($1::uuid[])",
         [[branchId, secondBranchId].filter(Boolean)],
       )
+    }
+    if (legacyReservationId) {
+      await migrator.query("DELETE FROM public.reservations WHERE id = $1", [legacyReservationId])
+    }
+    if (legacyTableId) {
+      await migrator.query("DELETE FROM public.tables WHERE id = $1", [legacyTableId])
     }
     if (orderId || deliveryOrderId) {
       await migrator.query(
