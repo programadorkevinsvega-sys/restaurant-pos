@@ -275,11 +275,6 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       (error) => error.code === "42501",
     )
 
-    await assert.rejects(
-      migrator.query("DELETE FROM public.legal_entities WHERE id = $1", [legalEntityIds[0]]),
-      (error) => error.code === "23503",
-    )
-
     const branchCreate = await runtime.query(
       "SELECT * FROM public.create_branch($1, $2, $3::uuid[], $4)",
       ["BOG-01", "Chili Bogotá Centro", legalEntityIds, organizationAdminId],
@@ -294,6 +289,11 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       [organizationId, branchId],
     )
     assert.equal(branchRelations.rowCount, 2)
+
+    await assert.rejects(
+      migrator.query("DELETE FROM public.legal_entities WHERE id = $1", [legalEntityIds[0]]),
+      (error) => error.code === "23503",
+    )
 
     const secondBranch = await runtime.query(
       "SELECT * FROM public.create_branch($1, $2, $3::uuid[], $4)",
