@@ -3,6 +3,8 @@ import { CreateCategory } from "@/modules/catalog/application/create-category"
 import { ListCatalog } from "@/modules/catalog/application/list-catalog"
 import { HttpCatalogRepository } from "@/modules/catalog/infrastructure/http-catalog-repository"
 import { ManageCorporateCatalog } from "@/modules/catalog/application/manage-corporate-catalog"
+import { ManageRecipes } from "@/modules/recipes/application/manage-recipes"
+import { HttpRecipesRepository } from "@/modules/recipes/infrastructure/http-recipes-repository"
 import { CreateOrder } from "@/modules/orders/application/create-order"
 import { ListOrders } from "@/modules/orders/application/list-orders"
 import { HttpOrderRepository } from "@/modules/orders/infrastructure/http-order-repository"
@@ -33,6 +35,7 @@ if (!apiUrl) {
 const http = new HttpClient(apiUrl)
 const catalogRepository = new HttpCatalogRepository(http)
 const orderRepository = new HttpOrderRepository(http)
+const recipesRepository = new HttpRecipesRepository(http)
 export const posApplication = {
   auth: {
     login: (email: string, password: string) => http.login(email, password),
@@ -41,6 +44,7 @@ export const posApplication = {
   },
   listCatalog: new ListCatalog(catalogRepository),
   corporateCatalog: new ManageCorporateCatalog(catalogRepository),
+  recipes: new ManageRecipes(recipesRepository),
   createProduct: new CreateProduct(catalogRepository),
   createCategory: new CreateCategory(catalogRepository),
   createOrder: new CreateOrder(orderRepository),

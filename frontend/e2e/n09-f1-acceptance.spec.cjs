@@ -148,11 +148,60 @@ test("N09-F1.6: las mesas y reservas se consultan desde las pantallas operativas
 })
 
 test("N09-F1: la navegación presenta las secciones principales sin errores de renderizado", async ({ page }) => {
-  for (const label of ["Punto de venta", "Catálogo", "Mesas", "Reservaciones", "Entregas", "Contabilidad", "Configuración"]) {
+  for (const label of ["Punto de venta", "Catálogo", "Recetas", "Mesas", "Reservaciones", "Entregas", "Contabilidad", "Configuración"]) {
     await expect(page.getByRole("button", { name: label })).toBeVisible()
   }
   await expect(page.getByLabel("Sucursal activa")).toHaveValue(
     process.env.E2E_BRANCH_ID || "44444444-4444-4444-8444-444444444444",
+  )
+})
+
+test("N09-F2.2 incremento 1: administrar ingredientes y guardar una receta técnica real", async ({ page }) => {
+  const suffix = String(Date.now())
+  const ingredientName = "Ingrediente E2E " + suffix
+  const productId = "66666666-6666-4666-8666-666666666666"
+
+  await ensureE2EBranchActive(page)
+  await page.getByRole("button", { name: "Recetas", exact: true }).click()
+  await expect(page.getByRole("heading", { name: "Recetas e ingredientes" })).toBeVisible()
+  await page.getByLabel("Nombre del ingrediente").fill(ingredientName)
+  await page.getByLabel("Código de unidad").fill("g")
+  await page.getByRole("button", { name: "Crear ingrediente" }).click()
+  await expect(page.getByText(ingredientName, { exact: true })).toBeVisible()
+
+  await page.getByRole("button", { name: "Recetas técnicas" }).click()
+  const productSelect = page.getByLabel("Producto del catálogo")
+  await expect(productSelect.locator('option[value="' + productId + '"]')).toBeAttached()
+  const recipeLoad = page.waitForResponse((response) =>
+    response.url().endsWith("/api/admin/recipes/products/" + productId) &&
+    response.request().method() === "GET",
+  )
+  await productSelect.selectOption(productId)
+  const recipeResponse = await recipeLoad
+  expect(recipeResponse.status()).toBe(200)
+
+  // Desktop and mobile share the disposable E2E database. Clear the product's
+  // previous recipe so this scenario is repeatable across browser projects.
+  const existingComponents = page.getByRole("button", { name: "Quitar", exact: true })
+  let existingComponentCount = await existingComponents.count()
+  while (existingComponentCount > 0) {
+    await existingComponents.first().click()
+    existingComponentCount -= 1
+    await expect(existingComponents).toHaveCount(existingComponentCount)
+  }
+
+  await page.getByLabel("Instrucciones de preparación").fill("Mezclar y hornear para la aceptación automatizada.")
+  await page.getByRole("button", { name: "Agregar ingrediente" }).click()
+  await page.getByLabel("Ingrediente de componente 1").selectOption({ label: ingredientName + " (g)" })
+  await page.getByLabel("Cantidad de componente 1").fill("12.345678")
+  await page.getByRole("button", { name: "Guardar receta" }).click()
+  await expect(page.getByText("Receta guardada correctamente.")).toBeVisible()
+
+  await productSelect.selectOption("")
+  await productSelect.selectOption(productId)
+  await expect(page.getByLabel("Cantidad de componente 1")).toHaveValue("12.345678")
+  await expect(page.getByLabel("Instrucciones de preparación")).toHaveValue(
+    "Mezclar y hornear para la aceptación automatizada.",
   )
 })
 
