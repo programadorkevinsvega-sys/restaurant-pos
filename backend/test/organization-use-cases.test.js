@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { OrganizationUseCases } from "../src/modules/organization/application/organization-use-cases.js"
+import { PostgresOrganizationRepository } from "../src/modules/organization/infrastructure/postgres-organization-repository.js"
 
 const admin = { userId: "admin-user-id", role: "admin" }
 const owner = { userId: "owner-user-id", role: "staff" }
@@ -162,4 +163,66 @@ test("organization profile schema rejects non-HTTP websites, invalid country cod
 test("organization update schema rejects empty patches", async () => {
   const { updateOrganizationProfileSchema } = await import("../src/modules/organization/presentation/routes.js")
   assert.equal(updateOrganizationProfileSchema.safeParse({}).success, false)
+})
+
+
+test("PostgreSQL organization repository serializes structured address and maps the profile", async () => {
+  let call
+  const repository = new PostgresOrganizationRepository({
+    query: async (...args) => {
+      call = args
+      return {
+        rows: [{
+          id: profile.id,
+          name: profile.name,
+          commercial_name: profile.commercialName,
+          contact_email: profile.contactEmail,
+          contact_phone: profile.contactPhone,
+          website_url: profile.websiteUrl,
+          headquarters_address: profile.headquartersAddress,
+          owner_user_id: profile.ownerUserId,
+          created_at: profile.createdAt,
+          updated_at: profile.updatedAt,
+        }],
+      }
+    },
+  })
+
+  const created = await repository.createProfile({
+    name: profile.name,
+    headquarters_address: profile.headquartersAddress,
+  }, admin.userId)
+
+  assert.match(call[0], /bootstrap_organization_profile/)
+  assert.equal(call[1][0], profile.name)
+  assert.equal(call[1][5], JSON.stringify(profile.headquartersAddress))
+  assert.equal(call[1][6], admin.userId)
+  assert.equal(created.ownerUserId, profile.ownerUserId)
+})
+
+test("PostgreSQL organization repository preserves omitted fields during partial updates", async () => {
+  let call
+  const repository = new PostgresOrganizationRepository({
+    query: async (...args) => {
+      call = args
+      return { rows: [] }
+    },
+  })
+
+  const updated = await repository.updateProfile({
+    commercial_name: "Chili POS Corporate",
+  }, owner.userId)
+
+  assert.match(call[0], /update_organization_profile/)
+  assert.equal(call[1].length, 13)
+  assert.deepEqual(call[1], [
+    owner.userId,
+    false, null,
+    true, "Chili POS Corporate",
+    false, null,
+    false, null,
+    false, null,
+    false, null,
+  ])
+  assert.equal(updated, null)
 })
