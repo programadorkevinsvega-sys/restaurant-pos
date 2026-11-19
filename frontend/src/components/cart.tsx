@@ -18,8 +18,9 @@ interface CartProps {
     table_number: string
     customer_name: string
     order_type: OrderType
-    total_amount: number
     legal_entity_id: string
+    delivery_address?: string
+    delivery_phone?: string
   }) => Promise<{ success: boolean }>
   isPlacingOrder: boolean
 }
@@ -35,6 +36,8 @@ export function Cart({
   const [activeMode, setActiveMode] = useState<OrderType>("Comer aquí")
   const [tableNumber, setTableNumber] = useState("1")
   const [customerName, setCustomerName] = useState("")
+  const [deliveryAddress, setDeliveryAddress] = useState("")
+  const [deliveryPhone, setDeliveryPhone] = useState("")
   const [legalEntitySelection, setLegalEntitySelection] = useState<{ branchId: string; legalEntityId: string } | null>(null)
 
   const legalEntities = activeBranch?.legal_entities ?? []
@@ -60,8 +63,10 @@ export function Cart({
       table_number: activeMode === "Comer aquí" ? tableNumber.trim() : "Pedido",
       customer_name: customerName.trim(),
       order_type: activeMode,
-      total_amount: total,
       legal_entity_id: legalEntityId,
+      ...(activeMode === "A domicilio"
+        ? { delivery_address: deliveryAddress.trim(), delivery_phone: deliveryPhone.trim() }
+        : {}),
     })
   }
 
@@ -71,7 +76,8 @@ export function Cart({
     legalEntities.some((entity) => entity.id === legalEntityId) &&
     cartItems.length > 0 &&
     !isPlacingOrder &&
-    (activeMode !== "Comer aquí" || tableNumber.trim()),
+    (activeMode !== "Comer aquí" || tableNumber.trim()) &&
+    (activeMode !== "A domicilio" || (deliveryAddress.trim().length >= 5 && deliveryPhone.trim().length >= 5)),
   )
 
   return (
@@ -145,6 +151,36 @@ export function Cart({
               aria-label="Número de mesa"
             />
           </label>
+        )}
+        {activeMode === "A domicilio" && (
+          <div className="space-y-2">
+            <label htmlFor="delivery-address" className="block text-sm font-medium">
+              Dirección de entrega
+              <Input
+                id="delivery-address"
+                className="mt-1"
+                minLength={5}
+                maxLength={300}
+                required
+                value={deliveryAddress}
+                onChange={(event) => setDeliveryAddress(event.target.value)}
+                placeholder="Dirección completa"
+              />
+            </label>
+            <label htmlFor="delivery-phone" className="block text-sm font-medium">
+              Teléfono de contacto
+              <Input
+                id="delivery-phone"
+                className="mt-1"
+                minLength={5}
+                maxLength={32}
+                required
+                value={deliveryPhone}
+                onChange={(event) => setDeliveryPhone(event.target.value)}
+                placeholder="Teléfono"
+              />
+            </label>
+          </div>
         )}
         <label htmlFor="customer-name" className="block text-sm font-medium">
           Cliente (opcional)
