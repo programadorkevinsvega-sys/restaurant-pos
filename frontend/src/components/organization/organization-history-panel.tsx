@@ -187,6 +187,7 @@ export function OrganizationHistoryPanel({
           <select
             className="h-10 rounded-md border bg-background px-3"
             value={resourceType}
+            disabled={loading || loadingMore}
             onChange={(event) => setResourceType(event.target.value as OrganizationHistoryResourceType | "all")}
           >
             <option value="all">Todos los recursos</option>
@@ -201,6 +202,7 @@ export function OrganizationHistoryPanel({
           <select
             className="h-10 rounded-md border bg-background px-3"
             value={branchId}
+            disabled={loading || loadingMore}
             onChange={(event) => setBranchId(event.target.value)}
           >
             <option value="all">Todas las sucursales</option>
@@ -221,18 +223,16 @@ export function OrganizationHistoryPanel({
       ) : canViewHistory && events.length > 0 ? (
         <>
           <div className="grid gap-3">
-            {events.map((event) => (
-              <HistoryEventCard
-                key={event.id}
-                event={event}
-                branchLabel={branches.find((branch) => branch.id === event.branch_id)
-                  ? (() => {
-                    const branch = branches.find((item) => item.id === event.branch_id)
-                    return branch ? `${branch.code} · ${branch.name}` : undefined
-                  })()
-                  : undefined}
-              />
-            ))}
+            {events.map((event) => {
+              const branch = branches.find((item) => item.id === event.branch_id)
+              return (
+                <HistoryEventCard
+                  key={event.id}
+                  event={event}
+                  branchLabel={branch ? `${branch.code} · ${branch.name}` : undefined}
+                />
+              )
+            })}
           </div>
           {nextCursor && (
             <Button type="button" variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
@@ -240,7 +240,7 @@ export function OrganizationHistoryPanel({
             </Button>
           )}
         </>
-      ) : canViewHistory && !loading ? (
+      ) : canViewHistory && !loading && !error ? (
         <p className="text-sm text-muted-foreground">No hay cambios registrados para estos filtros.</p>
       ) : null}
     </section>
