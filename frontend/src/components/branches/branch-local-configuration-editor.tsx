@@ -30,7 +30,15 @@ const weekdays = [
   "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo",
 ]
 
-const emptyPeriod = (): BranchOpeningPeriod => ({
+type EditableOpeningPeriod = BranchOpeningPeriod & { localId: string }
+type EditableWeeklyHour = BranchWeeklyHour & { localId: string }
+
+function createLocalId() {
+  return globalThis.crypto.randomUUID()
+}
+
+const emptyPeriod = (): EditableOpeningPeriod => ({
+  localId: createLocalId(),
   opens_at: "09:00",
   closes_at: "18:00",
   closes_next_day: false,
@@ -73,14 +81,16 @@ export function BranchLocalConfigurationEditor({
   const [address, setAddress] = useState(() => addressValue(branch))
   const [timeZone, setTimeZone] = useState(branch.time_zone ?? "")
   const [currencyCode, setCurrencyCode] = useState(branch.currency_code ?? "")
-  const [weeklyHours, setWeeklyHours] = useState<BranchWeeklyHour[]>(branch.weekly_hours ?? [])
+  const [weeklyHours, setWeeklyHours] = useState<EditableWeeklyHour[]>(() => (
+    (branch.weekly_hours ?? []).map((period) => ({ ...period, localId: createLocalId() }))
+  ))
   const [exceptions, setExceptions] = useState<BranchCalendarException[]>([])
   const [calendarLoading, setCalendarLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState("")
   const [exceptionDate, setExceptionDate] = useState(() => localDate(new Date()))
   const [exceptionKind, setExceptionKind] = useState<"closed" | "special_hours">("closed")
-  const [exceptionPeriods, setExceptionPeriods] = useState<BranchOpeningPeriod[]>([emptyPeriod()])
+  const [exceptionPeriods, setExceptionPeriods] = useState<EditableOpeningPeriod[]>([emptyPeriod()])
   const [exceptionReason, setExceptionReason] = useState("")
 
   const loadCalendar = async () => {
@@ -133,7 +143,7 @@ export function BranchLocalConfigurationEditor({
       } : null,
       time_zone: timeZone.trim() || null,
       currency_code: currencyCode.trim().toUpperCase() || null,
-      weekly_hours: weeklyHours,
+      weekly_hours: weeklyHours.map(({ localId, ...period }) => period),
     }
     try {
       await onSaveConfiguration(branch.id, input)
@@ -163,7 +173,9 @@ export function BranchLocalConfigurationEditor({
     setMessage("")
     const input: BranchCalendarExceptionInput = {
       kind: exceptionKind,
-      periods: exceptionKind === "closed" ? [] : exceptionPeriods,
+      periods: exceptionKind === "closed"
+        ? []
+        : exceptionPeriods.map(({ localId, ...period }) => period),
       reason: exceptionReason.trim(),
     }
     try {
@@ -308,7 +320,7 @@ export function BranchLocalConfigurationEditor({
                   </Button>
                 </div>
                 {weeklyHours.map((period, index) => (
-                  <div key={`${index}-${period.weekday}-${period.opens_at}`} className="grid gap-2 rounded-md border p-2 sm:grid-cols-[1fr_1fr_1fr_auto_auto] sm:items-end">
+                  <div key={period.localId} className="grid gap-2 rounded-md border p-2 sm:grid-cols-[1fr_1fr_1fr_auto_auto] sm:items-end">
                     <div className="space-y-1">
                       <Label>Día</Label>
                       <select
@@ -401,7 +413,7 @@ export function BranchLocalConfigurationEditor({
                   </div>
                 </div>
                 {exceptionKind === "special_hours" && exceptionPeriods.map((period, index) => (
-                  <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
+                  <div key={period.localId} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
                     <div className="space-y-1">
                       <Label>Abre</Label>
                       <Input type="time" value={period.opens_at} onChange={(event) => updateExceptionPeriod(index, "opens_at", event.target.value)} />
@@ -456,7 +468,7 @@ export function BranchLocalConfigurationEditor({
                       <p className="font-medium">{exception.local_date} · {exception.kind === "closed" ? "Cerrado" : "Horario especial"}</p>
                       <p className="text-xs text-muted-foreground">{exception.reason}</p>
                       {exception.periods.map((period, index) => (
-                        <p key={index} className="text-xs text-muted-foreground">
+                        <p key={`${exception.local_date}-${period.opens_at}-${period.closes_at}-${period.closes_next_day}`} className="text-xs text-muted-foreground">
                           {period.opens_at}–{period.closes_at}{period.closes_next_day ? " (día siguiente)" : ""}
                         </p>
                       ))}

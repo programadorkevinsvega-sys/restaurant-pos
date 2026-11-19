@@ -758,6 +758,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "007_create_legal_entities_and_branch_relations.sql",
         "008_branch_assignments_and_order_context.sql",
         "009_branch_lifecycle_and_read_only_state.sql",
+        "010_branch_local_configuration_and_calendar.sql",
       ],
     )
 
