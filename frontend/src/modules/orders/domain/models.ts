@@ -11,14 +11,12 @@ export interface NewOrder {
   table_number: string
   customer_name: string
   order_type: OrderType
-  total_amount: number
   legal_entity_id: string
+  delivery_address?: string
+  delivery_phone?: string
   items: Array<{
     id: string
-    name: string
-    price: number
     quantity: number
-    image_url?: string | null
   }>
 }
 
