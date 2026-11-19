@@ -261,7 +261,8 @@ BEGIN
   JOIN public.app_users AS actor
     ON actor.id = assignment.user_id
     AND actor.is_active = true
-  WHERE b.id = p_branch_id;
+  WHERE b.id = p_branch_id
+  FOR KEY SHARE OF assignment;
 
   IF v_organization_id IS NULL THEN
     RAISE EXCEPTION 'User is not assigned to the active branch'
@@ -369,6 +370,24 @@ BEGIN
      OR (p_estimated_time IS NOT NULL AND p_estimated_time NOT BETWEEN 1 AND 1440)
      OR p_branch_id IS NULL OR p_actor_user_id IS NULL THEN
     RAISE EXCEPTION 'Invalid delivery assignment';
+  END IF;
+
+  PERFORM 1
+  FROM public.orders AS o
+  JOIN public.branch_user_assignments AS assignment
+    ON assignment.organization_id = o.organization_id
+    AND assignment.branch_id = o.branch_id
+    AND assignment.user_id = p_actor_user_id
+  JOIN public.app_users AS actor
+    ON actor.id = assignment.user_id
+    AND actor.is_active = true
+  WHERE o.id = p_order_id
+    AND o.branch_id = p_branch_id
+  FOR KEY SHARE OF assignment;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Delivery not found in active branch or user is not assigned'
+      USING ERRCODE = '42501';
   END IF;
 
   UPDATE public.delivery_info AS d
