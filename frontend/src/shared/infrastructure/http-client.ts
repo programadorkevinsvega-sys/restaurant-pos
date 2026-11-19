@@ -26,9 +26,14 @@ export class HttpClient {
   private readonly baseUrl: string
   private csrfToken?: string
   private refreshInFlight?: Promise<boolean>
+  private activeBranchId: string | null = null
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl.replace(/\/+$/, "")
+  }
+
+  setActiveBranchId(branchId: string | null) {
+    this.activeBranchId = branchId
   }
 
   async get<T>(path: string, signal?: AbortSignal): Promise<T> {
@@ -106,8 +111,12 @@ export class HttpClient {
 
   private async fetch(path: string, init: RequestInit): Promise<Response> {
     try {
+      const headers = new Headers(init.headers)
+      if (this.activeBranchId) headers.set("X-Active-Branch-ID", this.activeBranchId)
+      else headers.delete("X-Active-Branch-ID")
       return await fetch(`${this.baseUrl}${path}`, {
         ...init,
+        headers,
         credentials: "include",
         cache: "no-store",
       })
