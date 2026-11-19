@@ -2,7 +2,7 @@
 
 **Módulo:** N09 — Gestión multisucursal  
 **Subfase:** N09-F1.2 — Entidades legales y relación con sucursales  
-**Estado:** En validación CI  
+**Estado:** Implementada y validada por CI en el commit `376aa6925d2b7e032ab17dc834a390aac685510c`  
 **Rama:** `feat/fase-1-2-entidades-legales`
 
 ## 1. Objetivo
@@ -157,13 +157,18 @@ No ejecutar backfills, asignaciones retroactivas ni documentos fiscales a partir
 
 ## 8. Validación y despliegue
 
-El workflow de PR debe ejecutar:
+El workflow de PR ejecuta:
 
 1. Backend syntax y pruebas unitarias.
 2. Frontend typecheck, lint y build.
 3. Migración desde una base vacía e idempotencia en PostgreSQL 16 y 17.
 4. Pruebas de permisos, integridad, asociaciones y concurrencia mediante el rol runtime restringido.
 
+**Evidencia CI:** GitHub Actions [run #25 / 44428963836](https://github.com/programadorkevinsvega-sys/restaurant-pos/actions/runs/44428963836) terminó con `success` sobre el commit `376aa6925d2b7e032ab17dc834a390aac685510c`. Los tres jobs aprobaron:
+- Backend, frontend y build: backend checks/unit tests, TypeScript, lint y build.
+- PostgreSQL 16: migraciones desde base vacía, idempotencia y pruebas de integración con rol runtime restringido.
+- PostgreSQL 17: migraciones desde base vacía, idempotencia y pruebas de integración con rol runtime restringido.
+
 La migración `007_create_legal_entities_and_branch_relations.sql` solo se ejecuta en CI y bases aisladas durante esta fase. No aplicar a producción ni ejecutar backfills hasta tener inspección productiva y restauración de backup verificada, pendientes de Fase 0.
 
-La fase se considera validada cuando todos los checks aprueben el HEAD final del PR. La integración en `main` y el despliegue siguen sujetos a revisión y autorización explícita.
+La subfase queda validada técnicamente en ese HEAD. La integración final en `main` y el despliegue siguen sujetos a revisión y autorización explícita; cualquier nuevo commit requiere CI sobre su propio HEAD.
