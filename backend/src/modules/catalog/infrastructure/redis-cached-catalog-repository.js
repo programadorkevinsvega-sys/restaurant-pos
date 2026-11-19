@@ -123,6 +123,10 @@ export class RedisCachedCatalogRepository {
     return this.repository.listCorporateProducts(actor)
   }
 
+  listCorporateCategories(actor) {
+    return this.repository.listCorporateCategories(actor)
+  }
+
   listBranchProducts(branchId, actor) {
     return this.repository.listBranchProducts(branchId, actor)
   }
@@ -141,6 +145,30 @@ export class RedisCachedCatalogRepository {
 
   async createProduct(product, actor) {
     const result = await this.repository.createProduct(product, actor)
+    await this.invalidate()
+    return result
+  }
+
+  async updateProduct(id, product, actor) {
+    const result = await this.repository.updateProduct(id, product, actor)
+    await this.invalidate()
+    return result
+  }
+
+  async deactivateProduct(id, actor) {
+    const result = await this.repository.deactivateProduct(id, actor)
+    await this.invalidate()
+    return result
+  }
+
+  async updateCategory(id, category, actor) {
+    const result = await this.repository.updateCategory(id, category, actor)
+    await this.invalidate()
+    return result
+  }
+
+  async deactivateCategory(id, actor) {
+    const result = await this.repository.deactivateCategory(id, actor)
     await this.invalidate()
     return result
   }
