@@ -23,6 +23,7 @@ COMMENT ON COLUMN public.branches.closed_at IS
 
 CREATE TABLE public.branch_lifecycle_events (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sequence bigint GENERATED ALWAYS AS IDENTITY UNIQUE NOT NULL,
   organization_id uuid NOT NULL,
   branch_id uuid NOT NULL,
   previous_status text,
@@ -40,7 +41,7 @@ CREATE TABLE public.branch_lifecycle_events (
 );
 
 CREATE INDEX branch_lifecycle_events_branch_history_idx
-  ON public.branch_lifecycle_events(organization_id, branch_id, occurred_at DESC, id);
+  ON public.branch_lifecycle_events(organization_id, branch_id, sequence DESC);
 
 REVOKE ALL ON TABLE public.branch_lifecycle_events FROM PUBLIC;
 REVOKE ALL ON TABLE public.branch_lifecycle_events FROM restaurant_pos_app;
