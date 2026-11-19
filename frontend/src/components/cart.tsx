@@ -1,15 +1,17 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Edit2 } from "lucide-react"
-import { CartItem } from "./cart-item"
+import { CartItem as CartItemView } from "./cart-item"
 import { DiningMode } from "./dining-mode"
 import type { CartItem as CartItemType, OrderType } from "@/modules/orders/domain/models"
-import { useState } from "react"
+import type { OperationalBranch } from "@/modules/branches/domain/models"
 
 interface CartProps {
   cartItems: CartItemType[]
+  activeBranch: OperationalBranch | null
   onRemoveItem: (id: string) => void
   onUpdateQuantity: (id: string, newQuantity: number) => void
   onPlaceOrder: (order: {
@@ -17,27 +19,53 @@ interface CartProps {
     customer_name: string
     order_type: OrderType
     total_amount: number
+    legal_entity_id: string
   }) => Promise<{ success: boolean }>
   isPlacingOrder: boolean
 }
 
-export function Cart({ cartItems, onRemoveItem, onUpdateQuantity, onPlaceOrder, isPlacingOrder }: CartProps) {
+export function Cart({
+  cartItems,
+  activeBranch,
+  onRemoveItem,
+  onUpdateQuantity,
+  onPlaceOrder,
+  isPlacingOrder,
+}: CartProps) {
   const [activeMode, setActiveMode] = useState<OrderType>("Comer aquí")
   const [tableNumber, setTableNumber] = useState("1")
   const [customerName, setCustomerName] = useState("")
+  const [legalEntityId, setLegalEntityId] = useState("")
 
+  const legalEntities = activeBranch?.legal_entities ?? []
   const subtotal = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
   const tax = subtotal * 0.05
   const total = subtotal + tax
 
+  useEffect(() => {
+    setLegalEntityId(legalEntities.length === 1 ? legalEntities[0].id : "")
+  }, [activeBranch?.id, legalEntities.length, legalEntities[0]?.id])
+
   const handlePlaceOrder = async () => {
+    if (!activeBranch) return
+    if (!legalEntityId || !legalEntities.some((entity) => entity.id === legalEntityId)) return
     await onPlaceOrder({
       table_number: activeMode === "Comer aquí" ? tableNumber.trim() : "Pedido",
       customer_name: customerName.trim(),
       order_type: activeMode,
       total_amount: total,
+      legal_entity_id: legalEntityId,
     })
   }
+
+  const canPlaceOrder = Boolean(
+    activeBranch &&
+    legalEntities.length > 0 &&
+    legalEntities.some((entity) => entity.id === legalEntityId) &&
+    cartItems.length > 0 &&
+    !isPlacingOrder &&
+    (activeMode !== "Comer aquí" || tableNumber.trim()),
+  )
 
   return (
     <aside className="flex h-full w-full flex-col border-l bg-white lg:w-[380px]">
@@ -50,10 +78,52 @@ export function Cart({ cartItems, onRemoveItem, onUpdateQuantity, onPlaceOrder, 
           <Edit2 className="h-5 w-5" />
         </Button>
       </div>
-      <div className="border-b p-4">
+      <div className="border-b p-4 space-y-3">
+        <div className="rounded-md bg-muted/50 p-3 text-sm">
+          <p className="font-medium">Contexto de operación</p>
+          {activeBranch ? (
+            <p className="text-muted-foreground">{activeBranch.code} · {activeBranch.name}</p>
+          ) : (
+            <p role="alert" className="text-destructive">No tienes una sucursal activa asignada.</p>
+          )}
+        </div>
+        <label className="block text-sm font-medium">
+          Entidad legal que registra esta operación
+          <select
+            className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            value={legalEntityId}
+            onChange={(event) => setLegalEntityId(event.target.value)}
+            disabled={!activeBranch || legalEntities.length <= 1}
+            aria-label="Entidad legal responsable del pedido"
+          >
+            <option value="" disabled>
+              {legalEntities.length === 0
+                ? "La sucursal no tiene entidades legales"
+                : legalEntities.length === 1
+                  ? "Única entidad legal asociada"
+                  : "Selecciona la entidad legal"}
+            </option>
+            {legalEntities.map((entity) => (
+              <option key={entity.id} value={entity.id}>
+                {entity.commercial_name || entity.legal_name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {legalEntities.length > 1 && (
+          <p className="text-xs text-muted-foreground">
+            Esta selección queda guardada en el pedido. No se asigna automáticamente un NIT.
+          </p>
+        )}
+        {!activeBranch && (
+          <p className="text-xs text-muted-foreground">Selecciona una sucursal en la barra superior para continuar.</p>
+        )}
+        {activeBranch && legalEntities.length === 0 && (
+          <p className="text-xs text-destructive">El propietario debe asociar al menos una entidad legal a esta sucursal.</p>
+        )}
         <DiningMode activeMode={activeMode} onSelectMode={setActiveMode} />
         {activeMode === "Comer aquí" && (
-          <label htmlFor="table-number" className="mt-2 block text-sm font-medium">
+          <label htmlFor="table-number" className="block text-sm font-medium">
             Mesa
             <Input
               id="table-number"
@@ -65,7 +135,7 @@ export function Cart({ cartItems, onRemoveItem, onUpdateQuantity, onPlaceOrder, 
             />
           </label>
         )}
-        <label htmlFor="customer-name" className="mt-2 block text-sm font-medium">
+        <label htmlFor="customer-name" className="block text-sm font-medium">
           Cliente (opcional)
           <Input
             id="customer-name"
@@ -81,7 +151,7 @@ export function Cart({ cartItems, onRemoveItem, onUpdateQuantity, onPlaceOrder, 
           <p className="mt-10 text-center text-gray-500">El pedido está vacío. Agrega productos del menú.</p>
         ) : (
           cartItems.map((item) => (
-            <CartItem key={item.product.id} item={item} onUpdateQuantity={onUpdateQuantity} onRemoveItem={onRemoveItem} />
+            <CartItemView key={item.product.id} item={item} onUpdateQuantity={onUpdateQuantity} onRemoveItem={onRemoveItem} />
           ))
         )}
       </div>
@@ -103,7 +173,7 @@ export function Cart({ cartItems, onRemoveItem, onUpdateQuantity, onPlaceOrder, 
         <Button
           className="w-full bg-green-600 hover:bg-green-700 text-white h-12"
           onClick={handlePlaceOrder}
-          disabled={isPlacingOrder || cartItems.length === 0 || !tableNumber.trim()}
+          disabled={!canPlaceOrder}
         >
           {isPlacingOrder ? "Realizando Pedido..." : "Realizar Pedido"}
         </Button>
