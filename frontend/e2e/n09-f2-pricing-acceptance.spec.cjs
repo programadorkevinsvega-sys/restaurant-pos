@@ -83,7 +83,7 @@ test("N09-F2.3 administra listas, asignaciones, precios, impuestos y promociones
   const promotionForm = page.locator("form").filter({ has: page.getByRole("button", { name: "Crear promoción", exact: true }) })
   await promotionForm.getByLabel("Nombre").fill("Promoción " + suffix)
   await promotionForm.getByLabel("Tipo").selectOption("percentage")
-  await promotionForm.getByLabel("Valor").fill("5")
+  await promotionForm.getByLabel("Valor").last().fill("5")
   await promotionForm.getByLabel("Sucursal").selectOption(branchId)
   await promotionForm.getByLabel("Producto objetivo").selectOption({ label: productName })
   const from = new Date(Date.now() + 60_000).toISOString().slice(0, 16)
