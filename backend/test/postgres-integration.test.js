@@ -1558,6 +1558,24 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
     assert.equal(promotionTargets.rows[0].scope, "corporate")
     assert.deepEqual(promotionTargets.rows[0].branch_ids, [secondBranchId])
 
+    for (const scope of ["corporate", "branch"]) {
+      await runtime.query(
+        "SELECT public.f23_create_promotion($1, $2, $3, $4, $5, $6, $7, $8::uuid[], $9::uuid[], $10::uuid[], $11)",
+        [`CI conflicting ${scope} promotion`, scope, "percentage", 5, null,
+          new Date(Date.now() - 60_000).toISOString(), new Date(Date.now() + 86_400_000).toISOString(),
+          [branchId], [productId], [], organizationAdminId],
+      )
+    }
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
+        ["Conflicting promotions", "Integration test", "Para llevar",
+          JSON.stringify([{ id: productId, quantity: 1 }]), null, null,
+          branchId, legalEntityIds[0], organizationStaffId],
+      ),
+      (error) => error.message.includes("PROMOTION_CONFLICT_MULTIPLE_MATCHES"),
+    )
+
     const restrictMedium = await runtime.query(
       "SELECT public.set_branch_product_option_availability($1, $2, false, $3, $4) AS outcome",
       [branchId, mediumOptionId, "Probar mínimo por sucursal", organizationAdminId],
