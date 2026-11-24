@@ -450,7 +450,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
       setCartItems([])
       const currencyCode = receipt.currency_code.trim()
       const taxBreakdown = receipt.items.flatMap((item) =>
-        item.tax_breakdown.map((tax) => `${tax.name} ${(tax.rate * 100).toFixed(4)}%: ${tax.amount}`),
+        item.tax_breakdown.map((tax) => `${tax.name} ${(tax.rate * 100).toFixed(4)}%`),
       )
       const promotions = receipt.items
         .filter((item) => item.promotion)
