@@ -2071,9 +2071,15 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       )
     }
     if (organizationId) {
+      await migrator.query("DELETE FROM public.promotion_product_targets WHERE organization_id = $1", [organizationId])
+      await migrator.query("DELETE FROM public.promotion_category_targets WHERE organization_id = $1", [organizationId])
+      await migrator.query("DELETE FROM public.promotion_branch_targets WHERE organization_id = $1", [organizationId])
+      await migrator.query("DELETE FROM public.promotions WHERE organization_id = $1", [organizationId])
       await migrator.query("DELETE FROM public.price_list_assignments WHERE organization_id = $1", [organizationId])
       await migrator.query("DELETE FROM public.price_list_product_prices WHERE organization_id = $1", [organizationId])
+      await migrator.query("DELETE FROM public.product_tax_assignments WHERE organization_id = $1", [organizationId])
       await migrator.query("DELETE FROM public.product_tax_profiles WHERE organization_id = $1", [organizationId])
+      await migrator.query("DELETE FROM public.tax_rules WHERE organization_id = $1", [organizationId])
       await migrator.query("DELETE FROM public.price_lists WHERE organization_id = $1", [organizationId])
     }
     if (branchId || secondBranchId) {
