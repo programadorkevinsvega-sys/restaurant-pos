@@ -1538,6 +1538,15 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         new Date(Date.now() - 60_000).toISOString(), new Date(Date.now() + 86_400_000).toISOString(),
         [secondBranchId], [productId], [], organizationAdminId],
     )
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.f23_create_promotion($1, $2, $3, $4, $5, $6, $7, $8::uuid[], $9::uuid[], $10::uuid[], $11)",
+        ["CI promotion without commercial target", "corporate", "percentage", 5, null,
+          new Date(Date.now() - 60_000).toISOString(), new Date(Date.now() + 86_400_000).toISOString(),
+          [branchId], [], [], organizationAdminId],
+      ),
+      (error) => error.message.includes("PROMOTION_TARGET_REQUIRED"),
+    )
     const promotionTargets = await runtime.query(
       "SELECT promotion.scope, array_agg(target.branch_id ORDER BY target.branch_id) AS branch_ids " +
       "FROM public.promotions promotion JOIN public.promotion_branch_targets target " +
