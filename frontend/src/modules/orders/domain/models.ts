@@ -39,6 +39,7 @@ export interface OrderReceipt {
     quantity: number
     list_unit_price: string | null
     unit_discount: string | null
+    unit_total: string
     line_total: string
     tax_mode: "inclusive" | "exclusive" | null
     tax_breakdown: Array<{
