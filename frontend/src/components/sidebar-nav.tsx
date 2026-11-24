@@ -1,7 +1,7 @@
-import { Menu, TableIcon as TableBar, CalendarRange, Truck, Calculator, Settings, Package, ChefHat, SlidersHorizontal } from "lucide-react"
+import { Menu, TableIcon as TableBar, CalendarRange, Truck, Calculator, Settings, Package, ChefHat, SlidersHorizontal, BadgeDollarSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export type AppSection = "menu" | "catalog" | "recipes" | "variants" | "tables" | "reservations" | "delivery" | "accounting" | "settings"
+export type AppSection = "menu" | "catalog" | "recipes" | "variants" | "tables" | "reservations" | "delivery" | "accounting" | "pricing" | "settings"
 
 const navItems: Array<{ id: AppSection; icon: typeof Menu; label: string }> = [
   { id: "menu", icon: Menu, label: "Punto de venta" },
@@ -12,6 +12,7 @@ const navItems: Array<{ id: AppSection; icon: typeof Menu; label: string }> = [
   { id: "reservations", icon: CalendarRange, label: "Reservaciones" },
   { id: "delivery", icon: Truck, label: "Entregas" },
   { id: "accounting", icon: Calculator, label: "Contabilidad" },
+  { id: "pricing", icon: BadgeDollarSign, label: "Precios e impuestos" },
   { id: "settings", icon: Settings, label: "Configuración" },
 ]
 

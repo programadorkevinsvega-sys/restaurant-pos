@@ -13,6 +13,7 @@ import { OperationsPanel } from "@/components/operations/operations-panel"
 import { CatalogManagementPanel } from "@/components/catalog/catalog-management-panel"
 import { RecipeManagementPanel } from "@/components/recipes/recipe-management-panel"
 import { VariantsManagementPanel } from "@/components/variants/variants-management-panel"
+import { PricingManagementPanel } from "@/components/pricing/pricing-management-panel"
 import { ProductOptionsDialog } from "@/components/pos/product-options-dialog"
 import { SidebarNav, type AppSection } from "@/components/sidebar-nav"
 import { TableManagement } from "@/components/tables/table-management"
@@ -191,7 +192,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
   }, [])
 
   useEffect(() => {
-    if (activeSection !== "catalog" && activeSection !== "variants") return
+    if (activeSection !== "catalog" && activeSection !== "variants" && activeSection !== "pricing") return
     const controller = new AbortController()
     setCorporateStructureLoading(true)
     void (async () => {
@@ -225,7 +226,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
     const loadSection = async () => {
       try {
         setOperationError("")
-        if (activeSection === "tables") {
+    if (activeSection === "tables") {
           const [tableRows, orderRows] = await Promise.all([
             posApplication.tables.getAll(controller.signal),
             posApplication.listOrders.execute({ limit: 100 }, controller.signal),
@@ -707,6 +708,16 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
               if (!enabled) setCartItems((current) => current.filter((item) => item.product.id !== productId))
             }
           }}
+        />
+      )
+    }
+    if (activeSection === "pricing") {
+      return (
+        <PricingManagementPanel
+          branches={branches}
+          products={catalogProducts}
+          canManage={canManageCorporateStructure}
+          application={posApplication.pricing}
         />
       )
     }

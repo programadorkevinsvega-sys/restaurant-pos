@@ -16,6 +16,7 @@ const ids = {
   category: "55555555-5555-4555-8555-555555555555",
   product: "66666666-6666-4666-8666-666666666666",
   table: "77777777-7777-4777-8777-777777777777",
+  priceList: "88888888-8888-4888-8888-888888888888",
 }
 
 const pool = new Pool({ connectionString: databaseUrl, max: 2 })
@@ -88,6 +89,35 @@ try {
        id, name, description, price, image_url, discount_percentage, type, category_id
      ) VALUES ($1, 'Producto E2E', 'Producto de prueba automatizada', 12000, NULL, 0, 'Veg', $2)`,
     [ids.product, ids.category],
+  )
+
+  await client.query(
+    `INSERT INTO public.price_lists (
+       id, organization_id, name, currency_code, scope,
+       created_by_user_id, updated_by_user_id
+     ) VALUES ($1, $2, 'E2E COP', 'COP', 'branch', $3, $3)`,
+    [ids.priceList, ids.organization, ids.user],
+  )
+
+  await client.query(
+    `INSERT INTO public.price_list_assignments (
+       organization_id, price_list_id, branch_id, legal_entity_id, created_by_user_id
+     ) VALUES ($1, $2, $3, $4, $5)`,
+    [ids.organization, ids.priceList, ids.branch, ids.legalEntity, ids.user],
+  )
+
+  await client.query(
+    `INSERT INTO public.price_list_product_prices (
+       organization_id, price_list_id, product_id, unit_price, created_by_user_id, updated_by_user_id
+     ) VALUES ($1, $2, $3, 12000, $4, $4)`,
+    [ids.organization, ids.priceList, ids.product, ids.user],
+  )
+
+  await client.query(
+    `INSERT INTO public.product_tax_profiles (
+       organization_id, product_id, legal_entity_id, price_tax_mode, updated_by_user_id
+     ) VALUES ($1, $2, $3, 'exclusive', $4)`,
+    [ids.organization, ids.product, ids.legalEntity, ids.user],
   )
 
   await client.query(

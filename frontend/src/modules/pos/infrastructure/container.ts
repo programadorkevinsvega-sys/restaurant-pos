@@ -29,6 +29,8 @@ import { HttpBranchRepository } from "@/modules/branches/infrastructure/http-bra
 import { HttpClient } from "@/shared/infrastructure/http-client"
 import { ManageVariants } from "@/modules/variants/application/manage-variants"
 import { HttpVariantsRepository } from "@/modules/variants/infrastructure/http-variants-repository"
+import { ManagePricing } from "@/modules/pricing/application/manage-pricing"
+import { HttpPricingRepository } from "@/modules/pricing/infrastructure/http-pricing-repository"
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL
 if (!apiUrl) {
@@ -49,6 +51,7 @@ export const posApplication = {
   corporateCatalog: new ManageCorporateCatalog(catalogRepository),
   recipes: new ManageRecipes(recipesRepository),
   variants: new ManageVariants(variantsRepository),
+  pricing: new ManagePricing(new HttpPricingRepository(http)),
   createProduct: new CreateProduct(catalogRepository),
   createCategory: new CreateCategory(catalogRepository),
   createOrder: new CreateOrder(orderRepository),
