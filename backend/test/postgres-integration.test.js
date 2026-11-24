@@ -1032,6 +1032,8 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "015_recipes_and_ingredients.sql",
         "016_recipe_component_integrity.sql",
         "017_product_variants_and_branch_options.sql",
+        "018_price_lists_taxes_promotions.sql",
+        "019_f23_runtime_pricing.sql",
       ],
     )
 
@@ -1332,7 +1334,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid)",
         ["Wrong legal entity for branch", "Integration test", "Para llevar", JSON.stringify([{ id: productId, quantity: 1 }]), null, null, secondBranchId, legalEntityIds[1], organizationStaffId],
       ),
-      (error) => error.code === "23503",
+      (error) => error.code === "42501" && error.message.includes("BRANCH_OR_LEGAL_ENTITY_ACCESS_DENIED"),
     )
 
     await assert.rejects(
@@ -1341,6 +1343,29 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         ["Unattributed direct insert", "Para llevar", 1, "pending"],
       ),
       (error) => error.code === "23514",
+    )
+
+    const priceList = await migrator.query(
+      "INSERT INTO public.price_lists (organization_id, name, currency_code, scope, created_by_user_id, updated_by_user_id) " +
+      "VALUES ($1, 'CI integration prices', 'COP', 'branch', $2, $2) RETURNING id",
+      [organizationId, organizationAdminId],
+    )
+    const priceListId = priceList.rows[0].id
+    await migrator.query(
+      "INSERT INTO public.price_list_assignments (organization_id, price_list_id, branch_id, legal_entity_id, created_by_user_id) " +
+      "VALUES ($1, $2, $3, $4, $5)",
+      [organizationId, priceListId, branchId, legalEntityIds[0], organizationAdminId],
+    )
+    const pricedProducts = [productId, variantProductId]
+    await migrator.query(
+      "INSERT INTO public.price_list_product_prices (organization_id, price_list_id, product_id, unit_price, created_by_user_id, updated_by_user_id) " +
+      "VALUES ($1, $2, $3, 12.50, $4, $4), ($1, $2, $5, 8.75, $4, $4)",
+      [organizationId, priceListId, productId, organizationAdminId, variantProductId],
+    )
+    await migrator.query(
+      "INSERT INTO public.product_tax_profiles (organization_id, product_id, legal_entity_id, price_tax_mode, updated_by_user_id) " +
+      "SELECT $1, product_id, $2, 'exclusive', $3 FROM unnest($4::uuid[]) AS products(product_id)",
+      [organizationId, legalEntityIds[0], organizationAdminId, pricedProducts],
     )
 
     const order = await runtime.query(
@@ -1452,7 +1477,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       [variantOrderId],
     )
     assert.equal(variantSnapshot.rows[0].product_name_at_order, "CI configurable product")
-    assert.equal(variantSnapshot.rows[0].price_at_order, "8.75")
+    assert.equal(variantSnapshot.rows[0].price_at_order, "8.7500")
     assert.deepEqual(variantSnapshot.rows[0].selected_option_ids.sort(), [mediumOptionId, cheeseOptionId].sort())
     assert.equal(variantSnapshot.rows[0].variant_selection_snapshot[0].name, "Mediana CI")
     assert.equal(variantSnapshot.rows[0].variant_selection_snapshot[1].name, "Queso CI")
@@ -1558,7 +1583,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       [orderId],
     )
     assert.equal(persistedOrder.rowCount, 1)
-    assert.equal(persistedOrder.rows[0].total_amount, "25.00")
+    assert.equal(persistedOrder.rows[0].total_amount, "25.0000")
     assert.equal(persistedOrder.rows[0].item_count, 1)
     assert.equal(persistedOrder.rows[0].branch_id, branchId)
     assert.equal(persistedOrder.rows[0].legal_entity_id, legalEntityIds[0])
@@ -1990,6 +2015,12 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "DELETE FROM public.orders WHERE id = ANY($1::uuid[])",
         [[orderId, deliveryOrderId, variantOrderId].filter(Boolean)],
       )
+    }
+    if (organizationId) {
+      await migrator.query("DELETE FROM public.price_list_assignments WHERE organization_id = $1", [organizationId])
+      await migrator.query("DELETE FROM public.price_list_product_prices WHERE organization_id = $1", [organizationId])
+      await migrator.query("DELETE FROM public.product_tax_profiles WHERE organization_id = $1", [organizationId])
+      await migrator.query("DELETE FROM public.price_lists WHERE organization_id = $1", [organizationId])
     }
     if (branchId || secondBranchId) {
       const branchIds = [branchId, secondBranchId].filter(Boolean)

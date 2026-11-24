@@ -44,6 +44,8 @@ import { createAdminRecipeRoutes } from "./modules/recipes/presentation/routes.j
 import { ProductOptionsUseCases } from "./modules/product-options/application/product-options-use-cases.js"
 import { PostgresProductOptionsRepository } from "./modules/product-options/infrastructure/postgres-product-options-repository.js"
 import { createAdminProductOptionRoutes, createPosProductOptionRoutes } from "./modules/product-options/presentation/routes.js"
+import { PostgresPricingRepository } from "./modules/pricing/infrastructure/postgres-pricing-repository.js"
+import { createPricingRoutes } from "./modules/pricing/presentation/routes.js"
 
 export async function createApp(config = loadConfig()) {
   const pool = createPostgresPool(config)
@@ -122,6 +124,8 @@ export async function createApp(config = loadConfig()) {
   app.use("/api/orders", createOrderRoutes(orders, requireUser, requireRole, limiters.writes))
   app.use("/api/admin/recipes", createAdminRecipeRoutes(recipes, requireUser, limiters.writes))
   app.use("/api/admin/product-options", createAdminProductOptionRoutes(productOptions, requireUser, limiters.writes))
+  const pricing = new PostgresPricingRepository(pool)
+  app.use("/api/admin/pricing", createPricingRoutes(pricing, requireUser, requireRole, limiters.writes))
 
   const operationRoutes = createOperationsRoutes(operations, requireUser, requireRole, limiters.writes)
   app.use("/api/tables", operationRoutes.tables)
