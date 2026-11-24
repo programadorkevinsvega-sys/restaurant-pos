@@ -21,6 +21,8 @@ const BUSINESS_RULE_ERRORS = [
   ["TAX_RULE_SCOPE_INVALID", 422, "TAX_RULE_SCOPE_INVALID", "Todas las reglas tributarias deben pertenecer a la entidad legal seleccionada."],
   ["INVALID_PROMOTION", 422, "PROMOTION_INVALID", "Revisa el tipo, valor, moneda, objetivos y periodo de vigencia de la promoción."],
   ["PROMOTION_BRANCH_SCOPE_INVALID", 422, "PROMOTION_BRANCH_SCOPE_INVALID", "Una promoción debe dirigirse únicamente a sucursales de la organización."],
+  ["PROMOTION_TARGET_REQUIRED", 422, "PROMOTION_TARGET_REQUIRED", "Selecciona al menos un producto o una categoría para definir a quién aplica la promoción."],
+  ["INVALID_PROMOTION_TARGETS", 422, "PROMOTION_TARGETS_INVALID", "La promoción contiene productos o categorías objetivo duplicados."],
 ]
 
 export function mapPostgresError(error) {
