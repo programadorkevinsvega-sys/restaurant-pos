@@ -221,6 +221,7 @@ test("N09-F2.2 incremento 2: configurar variantes, restringir por sucursal y con
   const cart = page.locator("aside").filter({ hasText: "Pedido actual" })
   await expect(cart).toContainText("Precio final por confirmar")
   await expect(cart).not.toContainText("$12000.00")
+  await expect(page.getByRole("main")).not.toContainText("$12000.00")
 
   const orderResponsePromise = page.waitForResponse((response) =>
     response.url().endsWith("/api/orders") && response.request().method() === "POST",
