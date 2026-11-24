@@ -26,9 +26,13 @@ const promotion = z.object({
  valid_from:z.iso.datetime(),valid_until:z.iso.datetime(),
  branch_ids:z.array(uuid).min(1).max(100).refine(v=>new Set(v).size===v.length),
  product_ids:z.array(uuid).max(500).default([]),category_ids:z.array(uuid).max(200).default([]),
-}).strict().refine(v=>Date.parse(v.valid_until)>Date.parse(v.valid_from))
+}).strict()
+ .refine(v=>Date.parse(v.valid_until)>Date.parse(v.valid_from))
  .refine(v=>v.discount_type!=="percentage"||v.discount_value<=100)
  .refine(v=>v.discount_type!=="fixed_amount"||Boolean(v.currency_code))
+ .refine(v=>v.product_ids.length>0||v.category_ids.length>0,{message:"La promoción debe tener al menos un producto o una categoría objetivo.",path:["product_ids"]})
+ .refine(v=>new Set(v.product_ids).size===v.product_ids.length,{message:"No repitas productos objetivo.",path:["product_ids"]})
+ .refine(v=>new Set(v.category_ids).size===v.category_ids.length,{message:"No repitas categorías objetivo.",path:["category_ids"]})
 
 export function createPricingRoutes(pricing, authenticate, authorize, writesLimiter) {
  const router=Router()
