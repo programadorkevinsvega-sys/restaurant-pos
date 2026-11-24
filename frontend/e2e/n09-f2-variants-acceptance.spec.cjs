@@ -216,6 +216,8 @@ test("N09-F2.2 incremento 2: configurar variantes, restringir por sucursal y con
   await dialog.getByLabel(modifierName + ": " + cheeseName).check()
   await dialog.getByRole("button", { name: "Agregar al pedido" }).click()
   await expect(page.getByText(cheeseName + " · " + mediumName, { exact: true })).toBeVisible()
+  await expect(page.getByText("Impuesto 5%", { exact: true })).toHaveCount(0)
+  await expect(page.getByRole("note")).toContainText("se calculan y validan en el servidor")
 
   const orderResponsePromise = page.waitForResponse((response) =>
     response.url().endsWith("/api/orders") && response.request().method() === "POST",
@@ -225,6 +227,15 @@ test("N09-F2.2 incremento 2: configurar variantes, restringir por sucursal y con
   expect(orderResponse.status()).toBe(201)
   const receipt = await orderResponse.json()
   expect(receipt.orderId).toBeTruthy()
+  expect(receipt.currency_code.trim()).toBe("COP")
+  expect(receipt.subtotal_before_discount).toBe("12500.0000")
+  expect(receipt.discount_total).toBe("0.0000")
+  expect(receipt.tax_total).toBe("2375.0000")
+  expect(receipt.total_amount).toBe("14875.0000")
+  expect(receipt.items[0].tax_breakdown).toEqual(expect.arrayContaining([
+    expect.objectContaining({ code: expect.stringMatching(/^IVA-/), price_mode: "exclusive", amount: 2375 }),
+  ]))
+  await expect(page.getByRole("status")).toContainText("Total COP 14875.0000")
 
   const listOrdersPromise = page.waitForResponse((response) => {
     const url = new URL(response.url())
