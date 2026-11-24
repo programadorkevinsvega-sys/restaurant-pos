@@ -86,7 +86,8 @@ export class PostgresOrderRepository extends OrderRepository {
                     'quantity', oi.quantity,
                     'list_unit_price', oi.list_unit_price_snapshot::text,
                     'unit_discount', oi.unit_discount_snapshot::text,
-                    'line_total', oi.price_at_order::text,
+                    'unit_total', oi.price_at_order::text,
+                    'line_total', (oi.price_at_order * oi.quantity)::text,
                     'tax_mode', oi.tax_mode_snapshot,
                     'tax_breakdown', oi.tax_breakdown_snapshot,
                     'promotion', oi.promotion_snapshot
