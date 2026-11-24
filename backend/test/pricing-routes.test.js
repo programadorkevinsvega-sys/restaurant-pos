@@ -141,6 +141,16 @@ test("pricing HTTP contract rejects invalid dates, duplicate tax components and 
     })
     assert.equal(duplicateBranches.status, 400)
 
+    const missingCommercialTarget = await fetch(baseUrl + "/api/admin/pricing/promotions", {
+      method: "POST", headers,
+      body: JSON.stringify({
+        name: "Promoción sin destino comercial", scope: "corporate", discount_type: "percentage", discount_value: 10,
+        valid_from: "2026-11-24T00:00:00.000Z", valid_until: "2026-11-25T00:00:00.000Z",
+        branch_ids: [branchId], product_ids: [], category_ids: [],
+      }),
+    })
+    assert.equal(missingCommercialTarget.status, 400)
+
     const invalidDateRange = await fetch(baseUrl + "/api/admin/pricing/price-lists", {
       method: "POST", headers,
       body: JSON.stringify({
