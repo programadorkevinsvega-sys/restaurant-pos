@@ -46,9 +46,6 @@ export function Cart({
     && legalEntitySelection.branchId === activeBranch.id
     ? legalEntitySelection.legalEntityId
     : ""
-  const subtotal = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
-  const tax = subtotal * 0.05
-  const total = subtotal + tax
 
   useEffect(() => {
     if (activeBranchId && legalEntities.length === 1) {
@@ -213,20 +210,9 @@ export function Cart({
         )}
       </div>
       <div className="border-t p-4">
-        <div className="mb-4 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Impuesto 5%</span>
-            <span>${tax.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between font-bold">
-            <span>Monto Total</span>
-            <span>${total.toFixed(2)}</span>
-          </div>
-        </div>
+        <p role="note" className="mb-4 text-xs text-muted-foreground">
+          Los precios, descuentos, impuestos y total definitivo se calculan y validan en el servidor al confirmar el pedido.
+        </p>
         <Button
           className="w-full bg-green-600 hover:bg-green-700 text-white h-12"
           onClick={handlePlaceOrder}
