@@ -39,6 +39,7 @@ export function PricingManagementPanel({
   const [promoName, setPromoName] = useState("")
   const [promoScope, setPromoScope] = useState<"corporate" | "branch">("branch")
   const [promoBranchIds, setPromoBranchIds] = useState<string[]>([])
+  const [promoBranchSelectionInitialized, setPromoBranchSelectionInitialized] = useState(false)
   const [promoProductId, setPromoProductId] = useState("")
   const [promoCategoryIds, setPromoCategoryIds] = useState<string[]>([])
   const [promoType, setPromoType] = useState<"percentage" | "fixed_amount">("percentage")
@@ -86,8 +87,11 @@ export function PricingManagementPanel({
   }, [activeProducts, promoProductId])
 
   useEffect(() => {
-    if (branchId && promoBranchIds.length === 0) setPromoBranchIds([branchId])
-  }, [branchId, promoBranchIds])
+    if (!promoBranchSelectionInitialized && branchId) {
+      setPromoBranchIds([branchId])
+      setPromoBranchSelectionInitialized(true)
+    }
+  }, [branchId, promoBranchSelectionInitialized])
 
   const run = async (action: () => Promise<unknown>, message: string) => {
     setBusy(true)
