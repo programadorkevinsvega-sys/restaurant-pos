@@ -716,6 +716,7 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         <PricingManagementPanel
           branches={branches}
           products={catalogProducts}
+          categories={catalogCategories}
           canManage={canManageCorporateStructure}
           application={posApplication.pricing}
         />
