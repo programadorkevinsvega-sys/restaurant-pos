@@ -12,6 +12,8 @@ test("pricing and order database rule failures become actionable HTTP errors", (
     ["BRANCH_OR_LEGAL_ENTITY_ACCESS_DENIED", 403, "BRANCH_LEGAL_ENTITY_ACCESS_DENIED"],
     ["INVALID_TAX_RULE", 422, "TAX_RULE_INVALID"],
     ["DUPLICATE_TAX_RULE", 422, "DUPLICATE_TAX_RULE"],
+    ["PROMOTION_TARGET_REQUIRED", 422, "PROMOTION_TARGET_REQUIRED"],
+    ["INVALID_PROMOTION_TARGETS", 422, "PROMOTION_TARGETS_INVALID"],
   ]
 
   for (const [message, status, code] of cases) {
