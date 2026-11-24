@@ -448,7 +448,24 @@ function POSWorkspace({ onLogout, user }: { onLogout: () => void; user: Authenti
         })),
       })
       setCartItems([])
-      toast({ title: "Pedido enviado", description: `Pedido #${receipt.orderId} enviado a cocina.` })
+      const currencyCode = receipt.currency_code.trim()
+      const taxBreakdown = receipt.items.flatMap((item) =>
+        item.tax_breakdown.map((tax) => `${tax.name} ${(tax.rate * 100).toFixed(4)}%: ${tax.amount}`),
+      )
+      const promotions = receipt.items
+        .filter((item) => item.promotion)
+        .map((item) => item.promotion?.name)
+      const receiptSummary = [
+        `Subtotal ${currencyCode} ${receipt.subtotal_before_discount}`,
+        `Descuentos ${currencyCode} ${receipt.discount_total}`,
+        `Impuestos ${currencyCode} ${receipt.tax_total}${taxBreakdown.length ? ` (${taxBreakdown.join(", ")})` : ""}`,
+        `Total ${currencyCode} ${receipt.total_amount}`,
+        ...(promotions.length ? [`Promociones: ${promotions.join(", ")}`] : []),
+      ].join(" · ")
+      toast({
+        title: "Pedido enviado",
+        description: `Pedido #${receipt.orderId} enviado a cocina. ${receiptSummary}`,
+      })
       return { success: true }
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudo crear el pedido."
