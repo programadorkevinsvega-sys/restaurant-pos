@@ -1514,7 +1514,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       "SELECT public.f23_set_product_tax_profile($1, $2, $3, $4::uuid[], $5)",
       [productId, legalEntityIds[0], "inclusive", [firstTaxRule.rows[0].id, secondTaxRule.rows[0].id], organizationAdminId],
     )
-    const persistedTaxProfile = await runtime.query(
+    const persistedTaxProfile = await migrator.query(
       "SELECT profile.price_tax_mode, count(assignment.tax_rule_id)::integer AS component_count " +
       "FROM public.product_tax_profiles profile LEFT JOIN public.product_tax_assignments assignment " +
       "ON assignment.organization_id = profile.organization_id AND assignment.product_id = profile.product_id " +
