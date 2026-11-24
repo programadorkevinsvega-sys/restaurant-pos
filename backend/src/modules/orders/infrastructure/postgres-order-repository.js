@@ -1,4 +1,5 @@
 import { AppError } from "../../../shared/domain/app-error.js"
+import { AppError } from "../../../shared/domain/app-error.js"
 import { queryPostgres } from "../../../shared/infrastructure/postgres.js"
 import { OrderRepository } from "../domain/order-repository.js"
 
