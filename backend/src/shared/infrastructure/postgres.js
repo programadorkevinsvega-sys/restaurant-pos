@@ -22,6 +22,11 @@ export async function queryPostgres(client, query, values = []) {
     return await client.query(query, values)
   } catch (error) {
     logger.error({ code: error.code ?? "UNKNOWN" }, "PostgreSQL operation failed")
+    const mappedError = mapPostgresError(error);
+    if (mappedError) {
+      Object.defineProperty(mappedError, "cause", { value: error });
+      throw mappedError;
+    }
     if (error.code === "55000" && String(error.message).includes("BRANCH_NOT_ACTIVE")) {
       throw new AppError(
         409,
