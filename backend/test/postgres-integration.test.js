@@ -1345,27 +1345,35 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       (error) => error.code === "23514",
     )
 
-    const priceList = await migrator.query(
-      "INSERT INTO public.price_lists (organization_id, name, currency_code, scope, created_by_user_id, updated_by_user_id) " +
-      "VALUES ($1, 'CI integration prices', 'COP', 'branch', $2, $2) RETURNING id",
-      [organizationId, organizationAdminId],
+    const priceList = await runtime.query(
+      "SELECT public.f23_create_price_list($1, $2, $3, $4) AS id",
+      ["CI integration prices", "COP", "branch", organizationAdminId],
     )
     const priceListId = priceList.rows[0].id
-    await migrator.query(
-      "INSERT INTO public.price_list_assignments (organization_id, price_list_id, branch_id, legal_entity_id, created_by_user_id) " +
-      "VALUES ($1, $2, $3, $4, $5)",
-      [organizationId, priceListId, branchId, legalEntityIds[0], organizationAdminId],
+    await runtime.query(
+      "SELECT public.f23_assign_price_list($1, $2, $3, $4)",
+      [priceListId, branchId, legalEntityIds[0], organizationAdminId],
     )
-    const pricedProducts = [productId, variantProductId]
-    await migrator.query(
-      "INSERT INTO public.price_list_product_prices (organization_id, price_list_id, product_id, unit_price, created_by_user_id, updated_by_user_id) " +
-      "VALUES ($1, $2, $3, 12.50, $4, $4), ($1, $2, $5, 8.75, $4, $4)",
-      [organizationId, priceListId, productId, organizationAdminId, variantProductId],
+    await runtime.query(
+      "SELECT public.f23_set_product_price($1, $2, $3, $4)",
+      [priceListId, productId, 12.50, organizationAdminId],
     )
-    await migrator.query(
-      "INSERT INTO public.product_tax_profiles (organization_id, product_id, legal_entity_id, price_tax_mode, updated_by_user_id) " +
-      "SELECT $1, product_id, $2, 'exclusive', $3 FROM unnest($4::uuid[]) AS products(product_id)",
-      [organizationId, legalEntityIds[0], organizationAdminId, pricedProducts],
+    await runtime.query(
+      "SELECT public.f23_set_product_price($1, $2, $3, $4)",
+      [priceListId, variantProductId, 8.75, organizationAdminId],
+    )
+    for (const pricedProductId of [productId, variantProductId]) {
+      await runtime.query(
+        "SELECT public.f23_set_product_tax_profile($1, $2, $3, $4::uuid[], $5)",
+        [pricedProductId, legalEntityIds[0], "exclusive", [], organizationAdminId],
+      )
+    }
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.f23_create_price_list($1, $2, $3, $4)",
+        ["Unauthorized CI list", "COP", "branch", organizationStaffId],
+      ),
+      (error) => error.code === "42501" && error.message.includes("Active organization owner required"),
     )
 
     const order = await runtime.query(
@@ -1493,6 +1501,52 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
       migrator.query("UPDATE public.order_items SET variant_selection_snapshot = '[]'::jsonb WHERE order_id = $1", [variantOrderId]),
       (error) => error.code === "23514",
     )
+
+    const firstTaxRule = await runtime.query(
+      "SELECT public.f23_create_tax_rule($1, $2, $3, $4, $5, $6) AS id",
+      [legalEntityIds[0], "CI-TAX-A", "CI tax component A", "VAT", 0.05, organizationAdminId],
+    )
+    const secondTaxRule = await runtime.query(
+      "SELECT public.f23_create_tax_rule($1, $2, $3, $4, $5, $6) AS id",
+      [legalEntityIds[0], "CI-TAX-B", "CI tax component B", "LOCAL", 0.10, organizationAdminId],
+    )
+    await runtime.query(
+      "SELECT public.f23_set_product_tax_profile($1, $2, $3, $4::uuid[], $5)",
+      [productId, legalEntityIds[0], "inclusive", [firstTaxRule.rows[0].id, secondTaxRule.rows[0].id], organizationAdminId],
+    )
+    const persistedTaxProfile = await runtime.query(
+      "SELECT profile.price_tax_mode, count(assignment.tax_rule_id)::integer AS component_count " +
+      "FROM public.product_tax_profiles profile LEFT JOIN public.product_tax_assignments assignment " +
+      "ON assignment.organization_id = profile.organization_id AND assignment.product_id = profile.product_id " +
+      "AND assignment.legal_entity_id = profile.legal_entity_id " +
+      "WHERE profile.organization_id = $1 AND profile.product_id = $2 AND profile.legal_entity_id = $3 " +
+      "GROUP BY profile.price_tax_mode",
+      [organizationId, productId, legalEntityIds[0]],
+    )
+    assert.equal(persistedTaxProfile.rows[0].price_tax_mode, "inclusive")
+    assert.equal(persistedTaxProfile.rows[0].component_count, 2)
+    await assert.rejects(
+      runtime.query(
+        "SELECT public.f23_set_product_tax_profile($1, $2, $3, $4::uuid[], $5)",
+        [productId, legalEntityIds[0], "exclusive", [firstTaxRule.rows[0].id, firstTaxRule.rows[0].id], organizationAdminId],
+      ),
+      (error) => error.message.includes("DUPLICATE_TAX_RULE"),
+    )
+    const corporatePromotion = await runtime.query(
+      "SELECT public.f23_create_promotion($1, $2, $3, $4, $5, $6, $7, $8::uuid[], $9::uuid[], $10::uuid[], $11) AS id",
+      ["CI targeted corporate promotion", "corporate", "percentage", 10, null,
+        new Date(Date.now() - 60_000).toISOString(), new Date(Date.now() + 86_400_000).toISOString(),
+        [secondBranchId], [productId], [], organizationAdminId],
+    )
+    const promotionTargets = await runtime.query(
+      "SELECT promotion.scope, array_agg(target.branch_id ORDER BY target.branch_id) AS branch_ids " +
+      "FROM public.promotions promotion JOIN public.promotion_branch_targets target " +
+      "ON target.organization_id = promotion.organization_id AND target.promotion_id = promotion.id " +
+      "WHERE promotion.id = $1 GROUP BY promotion.scope",
+      [corporatePromotion.rows[0].id],
+    )
+    assert.equal(promotionTargets.rows[0].scope, "corporate")
+    assert.deepEqual(promotionTargets.rows[0].branch_ids, [secondBranchId])
 
     const restrictMedium = await runtime.query(
       "SELECT public.set_branch_product_option_availability($1, $2, false, $3, $4) AS outcome",
