@@ -218,6 +218,9 @@ test("N09-F2.2 incremento 2: configurar variantes, restringir por sucursal y con
   await expect(page.getByText(cheeseName + " · " + mediumName, { exact: true })).toBeVisible()
   await expect(page.getByText("Impuesto 5%", { exact: true })).toHaveCount(0)
   await expect(page.getByRole("note")).toContainText("se calculan y validan en el servidor")
+  const cart = page.locator("aside").filter({ hasText: "Pedido actual" })
+  await expect(cart).toContainText("Precio final por confirmar")
+  await expect(cart).not.toContainText("$12000.00")
 
   const orderResponsePromise = page.waitForResponse((response) =>
     response.url().endsWith("/api/orders") && response.request().method() === "POST",
