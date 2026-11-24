@@ -1034,6 +1034,7 @@ test("PostgreSQL migrations and restricted runtime role", { skip: !integrationEn
         "017_product_variants_and_branch_options.sql",
         "018_price_lists_taxes_promotions.sql",
         "019_f23_runtime_pricing.sql",
+        "020_f23_explicit_promotion_targets.sql",
       ],
     )
 
