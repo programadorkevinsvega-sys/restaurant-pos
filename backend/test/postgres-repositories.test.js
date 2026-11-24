@@ -67,7 +67,8 @@ test("order creation returns the authoritative database receipt in the same tran
               quantity: 2,
               list_unit_price: "12500.0000",
               unit_discount: "625.0000",
-              line_total: "14131.2500",
+              unit_total: "14131.2500",
+              line_total: "28262.5000",
               tax_mode: "exclusive",
               tax_breakdown: [{
                 tax_rule_id: "tax-id",
@@ -122,7 +123,8 @@ test("order creation returns the authoritative database receipt in the same tran
       quantity: 2,
       list_unit_price: "12500.0000",
       unit_discount: "625.0000",
-      line_total: "14131.2500",
+      unit_total: "14131.2500",
+      line_total: "28262.5000",
       tax_mode: "exclusive",
       tax_breakdown: [{
         tax_rule_id: "tax-id",
