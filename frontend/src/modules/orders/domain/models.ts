@@ -28,6 +28,37 @@ export interface OrderReceipt {
   success: boolean
   orderId: string
   message?: string
+  currency_code: string
+  subtotal_before_discount: string
+  discount_total: string
+  tax_total: string
+  delivery_fee_snapshot: string | null
+  total_amount: string
+  items: Array<{
+    product_name: string
+    quantity: number
+    list_unit_price: string | null
+    unit_discount: string | null
+    unit_total: string
+    line_total: string
+    tax_mode: "inclusive" | "exclusive" | null
+    tax_breakdown: Array<{
+      tax_rule_id: string
+      code: string
+      name: string
+      rate: number
+      taxable_base: number
+      amount: number
+      price_mode: "inclusive" | "exclusive"
+    }>
+    promotion: {
+      id: string
+      name: string
+      discount_type: "percentage" | "fixed_amount"
+      discount_value: number
+      discount_amount: number
+    } | null
+  }>
 }
 
 export type OrderStatus = "pending" | "preparing" | "ready" | "completed" | "cancelled"

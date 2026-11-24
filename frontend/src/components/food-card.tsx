@@ -23,16 +23,11 @@ export function FoodCard({ product, onAddToCart }: FoodCardProps) {
           unoptimized
           className="object-cover"
         />
-        {product.discount_percentage > 0 && (
-          <div className="absolute top-2 left-2 bg-yellow-400 text-black px-2 py-1 rounded-md text-xs font-medium">
-            {product.discount_percentage}% Desc.
-          </div>
-        )}
       </div>
       <div className="p-3">
         <h3 className="text-sm font-medium mb-1">{product.name}</h3>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-green-600 font-bold">${product.price.toFixed(2)}</span>
+          <span className="text-xs text-muted-foreground">Precio e impuestos según lista de sucursal; se validan al confirmar.</span>
           <div className="flex items-center gap-1">
             <span className={`w-2 h-2 rounded-full ${product.type === "Veg" ? "bg-green-500" : "bg-red-500"}`}></span>
             <span className="text-xs text-gray-500">{product.type === "Veg" ? "Vegetariano" : "No Vegetariano"}</span>

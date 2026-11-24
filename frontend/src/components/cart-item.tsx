@@ -20,7 +20,7 @@ export function CartItem({ item, onUpdateQuantity, onRemoveItem }: CartItemProps
         <h4 className="mb-1 text-sm font-medium">{item.product.name}</h4>
         {optionSummary && <p className="mb-1 text-xs text-muted-foreground">{optionSummary}</p>}
         <div className="flex items-center justify-between gap-2">
-          <span className="font-bold text-green-600">${item.product.price.toFixed(2)}</span>
+          <span className="text-xs text-muted-foreground">Precio final por confirmar</span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" className="h-6 w-6 rounded-full bg-transparent" onClick={() => onUpdateQuantity(item.lineId, item.quantity - 1)} aria-label={`Reducir ${item.product.name}`}><Minus className="h-3 w-3" /></Button>
             <span className="text-sm font-medium">{item.quantity}</span>

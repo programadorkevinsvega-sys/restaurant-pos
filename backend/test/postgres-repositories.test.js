@@ -47,32 +47,124 @@ test("available branches exclude inactive users and non-installation organizatio
   assert.deepEqual(queryCall[1], ["staff-id"])
 })
 
-test("order creation sends trusted product, quantity and option identifiers to PostgreSQL", async () => {
-  let queryCall
-  const repository = new PostgresOrderRepository({
-    query: async (...args) => {
-      queryCall = args
-      return { rows: [{ order_id: "order-id" }] }
+test("order creation returns the authoritative database receipt in the same transaction", async () => {
+  const calls = []
+  const client = {
+    query: async (query, values) => {
+      calls.push([query, values])
+      if (query.includes("public.create_pos_order")) return { rows: [{ order_id: "order-id" }] }
+      if (query.includes("SELECT o.currency_code")) {
+        return {
+          rows: [{
+            currency_code: "COP",
+            subtotal_before_discount: "25000.0000",
+            discount_total: "1250.0000",
+            tax_total: "4512.5000",
+            delivery_fee_snapshot: "0.0000",
+            total_amount: "28262.5000",
+            items: [{
+              product_name: "Producto",
+              quantity: 2,
+              list_unit_price: "12500.0000",
+              unit_discount: "625.0000",
+              unit_total: "14131.2500",
+              line_total: "28262.5000",
+              tax_mode: "exclusive",
+              tax_breakdown: [{
+                tax_rule_id: "tax-id",
+                code: "IVA",
+                name: "IVA",
+                rate: 0.19,
+                taxable_base: 11875,
+                amount: 2256.25,
+                price_mode: "exclusive",
+              }],
+              promotion: { id: "promo-id", name: "Promoción", discount_type: "percentage", discount_value: 5, discount_amount: 625 },
+            }],
+          }],
+        }
+      }
+      return { rows: [] }
     },
-  })
+    release: () => calls.push(["RELEASE"]),
+  }
+  const repository = new PostgresOrderRepository({ connect: async () => client })
 
   const response = await repository.createOrder({
     table_number: "Mesa 1",
     customer_name: "Test",
     order_type: "Comer aquí",
-    total_amount: 0.01,
     legal_entity_id: "legal-entity-id",
-    items: [{ id: "product-id", quantity: 2, price: 0.01 }],
+    items: [{ id: "product-id", quantity: 2, option_ids: [] }],
   }, {
     activeBranchId: "branch-id",
     userId: "actor-user-id",
   })
 
-  assert.match(queryCall[0], /public\.create_pos_order/)
-  assert.deepEqual(JSON.parse(queryCall[1][3]), [{ id: "product-id", quantity: 2, option_ids: [] }])
-  assert.deepEqual(queryCall[1].slice(6), ["branch-id", "legal-entity-id", "actor-user-id"])
-  assert.equal(queryCall[1].some((value) => value === 0.01), false)
-  assert.deepEqual(response, { success: true, orderId: "order-id", message: "Pedido creado exitosamente" })
+  assert.equal(calls[0][0], "BEGIN")
+  assert.match(calls[1][0], /public\.create_pos_order/)
+  assert.deepEqual(JSON.parse(calls[1][1][3]), [{ id: "product-id", quantity: 2, option_ids: [] }])
+  assert.deepEqual(calls[1][1].slice(6), ["branch-id", "legal-entity-id", "actor-user-id"])
+  assert.match(calls[2][0], /SELECT o\.currency_code/)
+  assert.equal(calls[3][0], "COMMIT")
+  assert.equal(calls[4][0], "RELEASE")
+  assert.deepEqual(response, {
+    success: true,
+    orderId: "order-id",
+    message: "Pedido creado exitosamente",
+    currency_code: "COP",
+    subtotal_before_discount: "25000.0000",
+    discount_total: "1250.0000",
+    tax_total: "4512.5000",
+    delivery_fee_snapshot: "0.0000",
+    total_amount: "28262.5000",
+    items: [{
+      product_name: "Producto",
+      quantity: 2,
+      list_unit_price: "12500.0000",
+      unit_discount: "625.0000",
+      unit_total: "14131.2500",
+      line_total: "28262.5000",
+      tax_mode: "exclusive",
+      tax_breakdown: [{
+        tax_rule_id: "tax-id",
+        code: "IVA",
+        name: "IVA",
+        rate: 0.19,
+        taxable_base: 11875,
+        amount: 2256.25,
+        price_mode: "exclusive",
+      }],
+      promotion: { id: "promo-id", name: "Promoción", discount_type: "percentage", discount_value: 5, discount_amount: 625 },
+    }],
+  })
+})
+
+test("order creation rolls back if its authoritative receipt cannot be read", async () => {
+  const calls = []
+  const client = {
+    query: async (query) => {
+      calls.push(query)
+      if (query.includes("public.create_pos_order")) return { rows: [{ order_id: "order-id" }] }
+      if (query.includes("SELECT o.currency_code")) return { rows: [] }
+      return { rows: [] }
+    },
+    release: () => calls.push("RELEASE"),
+  }
+  const repository = new PostgresOrderRepository({ connect: async () => client })
+
+  await assert.rejects(
+    repository.createOrder({
+      table_number: "Mesa 1",
+      order_type: "Comer aquí",
+      legal_entity_id: "legal-entity-id",
+      items: [{ id: "product-id", quantity: 1, option_ids: [] }],
+    }, { activeBranchId: "branch-id", userId: "actor-user-id" }),
+    (error) => error.code === "ORDER_RECEIPT_UNAVAILABLE",
+  )
+  assert.ok(calls.includes("ROLLBACK"))
+  assert.ok(!calls.includes("COMMIT"))
+  assert.equal(calls.at(-1), "RELEASE")
 })
 
 test("table listing invokes the branch-scoped database function with authenticated context", async () => {

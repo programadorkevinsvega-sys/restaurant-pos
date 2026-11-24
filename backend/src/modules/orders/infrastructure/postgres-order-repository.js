@@ -47,26 +47,93 @@ export class PostgresOrderRepository extends OrderRepository {
   }
 
   async createOrder(order, actor) {
-    const { rows } = await queryPostgres(
-      this.pool,
-      `SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid) AS order_id`,
-      [
-        order.table_number,
-        order.customer_name ?? null,
-        order.order_type,
-        JSON.stringify(order.items.map(({ id, quantity, option_ids }) => ({ id, quantity, option_ids: option_ids ?? [] }))),
-        order.delivery_address ?? null,
-        order.delivery_phone ?? null,
-        actor.activeBranchId,
-        order.legal_entity_id,
-        actor.userId,
-      ],
-    )
-    const orderId = rows[0]?.order_id
-    if (!orderId) {
-      throw new AppError(500, "PERSISTENCE_ERROR", "No se pudo confirmar la creación del pedido.")
+    const client = await this.pool.connect()
+    let transactionStarted = false
+    try {
+      await client.query("BEGIN")
+      transactionStarted = true
+      const { rows } = await queryPostgres(
+        client,
+        `SELECT public.create_pos_order($1, $2, $3, $4::jsonb, $5, $6, $7::uuid, $8::uuid, $9::uuid) AS order_id`,
+        [
+          order.table_number,
+          order.customer_name ?? null,
+          order.order_type,
+          JSON.stringify(order.items.map(({ id, quantity, option_ids }) => ({ id, quantity, option_ids: option_ids ?? [] }))),
+          order.delivery_address ?? null,
+          order.delivery_phone ?? null,
+          actor.activeBranchId,
+          order.legal_entity_id,
+          actor.userId,
+        ],
+      )
+      const orderId = rows[0]?.order_id
+      if (!orderId) {
+        throw new AppError(500, "PERSISTENCE_ERROR", "No se pudo confirmar la creación del pedido.")
+      }
+
+      const receiptResult = await queryPostgres(
+        client,
+        `SELECT o.currency_code,
+                o.subtotal_before_discount::text AS subtotal_before_discount,
+                o.discount_total::text AS discount_total,
+                o.tax_total::text AS tax_total,
+                o.delivery_fee_snapshot::text AS delivery_fee_snapshot,
+                o.total_amount::text AS total_amount,
+                COALESCE(
+                  jsonb_agg(jsonb_build_object(
+                    'product_name', COALESCE(oi.product_name_at_order, 'Producto histórico'),
+                    'quantity', oi.quantity,
+                    'list_unit_price', oi.list_unit_price_snapshot::text,
+                    'unit_discount', oi.unit_discount_snapshot::text,
+                    'unit_total', oi.price_at_order::text,
+                    'line_total', (oi.price_at_order * oi.quantity)::text,
+                    'tax_mode', oi.tax_mode_snapshot,
+                    'tax_breakdown', oi.tax_breakdown_snapshot,
+                    'promotion', oi.promotion_snapshot
+                  ) ORDER BY oi.created_at, oi.id) FILTER (WHERE oi.id IS NOT NULL),
+                  '[]'::jsonb
+                ) AS items
+         FROM public.orders o
+         LEFT JOIN public.order_items oi ON oi.order_id = o.id
+         WHERE o.id = $1
+           AND o.branch_id = $2
+           AND EXISTS (
+             SELECT 1 FROM public.branch_user_assignments assignment
+             WHERE assignment.organization_id = o.organization_id
+               AND assignment.branch_id = o.branch_id
+               AND assignment.user_id = $3
+           )
+         GROUP BY o.id`,
+        [orderId, actor.activeBranchId, actor.userId],
+      )
+      const receipt = receiptResult.rows[0]
+      if (!receipt) {
+        throw new AppError(500, "ORDER_RECEIPT_UNAVAILABLE", "El pedido se creó, pero no fue posible recuperar su desglose. La operación se revertirá.")
+      }
+
+      await client.query("COMMIT")
+      transactionStarted = false
+      return {
+        success: true,
+        orderId,
+        message: "Pedido creado exitosamente",
+        currency_code: receipt.currency_code,
+        subtotal_before_discount: receipt.subtotal_before_discount,
+        discount_total: receipt.discount_total,
+        tax_total: receipt.tax_total,
+        delivery_fee_snapshot: receipt.delivery_fee_snapshot,
+        total_amount: receipt.total_amount,
+        items: receipt.items,
+      }
+    } catch (error) {
+      if (transactionStarted) {
+        await client.query("ROLLBACK").catch(() => {})
+      }
+      throw error
+    } finally {
+      client.release()
     }
-    return { success: true, orderId, message: "Pedido creado exitosamente" }
   }
 
   async updateStatus(id, status, branchId, userId) {
